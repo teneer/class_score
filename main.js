@@ -2,12 +2,12 @@
 const SUPABASE_URL = 'https://yzprxcrczhddcoimrtco.supabase.coYOUR_SUPABASE_URL';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6cHJ4Y3JjemhkZGNvaW1ydGNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNzk1MjAsImV4cCI6MjA3MTk1NTUyMH0.ECFX8-GSBUbFeNcC9Iu_X6mAAlLyz2BGUlYW0pw139gYOUR_SUPABASE_ANON_KEY';
 
-// 이 코드는 라이브러리가 로드된 후에 실행됩니다.
+// 이 코드는 Supabase 라이브러리가 로드된 후에 실행됩니다.
 function initializeApp() {
     const { createClient } = supabase;
     const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // 모둠 목록 (예시)
+    // 모둠 목록
     const teams = [
         { id: 1, name: '1 모둠' },
         { id: 2, name: '2 모둠' },
