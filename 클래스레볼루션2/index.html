@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#efeee3">
+  <title>Class123 - 클래스123 복원 웹</title>
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/layout.css">
+  <link rel="stylesheet" href="styles/students.css">
+  <link rel="stylesheet" href="styles/growth.css">
+  <link rel="stylesheet" href="styles/checklist.css">
+  <link rel="stylesheet" href="styles/tools.css">
+  <link rel="stylesheet" href="styles/effects.css">
+</head>
+<body>
+  <div class="stage-viewport" id="stage-viewport">
+    <div class="stage-16x9" id="stage-16x9">
+      <div class="app-shell">
+        <!-- 상단 헤더 (원본 클래스123 상단 바 충실 복원) -->
+        <header class="app-header">
+          <div class="header-left">
+            <button class="icon-btn" type="button" id="btn-home" title="학생 목록 홈" aria-label="학생 목록 홈">
+              <i class="sp-icon sp-home" aria-hidden="true"></i>
+            </button>
+            <button class="class-title-btn" type="button" id="btn-class-title" title="학급 설정 열기">
+              <span id="header-class-name">우리반 5기</span>
+            </button>
+            <button class="icon-btn" type="button" id="btn-header-settings" title="학급 설정" aria-label="학급 설정">
+              <i class="sp-icon sp-gear" aria-hidden="true"></i>
+            </button>
+          </div>
+
+          <nav class="header-tabs" aria-label="상단 탭">
+            <button class="header-tab is-active" type="button" data-quick-tab="students">
+              <i class="sp-icon sp-diamond" aria-hidden="true"></i>
+              <span>수업화면</span>
+            </button>
+            <button class="header-tab" type="button" data-quick-tab="growth">
+              <i class="sp-icon sp-egg-mini" aria-hidden="true"></i>
+              <span>학급점수</span>
+            </button>
+            <button class="header-tab" type="button" data-quick-tab="checklist">
+              <i class="sp-icon sp-checklist" aria-hidden="true" style="transform:scale(0.76);"></i>
+              <span>체크표</span>
+            </button>
+            <button class="header-tab" type="button" data-quick-tab="bulk">
+              <i class="sp-icon sp-report-tab" aria-hidden="true"></i>
+              <span>이력·관리</span>
+            </button>
+          </nav>
+
+          <div class="header-right">
+            <!-- 학생화면·자리배치 전용 표시 옵션 (다른 화면에서는 자동 숨김) -->
+            <div class="header-view-controls" id="header-view-controls">
+              <label class="header-check">
+                <input type="checkbox" id="hdr-show-numbers" checked>
+                <span>번호 표시</span>
+              </label>
+              <label class="header-check">
+                <input type="checkbox" id="hdr-show-avatars" checked>
+                <span>아바타 표시</span>
+              </label>
+              <select class="header-select" id="hdr-score-mode" title="점수 표시 방식">
+                <option value="net">쑥쑥점수</option>
+                <option value="pos">으쓱점수</option>
+                <option value="neg">머쓱점수</option>
+                <option value="both">으쓱+머쓱</option>
+              </select>
+              <select class="header-select" id="hdr-sort-by" title="학생 정렬">
+                <option value="number">번호순</option>
+                <option value="name">이름순</option>
+                <option value="score-desc">점수 높은순</option>
+                <option value="score-asc">점수 낮은순</option>
+              </select>
+            </div>
+            <span class="db-badge" id="db-status" title="로컬 IndexedDB 저장 상태">
+              <i class="db-dot"></i>로컬 저장
+            </span>
+            <button class="header-pill-btn" type="button" id="btn-backup" title="JSON 전체 백업">백업</button>
+            <button class="header-pill-btn" type="button" id="btn-restore" title="JSON 백업 복원">복원</button>
+            <input type="file" id="restore-file-input" accept="application/json,.json" hidden>
+          </div>
+        </header>
+
+        <div class="app-body">
+          <!-- 좌측 사이드바 (화면보기 아래 학생화면[새싹] · 자리배치[격자] · 학급점수[황금알]) -->
+          <aside class="side-rail" aria-label="수업 도구 메뉴">
+            <div class="rail-group">
+              <span class="rail-caption">화면보기</span>
+              <button class="rail-btn rail-btn-students is-active" type="button" data-mode="students" title="학생화면 (목록보기)">
+                <span class="award-circle"><i class="sp-icon sp-sprout-white" aria-hidden="true"></i></span>
+                <span class="rail-label">학생화면</span>
+              </button>
+              <button class="rail-btn" type="button" data-mode="seats" title="자리배치 화면">
+                <i class="sp-icon sp-grid" aria-hidden="true"></i>
+                <span class="rail-label">자리배치</span>
+              </button>
+              <button class="rail-btn" type="button" data-mode="growth" title="학급점수 (황금알 별길)">
+                <i class="sp-icon sp-egg-nav" aria-hidden="true"></i>
+                <span class="rail-label">학급점수</span>
+              </button>
+            </div>
+
+            <div class="rail-group">
+              <span class="rail-caption">수업도구</span>
+              <button class="rail-btn" type="button" data-mode="timer" title="수업 타이머 및 스톱워치">
+                <i class="sp-icon sp-hourglass" aria-hidden="true"></i>
+                <span class="rail-label">타이머</span>
+              </button>
+              <button class="rail-btn has-new" type="button" data-mode="picker" title="랜덤 뽑기 · 섞기 · 그룹 뽑기 · 룰렛 · 사다리">
+                <span class="new-badge">NEW</span>
+                <i class="sp-icon sp-clover" aria-hidden="true"></i>
+                <span class="rail-label">뽑기</span>
+              </button>
+              <button class="rail-btn" type="button" data-mode="checklist" title="체크표 (명렬 기록)">
+                <i class="sp-icon sp-checklist" aria-hidden="true"></i>
+                <span class="rail-label">체크표</span>
+              </button>
+              <button class="rail-btn" type="button" data-mode="bulk" title="점수 일괄 관리 · 이력 되돌리기 · 초기화">
+                <i class="sp-icon sp-sprout-green" aria-hidden="true"></i>
+                <span class="rail-label">점수관리</span>
+              </button>
+            </div>
+
+            <div class="rail-utilities">
+              <button class="rail-util-btn" type="button" id="btn-rail-settings" title="학급 및 앱 설정" aria-label="설정">
+                <i class="sp-icon sp-gear" aria-hidden="true"></i>
+              </button>
+              <button class="rail-util-btn" type="button" id="btn-curtain" title="화면 가리기 (프로젝터 커튼)" aria-label="화면 가리기" aria-pressed="false">
+                <i class="sp-icon sp-eye" aria-hidden="true"></i>
+              </button>
+              <button class="rail-util-btn" type="button" id="btn-sound" title="효과음 켜기/끄기" aria-label="효과음" aria-pressed="true">
+                <i class="sp-icon sp-speaker" aria-hidden="true"></i>
+              </button>
+            </div>
+          </aside>
+
+          <!-- 메인 전체화면 워크스페이스 (모드 전환 방식) -->
+          <main class="main-workspace" id="main-workspace">
+            <section class="mode-view is-active" id="view-students" aria-label="학생 목록 및 자리배치"></section>
+            <section class="mode-view" id="view-growth" aria-label="학급점수 황금알"></section>
+            <section class="mode-view" id="view-checklist" aria-label="체크표"></section>
+            <section class="mode-view" id="view-picker" aria-label="수업도구 뽑기"></section>
+            <section class="mode-view" id="view-timer" aria-label="타이머"></section>
+            <section class="mode-view" id="view-bulk" aria-label="점수 일괄 관리"></section>
+          </main>
+        </div>
+      </div>
+
+      <!-- 학급 설정 모달 (16:9 스테이지 내부 배치로 비율 동기화) -->
+      <div id="settings-dialog" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
+        <form class="dialog-card" id="settings-form">
+          <div class="dialog-header">
+            <h2 id="settings-dialog-title">학급 및 앱 설정</h2>
+            <button type="button" class="dialog-close" data-close-dialog>&times;</button>
+          </div>
+          <div class="dialog-body">
+            <label class="field-label">
+              <span>학급 이름</span>
+              <input type="text" name="className" maxlength="40" required placeholder="예: 송송반 5기">
+            </label>
+            <label class="field-label">
+              <span>우리 반의 한 마디</span>
+              <input type="text" name="motto" maxlength="80" placeholder="우리 반의 한 마디를 작성해주세요!">
+            </label>
+            <div class="field-row">
+              <label class="field-label">
+                <span>황금알 1개당 별길 칸 수</span>
+                <input type="number" name="starsPerEgg" min="5" max="30" value="10">
+              </label>
+              <label class="field-label">
+                <span>효과음</span>
+                <select name="soundEnabled">
+                  <option value="true">켜기</option>
+                  <option value="false">끄기</option>
+                </select>
+              </label>
+            </div>
+            <div class="settings-divider"></div>
+            <div class="settings-danger-zone">
+              <p class="settings-hint">데이터는 현재 브라우저의 IndexedDB에 자동 저장되며, 같은 브라우저의 다른 탭과 실시간으로 동기화됩니다.</p>
+              <div class="settings-btn-row">
+                <button type="button" class="btn-outline" id="btn-settings-backup">JSON 전체 백업</button>
+                <button type="button" class="btn-outline" id="btn-settings-restore">JSON 백업 복원</button>
+                <button type="button" class="btn-danger-outline" id="btn-reset-demo">기본 샘플 데이터로 초기화</button>
+              </div>
+            </div>
+          </div>
+          <div class="dialog-footer">
+            <button type="button" class="btn-ghost" data-close-dialog>취소</button>
+            <button type="submit" class="btn-yellow">저장하기</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 공통 모달 컨테이너 (동적 생성 모달용) -->
+      <div id="modal-root"></div>
+
+      <!-- 점수 부여 풀페이지 모달 (으쓱 파랑 / 머쓱 분홍) -->
+      <div id="score-composer-overlay" class="composer-overlay" hidden></div>
+
+      <!-- 전역 상세 연출 오버레이 (상점/감점/황금알/목표달성) -->
+      <div id="fx-stage" class="fx-stage" hidden></div>
+
+      <!-- 하단 토스트 피드백 (명렬/타 탭 수신용) -->
+      <div id="toast-dock" class="toast-dock" aria-live="polite"></div>
+
+      <!-- 화면 가리기 커튼 -->
+      <div id="screen-curtain" class="screen-curtain" hidden>
+        <div class="curtain-inner">
+          <div class="curtain-icon">👀</div>
+          <p>화면이 가려져 있습니다</p>
+          <button type="button" class="btn-yellow" id="btn-curtain-off">화면 다시 보기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 초기 렌더 직전 16:9 전체 화면 단일 비율 스케일 적용 -->
+  <script>
+    (function () {
+      function fitStage() {
+        var el = document.getElementById('stage-16x9');
+        if (!el) return;
+        var s = Math.min(window.innerWidth / 1600, window.innerHeight / 900);
+        el.style.setProperty('--stage-scale', String(Math.max(0.1, s)));
+      }
+      fitStage();
+      window.addEventListener('resize', fitStage);
+    })();
+  </script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

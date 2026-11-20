@@ -1,0 +1,613 @@
+/* 클래스123 복원 웹 — 공통 스타일 및 디자인 토큰 */
+:root {
+  --bg-cream: #efeee3;
+  --bg-cream-deep: #e6e4d8;
+  --bg-white: #ffffff;
+  --border-warm: #dedad0;
+  --border-soft: #e7e4da;
+
+  --text-main: #4a4235;
+  --text-sub: #887f70;
+  --text-muted: #a69e90;
+
+  --yellow-tab: #ffe838;
+  --yellow-select: #fff652;
+  --yellow-btn: #ffd633;
+  --yellow-btn-hover: #f5c61a;
+
+  --blue-score: #2396d4;
+  --blue-award: #198bd2;
+  --blue-soft: #bdd6f0;
+  --blue-header: #93bfe6;
+
+  --red-penalty: #e73b59;
+  --pink-soft: #f2bec7;
+  --pink-header: #e88b9b;
+
+  --brown-group: #7e5c44;
+  --brown-dark: #5f422e;
+  --green-leaf: #599c18;
+  --green-award: #78c832;
+  --sky-cyan: #44d6ed;
+
+  --header-h: 48px;
+  --rail-w: 66px;
+
+  --shadow-sm: 0 2px 6px rgba(74, 66, 53, 0.08);
+  --shadow-md: 0 8px 24px rgba(32, 26, 18, 0.16);
+  --shadow-lg: 0 18px 48px rgba(15, 12, 8, 0.28);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+  color: var(--text-main);
+  font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+input, textarea, select, button {
+  font: inherit;
+  color: inherit;
+}
+
+input, textarea {
+  user-select: text;
+}
+
+button {
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  white-space: nowrap;
+  word-break: keep-all;
+  flex-shrink: 0;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* 공통 버튼 스타일 */
+.btn-yellow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: 7px;
+  background: var(--yellow-btn);
+  color: #4b3808;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 2px 0 #e2b40f;
+  transition: background 0.14s, transform 0.08s;
+}
+.btn-yellow:hover { background: var(--yellow-btn-hover); }
+.btn-yellow:active { transform: translateY(1px); }
+
+.btn-blue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: 7px;
+  background: var(--blue-award);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  transition: filter 0.14s;
+}
+.btn-blue:hover { filter: brightness(1.07); }
+
+.btn-red {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: 7px;
+  background: var(--red-penalty);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  transition: filter 0.14s;
+}
+.btn-red:hover { filter: brightness(1.07); }
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: 1px solid #cbc5b8;
+  background: #fff;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.14s, border-color 0.14s;
+}
+.btn-outline:hover { background: #f8f6f0; border-color: #b4ad9e; }
+
+.btn-danger-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: 1px solid #f0b2bc;
+  background: #fff6f7;
+  color: #c92d49;
+  font-size: 13px;
+  font-weight: 600;
+}
+.btn-danger-outline:hover { background: #ffe8ec; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 7px;
+  color: var(--text-sub);
+  font-size: 13px;
+  font-weight: 600;
+}
+.btn-ghost:hover { background: rgba(74, 66, 53, 0.07); color: var(--text-main); }
+
+/* 공통 다이얼로그 / 모달 */
+.c123-dialog {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  max-width: min(94vw, 680px);
+  max-height: 92dvh;
+  overflow: visible;
+}
+.c123-dialog::backdrop {
+  background: rgba(18, 22, 28, 0.52);
+  backdrop-filter: blur(2px);
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 600;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(16, 20, 26, 0.56);
+  backdrop-filter: blur(2px);
+  animation: fade-in 0.15s ease-out;
+}
+
+.dialog-card {
+  width: 540px;
+  max-width: 92%;
+  max-height: 820px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  color: var(--text-main);
+}
+.dialog-card.is-wide { width: 820px; }
+.dialog-card.is-xl { width: 1020px; }
+.dialog-card.is-dark {
+  background: #5c5b59;
+  color: #fff;
+  border-radius: 14px;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.dialog-header h2, .dialog-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #6b573f;
+}
+.dialog-close {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1;
+  color: #8c8476;
+}
+.dialog-close:hover { background: #f2efe7; color: #3c342a; }
+
+.dialog-body {
+  padding: 18px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 13px 20px;
+  border-top: 1px solid var(--border-soft);
+  background: #faf9f4;
+}
+
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #635847;
+}
+.field-label input,
+.field-label select,
+.field-label textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #d5cfc2;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 400;
+  outline: none;
+}
+.field-label input:focus,
+.field-label select:focus,
+.field-label textarea:focus {
+  border-color: var(--blue-award);
+  box-shadow: 0 0 0 3px rgba(25, 139, 210, 0.14);
+}
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* 아바타 공통 렌더링 */
+.avatar-img {
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* 2프레임 움직이는 아바타 (400x250 가로 2프레임: 좌측 0%, 우측 100%) */
+.avatar-fx-sprite {
+  display: inline-block;
+  width: 120px;
+  height: 150px;
+  background-repeat: no-repeat;
+  background-size: 200% 100%;
+  background-position: 0% 0%;
+  animation: avatar-fx-dance 0.55s infinite;
+}
+.avatar-fx-sprite.is-finite {
+  animation: avatar-fx-dance 0.44s 5;
+}
+
+@keyframes avatar-fx-dance {
+  0%, 49.9% { background-position: 0% 0%; }
+  50%, 100% { background-position: 100% 0%; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 원본 스프라이트 아이콘 */
+.sp-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  background-repeat: no-repeat;
+  vertical-align: middle;
+  font-style: normal;
+}
+
+.sp-home {
+  width: 26px;
+  height: 26px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 380px 570px;
+  background-position: -319px -108px;
+  transform: scale(0.85);
+}
+.sp-gear {
+  width: 25px;
+  height: 25px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 380px 570px;
+  background-position: -301px -11px;
+  transform: scale(0.76);
+}
+.sp-grid {
+  width: 28px;
+  height: 28px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 285px 427.5px;
+  background-position: -7px -118px;
+}
+.rail-btn.is-active .sp-grid,
+.rail-btn:hover .sp-grid {
+  background-position: -45px -118px;
+}
+.sp-egg-nav {
+  width: 28px;
+  height: 28px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 285px 427.5px;
+  background-position: -7px -79px;
+}
+.rail-btn.is-active .sp-egg-nav,
+.rail-btn:hover .sp-egg-nav {
+  background-position: -45px -79px;
+}
+.sp-hourglass {
+  width: 26px;
+  height: 28px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 285px 427.5px;
+  background-position: -83px -118px;
+}
+.rail-btn.is-active .sp-hourglass,
+.rail-btn:hover .sp-hourglass {
+  background-position: -120px -118px;
+}
+.sp-clover {
+  width: 28px;
+  height: 28px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 285px 427.5px;
+  background-position: -83px -79px;
+}
+.rail-btn.is-active .sp-clover,
+.rail-btn:hover .sp-clover {
+  background-position: -119px -5px;
+}
+.sp-checklist {
+  width: 28px;
+  height: 28px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 266px 399px;
+  background-position: -6px -238px;
+}
+.rail-btn.is-active .sp-checklist,
+.rail-btn:hover .sp-checklist {
+  background-position: -41px -207px;
+}
+.sp-sprout-green {
+  width: 28px;
+  height: 26px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 266px 399px;
+  background-position: -105px -42px;
+}
+.rail-btn.is-active .sp-sprout-green,
+.rail-btn:hover .sp-sprout-green {
+  background-position: -105px -74px;
+}
+.sp-sprout-white {
+  width: 22px;
+  height: 18px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 247px 370.5px;
+  background-position: -102px -70px;
+  filter: brightness(0) invert(1);
+}
+.sp-eye {
+  width: 30px;
+  height: 24px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 380px 570px;
+  background-position: -248px -61px;
+  transform: scale(0.8);
+}
+#btn-curtain[aria-pressed="true"] .sp-eye {
+  background-position: -248px -15px;
+}
+.sp-speaker {
+  width: 28px;
+  height: 28px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 380px 570px;
+  background-position: -11px -249px;
+  transform: scale(0.8);
+}
+#btn-sound[aria-pressed="false"] .sp-speaker {
+  background-position: -251px -188px;
+}
+.sp-egg-mini {
+  width: 22px;
+  height: 27px;
+  background-image: url('../assets/visuals/sp_board_tree.png');
+  background-size: 118px 103px;
+  background-position: -96px 0;
+}
+/* 학생목록/자리배치 하단 바 전용 원본 황금알 & 작은 별 스프라이트 (sp_board_tree.png 실측) */
+.sp-egg-bottom {
+  width: 26px;
+  height: 31px;
+  background-image: url('../assets/visuals/sp_board_tree.png');
+  /* 640x560에서 x=521, y=0, w=112, h=134 → 0.232배 */
+  background-size: 148.6px 130px;
+  background-position: -120.9px 0;
+}
+.sp-mini-star {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background-image: url('../assets/visuals/sp_board_tree.png');
+  /* 640x560에서 좌상단 별 x=10, y=11, w=23, h=22 → 0.609배 */
+  background-size: 389.6px 340.9px;
+  background-position: -6.1px -6.7px;
+  background-repeat: no-repeat;
+  filter: grayscale(1) opacity(0.28);
+  transition: filter 0.16s, transform 0.16s;
+}
+.sp-mini-star.is-filled {
+  filter: none;
+}
+.sp-star-blue {
+  width: 26px;
+  height: 26px;
+  background-image: url('../assets/visuals/sp_board_images.png');
+  background-size: 664px 232px;
+  background-position: -560px -28px;
+}
+.sp-cloud-red {
+  width: 26px;
+  height: 26px;
+  background-image: url('../assets/visuals/sp_board_images.png');
+  background-size: 664px 232px;
+  background-position: -604px -20px;
+}
+.sp-sprout-mini {
+  width: 16px;
+  height: 15px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 152px 228px;
+  background-position: -60px -42px;
+}
+
+/* 추가 원본 스프라이트 아이콘 (이모지 대체용) */
+.sp-diamond {
+  width: 22px;
+  height: 22px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 228px 342px;
+  background-position: -120px -74px;
+}
+.sp-report-tab {
+  width: 22px;
+  height: 20px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 228px 342px;
+  background-position: -28px -122px;
+}
+.sp-all-select {
+  width: 16px;
+  height: 16px;
+  background-image: url('../assets/visuals/sp_board_images.png');
+  background-size: 830px 290px;
+  background-position: -460px -2px;
+}
+.sp-history-list {
+  width: 18px;
+  height: 18px;
+  background-image: url('../assets/visuals/sp_board_images.png');
+  background-size: 830px 290px;
+  background-position: -582px -4px;
+}
+.sp-attend-badge {
+  width: 28px;
+  height: 28px;
+  background-image: url('../assets/visuals/sp_board_images.png');
+  background-size: 830px 290px;
+  background-position: -520px 0;
+}
+.sp-reset-arrow {
+  width: 15px;
+  height: 15px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 228px 342px;
+  background-position: -173px -29px;
+}
+.sp-seat-edit-icon {
+  width: 22px;
+  height: 22px;
+  background-image: url('../assets/visuals/sp_board_buttons.png');
+  background-size: 200px 118.4px;
+  background-position: -37px -7px;
+}
+.sp-seat-flip-icon {
+  width: 18px;
+  height: 16px;
+  background-image: url('../assets/visuals/sp_board_buttons.png');
+  background-size: 500px 296px;
+  background-position: -194px -20px;
+}
+.sp-clover-brown {
+  width: 18px;
+  height: 18px;
+  background-image: url('../assets/visuals/sp_board_images.png');
+  background-size: 830px 290px;
+  background-position: -558px -43px;
+}
+.sp-trophy-gold {
+  width: 72px;
+  height: 82px;
+  background-image: url('../assets/visuals/sp_board_images.png');
+  background-size: 1328px 464px;
+  background-position: -612px 0;
+}
+.sp-goal-coin {
+  width: 24px;
+  height: 24px;
+  background-image: url('../assets/visuals/sp_board_tree.png');
+  background-size: 320px 280px;
+  background-position: 0 -49px;
+}
+.sp-goal-heart {
+  width: 24px;
+  height: 24px;
+  background-image: url('../assets/visuals/sp_board_tree.png');
+  background-size: 320px 280px;
+  background-position: 0 -75px;
+}
+.sp-star-yellow {
+  width: 20px;
+  height: 20px;
+  background-image: url('../assets/visuals/sp_effect_wow.png');
+  background-size: 210px 161px;
+  background-position: -166px -16px;
+}
+.sp-pencil-mini {
+  width: 14px;
+  height: 14px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 228px 342px;
+  background-position: -191px -41px;
+}
+
+/* 커스텀 스크롤바 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(120, 110, 94, 0.28); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(120, 110, 94, 0.45); }

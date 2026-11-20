@@ -1,0 +1,409 @@
+/* 체크표 (명렬 기록 화면 — 원본 체크표 기능.png 충실 복원) */
+.checklist-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-cream);
+}
+
+/* 상단 주간 날짜 바 — 창 축소 시 가로 스크롤로 버튼 모양 유지 */
+.checklist-topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  background: #ebe8dc;
+  border-bottom: 1px solid #dfdace;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.week-arrow-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #aba394;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+.week-arrow-btn:hover { background: #7f7769; }
+
+.week-day-btn {
+  position: relative;
+  min-width: 62px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f5f3ea;
+  border: 1px solid #ded9cb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: #7c7467;
+  transition: background 0.14s;
+}
+.week-day-btn strong { font-size: 13px; color: #544b3d; }
+.week-day-btn:hover { background: #fff; }
+.week-day-btn.is-active {
+  background: #f7cf2c;
+  border-color: #d9ae10;
+  color: #4f3a05;
+}
+.week-day-btn.is-active strong { color: #433003; }
+.week-day-badge {
+  position: absolute;
+  top: -5px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: #ffe138;
+  border: 1px solid #d4af14;
+  color: #543e05;
+  font-size: 10px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.checklist-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 본문 매트릭스 전체 폭 (하단/별도 학생 영역 제거, 가로·세로 자연 스크롤) */
+.checklist-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 20px;
+  overflow: hidden;
+}
+
+.checklist-matrix-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+
+.checklist-matrix {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  width: max-content;
+  min-width: 100%;
+}
+
+/* 좌측 학생목록 열 */
+.cl-student-col {
+  width: 210px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cl-student-head {
+  height: 82px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 4px 10px;
+}
+.cl-student-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #4b4235;
+}
+.cl-student-head label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #776f61;
+  cursor: pointer;
+}
+
+.cl-student-row {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 5px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #494134;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.cl-student-row:hover,
+.cl-student-row.is-hovered {
+  background: #e1ded2;
+}
+.cl-student-row.is-picked {
+  background: var(--yellow-select);
+  border-color: #dec128;
+}
+.cl-st-num {
+  color: #b07f3a;
+  font-size: 12px;
+  min-width: 20px;
+}
+.hide-numbers .cl-st-num { display: none; }
+.cl-st-score {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--blue-score);
+  font-weight: 800;
+}
+
+/* 항목 열 (체크 / ◎○△× / 5~1 / Score) */
+.cl-item-col {
+  min-width: 178px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.cl-item-col.type-check { min-width: 138px; }
+.cl-item-col.type-score { min-width: 140px; }
+
+.cl-item-head {
+  height: 82px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.cl-item-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 11px;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.cl-item-memo {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+  color: #847c6e;
+  padding: 2px 4px;
+  border-bottom: 1px dashed transparent;
+}
+.cl-item-memo:focus {
+  outline: none;
+  border-bottom-color: #b4ac9e;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.cl-filter-strip {
+  display: flex;
+  gap: 4px;
+  justify-content: space-between;
+}
+.cl-filter-btn {
+  flex: 1;
+  height: 18px;
+  border-radius: 3px;
+  background: #fff;
+  border: 1px solid #d7d2c6;
+  font-size: 10px;
+  color: #7c7467;
+  display: grid;
+  place-items: center;
+}
+.cl-filter-btn:hover { background: #ffe966; border-color: #d6b215; color: #4d3906; }
+
+/* 셀 행 */
+.cl-cell-row {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cl-choice-btn {
+  flex: 1;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 4px;
+  background: #ccc9bf;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  transition: transform 0.08s, background 0.12s;
+}
+.cl-choice-btn:hover { filter: brightness(0.95); }
+.cl-choice-btn:active { transform: scale(0.94); }
+
+/* 원본 색상 매핑 */
+.cl-choice-btn.is-on-check { background: #37b4a6; }
+.cl-choice-btn.is-on-double { background: #36a9a6; }
+.cl-choice-btn.is-on-circle { background: #8dc228; }
+.cl-choice-btn.is-on-tri { background: #f7c331; }
+.cl-choice-btn.is-on-x { background: #f2757b; }
+.cl-choice-btn.is-on-rating { background: #6484f2; }
+
+.cl-score-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 4px;
+  border: 1px solid #d4cfc3;
+  background: #fff;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #463d30;
+}
+.cl-score-input:focus {
+  outline: none;
+  border-color: #6484f2;
+  background: #f5f8ff;
+}
+
+/* 열 하단 통계 */
+.cl-col-stats {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #dbd5c8;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cl-stat-bars {
+  display: flex;
+  gap: 4px;
+}
+.cl-stat-pill {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  padding-bottom: 3px;
+  border-bottom: 3px solid #ccc;
+}
+.cl-stat-summary {
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+  color: #776f61;
+}
+
+/* 새 할 일 추가 열 */
+.cl-add-col {
+  width: 190px;
+  flex: none;
+  margin-top: 82px;
+  min-height: 320px;
+  border-radius: 8px;
+  border: 2px dashed #d3cec2;
+  background: rgba(255, 255, 255, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #847c6e;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  padding: 16px;
+}
+.cl-add-col:hover { background: rgba(255, 255, 255, 0.85); color: #4b4235; }
+.cl-add-col-plus { font-size: 40px; font-weight: 300; line-height: 1; }
+
+/* 우측 학생 프리뷰 & 수동 점수 지급 패널 */
+.checklist-side-panel {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #e2ddd0;
+  border-radius: 12px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.cl-preview-avatar {
+  width: 128px;
+  height: 128px;
+  flex: none;
+  border-radius: 50%;
+  background: #ece9de;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 8px;
+}
+.cl-preview-avatar img {
+  width: 96px;
+  height: 114px;
+  object-fit: contain;
+  display: block;
+}
+.cl-preview-name {
+  font-size: 19px;
+  font-weight: 800;
+  color: #5b4325;
+}
+.cl-preview-sub {
+  font-size: 12px;
+  color: #8c8476;
+}
+
+.cl-manual-award-box {
+  width: 100%;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid #e2ddd0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cl-manual-award-box h4 {
+  margin: 0;
+  font-size: 13px;
+  color: #5a4f3f;
+}
+.cl-manual-award-box p {
+  margin: 0;
+  font-size: 11px;
+  color: #847c6e;
+  line-height: 1.45;
+}
