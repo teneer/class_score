@@ -535,7 +535,7 @@
   100% { transform: translateY(0%); opacity: 1; }
 }
 
-/* (B) 감점(머쓱) 연출 — 빨간 배경→어두운 회색 전환 + 검은 먹구름 + 대각선 빗줄기 + 벌점표 반시계 회전 상승 + 성난 노란 나무 캐릭터 플립 + 정지 아바타 플립 & 흰색 하이라이트 */
+/* (B) 감점(머쓱) 연출 — 빨간 배경→어두운 회색 전환 + 전용 애셋(sp_effect_oops.png, bg-effect-oops-cloud.png) */
 .fx-stage.fx-negative {
   background: #3b3e45;
   padding-bottom: 0;
@@ -545,80 +545,53 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: url('../assets/visuals/bg-effect-wow-cloud.png') center 18% / 106% auto no-repeat;
-  filter: brightness(0.16) contrast(1.2);
-  opacity: 0.56;
+  background: url('../assets/visuals/bg-effect-oops-cloud.png') center center / 100% 100% no-repeat;
   pointer-events: none;
   z-index: 0;
 }
-/* 상단 먹구름 아래 대각선 빗줄기 애니메이션 */
+/* 상단 먹구름 아래 대각선 빗줄기 애셋 애니메이션 (sp_effect_oops.png x=916..1226, y=16..298) */
 .fx-storm-rain {
   position: absolute;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: min(820px, 86%);
-  height: 62%;
-  background-image:
-    repeating-linear-gradient(
-      -62deg,
-      transparent 0 22px,
-      rgba(220, 232, 245, 0.28) 22px 24px,
-      transparent 24px 54px
-    ),
-    repeating-linear-gradient(
-      -62deg,
-      transparent 0 38px,
-      rgba(235, 242, 255, 0.16) 38px 39.5px,
-      transparent 39.5px 78px
-    );
-  -webkit-mask-image: radial-gradient(ellipse 68% 84% at 50% 24%, #000 45%, transparent 100%);
-  mask-image: radial-gradient(ellipse 68% 84% at 50% 24%, #000 45%, transparent 100%);
-  animation: fx-rain-fall 0.44s linear infinite;
+  width: 580px;
+  height: 410px;
+  overflow: hidden;
   pointer-events: none;
   z-index: 1;
 }
-/* 상단 대형 검은 먹구름 (회색 밑그림자 + 순흑 먹구름 겹침) */
+.fx-storm-rain-sprite {
+  position: absolute;
+  top: 10px;
+  width: 340px;
+  height: 310px;
+  background: url('../assets/visuals/sp_effect_oops.png') -1004.6px -17.5px / 1360px 1042px no-repeat;
+  animation: fx-rain-sprite-fall 0.85s linear infinite;
+}
+.fx-storm-rain-sprite.r1 {
+  left: 24px;
+}
+.fx-storm-rain-sprite.r2 {
+  right: 24px;
+  animation-delay: -0.42s;
+}
+/* 상단 대형 검은 먹구름 + 회색 밑그림자 (sp_effect_oops.png x=20..556, y=0..202) */
 .fx-storm-clouds {
   position: absolute;
-  top: -86px;
+  top: -12px;
   left: 0;
   right: 0;
-  height: 250px;
+  height: 240px;
+  display: flex;
+  justify-content: center;
   pointer-events: none;
   z-index: 2;
 }
-.fx-storm-cloud-sprite {
-  position: absolute;
-  width: 508px;
-  height: 238px;
-  background: url('../assets/visuals/sp_board_images.png') -220px -1px / 1660px 580px no-repeat;
-  filter: brightness(0.06) saturate(0.1);
-}
-.fx-storm-cloud-sprite.c-shadow {
-  left: 50%;
-  top: 14px;
-  transform: translateX(-50%) scale(1.24);
-  filter: brightness(0.45) saturate(0.15);
-  opacity: 0.65;
-}
-.fx-storm-cloud-sprite.c-center {
-  left: 50%;
-  top: 0;
-  transform: translateX(-50%) scale(1.22);
-  filter: brightness(0.04) saturate(0.05) drop-shadow(0 12px 18px rgba(0, 0, 0, 0.45));
-}
-.fx-storm-cloud-sprite.c-left {
-  left: 14%;
-  top: -14px;
-  transform: scale(0.92);
-  filter: brightness(0.07) saturate(0.1);
-}
-.fx-storm-cloud-sprite.c-right {
-  right: 14%;
-  top: -16px;
-  transform: scale(0.94) scaleX(-1);
-  filter: brightness(0.07) saturate(0.1);
+.fx-storm-cloud-main {
+  width: 680px;
+  height: 256px;
+  background: url('../assets/visuals/sp_effect_oops.png') -25.4px 0 / 1573px 1205px no-repeat;
 }
 
 @keyframes fx-storm-bg {
@@ -628,9 +601,11 @@
   88%  { background-color: #3b3e45; }
   100% { background-color: #3b3e45; }
 }
-@keyframes fx-rain-fall {
-  from { background-position: 0 0, 12px -18px; }
-  to   { background-position: -44px 82px, -32px 64px; }
+@keyframes fx-rain-sprite-fall {
+  0%   { transform: translate(26px, -42px); opacity: 0; }
+  18%  { opacity: 0.95; }
+  82%  { opacity: 0.9; }
+  100% { transform: translate(-34px, 68px); opacity: 0; }
 }
 
 /* (C) 별길 꽉 참 → 날개 달린 황금알 획득 연출 (3수업도구.mp4 00:31~00:33, 02:51~02:53) */
@@ -652,22 +627,22 @@
 .fx-egg-wing {
   position: absolute;
   top: 26px;
-  width: 170px;
-  height: 118px;
+  width: 166px;
+  height: 115px;
   background-image: url('../assets/visuals/sp_effect_wow.png');
-  background-size: 787px 603px;
+  background-size: 768.8px 589px;
   background-repeat: no-repeat;
   filter: brightness(1.35) saturate(0.05);
 }
 .fx-egg-wing.is-left {
-  left: 16px;
-  background-position: 0 -44.4px;
+  left: 14px;
+  background-position: 0 -43.4px;
   transform-origin: right center;
   animation: fx-wing-l 0.42s ease-in-out infinite alternate;
 }
 .fx-egg-wing.is-right {
-  right: 16px;
-  background-position: -171.4px -44.4px;
+  right: 14px;
+  background-position: -167.4px -43.4px;
   transform-origin: left center;
   animation: fx-wing-r 0.42s ease-in-out infinite alternate;
 }
@@ -836,11 +811,11 @@
   text-align: center;
 }
 
-/* 으쓱 메달 (어두운 화면 하단에서 작게 출발 → 날개치며 상승·최대 확대 → 원래 크기로 상단 안착) */
+/* 으쓱 메달 (sp_effect_wow.png 원본 통일 배율 s=0.35 — 좌·우 날개 y=70..254, 메달 y=10..329, 별, 반짝이) */
 .fx-medal-wrap {
   position: relative;
-  width: 260px;
-  height: 102px;
+  width: 288px;
+  height: 112px;
   display: grid;
   place-items: center;
   animation: fx-medal-intro 1.15s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -857,22 +832,22 @@
 .fx-wing-l,
 .fx-wing-r {
   position: absolute;
-  top: 16px;
-  width: 120px;
-  height: 71.5px;
+  top: 23px;
+  width: 93.8px;
+  height: 64.75px;
   background-image: url('../assets/visuals/sp_effect_wow.png');
-  background-size: 572.3px 438.5px;
+  background-size: 434px 332.5px;
   background-repeat: no-repeat;
 }
 .fx-wing-l {
-  left: 10px;
-  background-position: 0 -46.2px;
+  left: 6px;
+  background-position: 0 -24.5px;
   transform-origin: right center;
   animation: fx-wing-l-flap 0.32s ease-in-out infinite alternate;
 }
 .fx-wing-r {
-  right: 10px;
-  background-position: -120px -46.2px;
+  right: 6px;
+  background-position: -94.5px -24.5px;
   transform-origin: left center;
   animation: fx-wing-r-flap 0.32s ease-in-out infinite alternate;
 }
@@ -888,25 +863,51 @@
 .fx-medal-disc {
   position: relative;
   z-index: 2;
-  width: 106px;
-  height: 100px;
-  background: url('../assets/visuals/sp_effect_wow.png') -165.2px -3.1px / 386.6px 296.2px no-repeat;
+  width: 112px;
+  height: 112px;
+  background: url('../assets/visuals/sp_effect_wow.png') -192.5px -3.5px / 434px 332.5px no-repeat;
   display: grid;
   place-items: center;
 }
 .fx-medal-star {
-  width: 44px;
-  height: 45.3px;
-  background: url('../assets/visuals/sp_effect_wow.png') -331.3px -33px / 413.3px 316.7px no-repeat;
+  width: 46.2px;
+  height: 47.6px;
+  background: url('../assets/visuals/sp_effect_wow.png') -347.9px -34.65px / 434px 332.5px no-repeat;
+}
+/* sp_effect_wow.png 중앙 반짝이 스파클 (메달 위 반짝임) */
+.fx-medal-spark {
+  position: absolute;
+  z-index: 3;
+  width: 24px;
+  height: 26px;
+  background-image: url('../assets/visuals/sp_effect_wow.png');
+  background-size: 434px 332.5px;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  animation: fx-medal-spark-twinkle 0.65s ease-in-out infinite alternate;
+}
+.fx-medal-spark.s1 {
+  left: 102px;
+  top: 14px;
+  background-position: -194px -139px;
+}
+.fx-medal-spark.s2 {
+  right: 102px;
+  bottom: 14px;
+  background-position: -245px -148px;
+  animation-delay: 0.28s;
+}
+@keyframes fx-medal-spark-twinkle {
+  0%   { opacity: 0.35; transform: scale(0.7) rotate(0deg); }
+  100% { opacity: 1; transform: scale(1.18) rotate(12deg); }
 }
 
-/* 머쓱 벌점표 (하단 작게 출발 → 점점 커지며 반시계방향 회전 상승·최대 확대 → 원래 크기로 상단 안착) */
+/* 머쓱 벌점표 (sp_effect_oops.png x=550..869, y=10..329 — 하단 출발 → 반시계 회전 상승·최대 확대 → 상단 안착) */
 .fx-storm-badge-wrap {
   position: relative;
-  width: 106px;
-  height: 100px;
-  display: grid;
-  place-items: center;
+  width: 112px;
+  height: 112px;
+  background: url('../assets/visuals/sp_effect_oops.png') -192.5px -3.5px / 434px 332.5px no-repeat;
   animation: fx-storm-badge-intro 1.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes fx-storm-badge-intro {
@@ -916,22 +917,6 @@
   66%  { transform: translateY(12vh) scale(1.68) rotate(-540deg); opacity: 1; }
   78%  { transform: translateY(4vh) scale(1.82) rotate(-630deg); opacity: 1; }
   100% { transform: translateY(0) scale(1) rotate(-720deg); opacity: 1; }
-}
-.fx-storm-sunburst {
-  position: absolute;
-  inset: 0;
-  background: url('../assets/visuals/sp_effect_wow.png') -165.2px -3.1px / 386.6px 296.2px no-repeat;
-}
-.fx-storm-core {
-  position: absolute;
-  left: 14px;
-  top: 8px;
-  z-index: 2;
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  /* 원본 빨간 먹구름 원(x=1495,y=35,100x100)을 0.84배로 적용해 메달 파란 원(지름 81px)을 완전히 덮음 */
-  background: url('../assets/visuals/sp_board_images.png') -1255.8px -29.4px / 1394.4px 487.2px no-repeat;
 }
 
 /* 점수 블록 (작게: +3점 × 2명 / 크게: +6점) + 사유 텍스트 — 배지 안착 시 등장 */
@@ -1113,9 +1098,9 @@
 }
 .fx-mascot {
   position: relative;
-  width: 132px;
+  width: 119px;
   height: 112px;
-  background: url('../assets/visuals/sp_effect_wow.png') 0 -330.9px / 584.6px 447.9px no-repeat;
+  background: url('../assets/visuals/sp_effect_wow.png') 0 -330.4px / 583.5px 447.1px no-repeat;
   opacity: 0;
   transform-style: preserve-3d;
 }
@@ -1123,16 +1108,8 @@
   animation: fx-mascot-flip-y-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.68s both;
 }
 .fx-mascot.fx-negative-mascot {
+  background-image: url('../assets/visuals/sp_effect_oops.png');
   animation: fx-mascot-flip-y-in 0.58s cubic-bezier(0.22, 1, 0.36, 1) 0.66s both;
-}
-.fx-angry-face {
-  position: absolute;
-  left: 50%;
-  top: 32px;
-  transform: translateX(-50%);
-  width: 62px;
-  height: 41px;
-  pointer-events: none;
 }
 @keyframes fx-mascot-flip-y-in {
   0%   { opacity: 0; transform: perspective(600px) translateY(96px) rotateY(0deg) scale(0.84); }

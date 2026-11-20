@@ -164,6 +164,8 @@ function runNextFx() {
           <div class="fx-medal-disc">
             <div class="fx-medal-star"></div>
           </div>
+          <div class="fx-medal-spark s1" aria-hidden="true"></div>
+          <div class="fx-medal-spark s2" aria-hidden="true"></div>
         </div>
         <div class="fx-score-banner">
           <span class="fx-score-formula">+${perStudent}점 &times; ${count}명</span>
@@ -231,18 +233,15 @@ function runNextFx() {
     playSound('minusBig');
     const isCompact = count >= 6;
     stage.innerHTML = `
-      <div class="fx-storm-rain" aria-hidden="true"></div>
+      <div class="fx-storm-rain" aria-hidden="true">
+        <div class="fx-storm-rain-sprite r1"></div>
+        <div class="fx-storm-rain-sprite r2"></div>
+      </div>
       <div class="fx-storm-clouds" aria-hidden="true">
-        <div class="fx-storm-cloud-sprite c-shadow"></div>
-        <div class="fx-storm-cloud-sprite c-left"></div>
-        <div class="fx-storm-cloud-sprite c-right"></div>
-        <div class="fx-storm-cloud-sprite c-center"></div>
+        <div class="fx-storm-cloud-main"></div>
       </div>
       <div class="fx-heading">
-        <div class="fx-storm-badge-wrap">
-          <div class="fx-storm-sunburst" aria-hidden="true"></div>
-          <div class="fx-storm-core" aria-hidden="true"></div>
-        </div>
+        <div class="fx-storm-badge-wrap" aria-hidden="true"></div>
         <div class="fx-score-banner">
           <span class="fx-score-formula">-${perStudent}점 &times; ${count}명</span>
           <strong class="fx-score-total">-${totalScore}점</strong>
@@ -260,26 +259,7 @@ function runNextFx() {
       </div>
       <div class="fx-bottom-cheer">
         <div class="fx-cheer-pill">" 다음엔 잘 해봐요 "</div>
-        <div class="fx-mascot fx-negative-mascot" aria-hidden="true">
-          <svg class="fx-angry-face" viewBox="0 0 80 54" aria-hidden="true">
-            <rect x="6" y="6" width="68" height="44" rx="14" fill="#fdb827"/>
-            <path d="M16 14 L34 21" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round"/>
-            <path d="M64 14 L46 21" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round"/>
-            <circle cx="26" cy="27" r="7.5" fill="#ffffff" stroke="#3c2607" stroke-width="2.2"/>
-            <circle cx="54" cy="27" r="7.5" fill="#ffffff" stroke="#3c2607" stroke-width="2.2"/>
-            <circle cx="27" cy="27" r="3.4" fill="#3c2607"/>
-            <circle cx="53" cy="27" r="3.4" fill="#3c2607"/>
-            <path d="M17 19 L34 24" stroke="#f59e0b" stroke-width="3.2" stroke-linecap="round"/>
-            <path d="M63 19 L46 24" stroke="#f59e0b" stroke-width="3.2" stroke-linecap="round"/>
-            <ellipse cx="14" cy="36" rx="4.2" ry="2.2" fill="#fff7d6" opacity="0.88"/>
-            <ellipse cx="66" cy="36" rx="4.2" ry="2.2" fill="#fff7d6" opacity="0.88"/>
-            <path d="M38 30 L40 27 L42 30" fill="none" stroke="#3c2607" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <rect x="28" y="36" width="24" height="9" rx="3" fill="#ffffff" stroke="#3c2607" stroke-width="2.2"/>
-            <line x1="34" y1="36" x2="34" y2="45" stroke="#3c2607" stroke-width="1.4"/>
-            <line x1="40" y1="36" x2="40" y2="45" stroke="#3c2607" stroke-width="1.4"/>
-            <line x1="46" y1="36" x2="46" y2="45" stroke="#3c2607" stroke-width="1.4"/>
-          </svg>
-        </div>
+        <div class="fx-mascot fx-negative-mascot" aria-hidden="true"></div>
       </div>
     `;
 
