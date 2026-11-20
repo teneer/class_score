@@ -863,6 +863,7 @@ function bindStudentsEvents(root, state, activeStudents) {
       initialType: type,
       onApplied: () => {
         selectedIds.clear();
+        renderStudentsView(root);
       },
     });
   };

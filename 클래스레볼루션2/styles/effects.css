@@ -596,7 +596,7 @@
 .fx-storm-cloud-sprite {
   position: absolute;
   width: 508px;
-  height: 259px;
+  height: 238px;
   background: url('../assets/visuals/sp_board_images.png') -220px -1px / 1660px 580px no-repeat;
   filter: brightness(0.11) saturate(0.2) drop-shadow(0 12px 24px rgba(0, 0, 0, 0.55));
 }
@@ -915,12 +915,15 @@
   background: url('../assets/visuals/sp_effect_wow.png') -165.2px -3.1px / 386.6px 296.2px no-repeat;
 }
 .fx-storm-core {
-  position: relative;
+  position: absolute;
+  left: 14px;
+  top: 8px;
   z-index: 2;
-  width: 80px;
-  height: 80px;
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
-  background: url('../assets/visuals/sp_board_images.png') -1333.3px -35.6px / 1475.6px 515.6px no-repeat;
+  /* 원본 빨간 먹구름 원(x=1495,y=35,100x100)을 0.84배로 적용해 메달 파란 원(지름 81px)을 완전히 덮음 */
+  background: url('../assets/visuals/sp_board_images.png') -1255.8px -29.4px / 1394.4px 487.2px no-repeat;
 }
 
 /* 점수 블록 (작게: +3점 × 2명 / 크게: +6점) + 사유 텍스트 — 2단계 안착 시 등장 */
