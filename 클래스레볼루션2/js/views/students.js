@@ -35,6 +35,17 @@ let navigateCallback = null;
 let celebratingIds = new Set();
 let celebrateTimer = null;
 let lastStudentsRoot = null;
+let studentsResizeRaf = 0;
+
+window.addEventListener('resize', () => {
+  if (!lastStudentsRoot || !lastStudentsRoot.closest('.mode-view')?.classList.contains('is-active')) return;
+  cancelAnimationFrame(studentsResizeRaf);
+  studentsResizeRaf = requestAnimationFrame(() => {
+    if (!lastStudentsRoot) return;
+    if (subView === 'seats') applySeatingFit(lastStudentsRoot);
+    else applyListFit(lastStudentsRoot);
+  });
+});
 
 window.addEventListener('class123:award-finished', (ev) => {
   const ids = ev.detail?.studentIds || [];
@@ -74,12 +85,9 @@ export function clearSelectedStudents() {
   selectedIds.clear();
 }
 
-/**16:9 스테이지 현재 CSS 축척 계산 (마우스 드래그 1:1 정밀 좌표 변환용) */
+/** 풀-뷰포트 스테이지 스케일 반환 (CSS scale 제거로 1:1 좌표 사용) */
 function getStageScale() {
-  const el = document.getElementById('stage-16x9');
-  if (!el) return 1;
-  const rect = el.getBoundingClientRect();
-  return rect.width > 0 ? rect.width / 1600 : 1;
+  return 1;
 }
 
 /** 자리배치 캔버스 실제 화면 스케일 계산 (16:9 스테이지 스케일 x 자리배치 자동 축소 fitScale 통합) */
@@ -451,6 +459,13 @@ export function renderStudentsView(root) {
   const filledStars = state.growth.pendingTrail.length;
 
   const hideAvatarsClass = subView === 'list' ? (prefs.showAvatars ? '' : 'hide-avatars') : '';
+  const hasSelection = selectedIds.size > 0;
+  const selectableStudents = activeStudents.filter((s) => !s.absent);
+  const allSelected = selectableStudents.length > 0 && selectableStudents.every((s) => selectedIds.has(s.id));
+  const selectedNames = sortedStudents.filter((s) => selectedIds.has(s.id)).map((s) => s.name);
+  const selectedNamesSummary = selectedNames.length > 4
+    ? `${selectedNames.slice(0, 4).join(', ')} 외 ${selectedNames.length - 4}명`
+    : selectedNames.join(', ');
 
   root.innerHTML = `
     <div class="students-shell ${prefs.showNumbers ? '' : 'hide-numbers'} ${hideAvatarsClass}">
@@ -465,54 +480,70 @@ export function renderStudentsView(root) {
         ? renderListBody(sortedStudents, scoreMode)
         : renderSeatingBody(state, activeStudents, scoreMode)}
 
-      <div class="students-bottombar">
-        <button type="button" class="mini-egg-progress" id="btn-goto-growth" title="학급점수 화면으로 이동">
-          <div class="mini-egg-top">
-            <i class="sp-icon sp-egg-bottom" aria-hidden="true"></i>
-            <span class="mini-egg-count">${state.growth.eggs}</span>
-          </div>
-          <div class="mini-stars-row">
-            ${Array.from({ length: starsPerEgg }, (_, i) => `<i class="sp-mini-star ${i < filledStars ? 'is-filled' : ''}" aria-hidden="true"></i>`).join('')}
-            <span class="mini-star-ratio">${filledStars}/${starsPerEgg}</span>
-          </div>
-        </button>
+      <div class="students-bottombar ${hasSelection ? 'is-selecting' : ''}">
+        <div class="bottom-left-slot">
+          ${hasSelection ? `
+            <button type="button" class="btn-select-cancel" id="btn-select-clear">
+              <i class="sp-icon sp-cancel-circle" aria-hidden="true"></i>
+              <span>선택 취소</span>
+            </button>
+          ` : `
+            <button type="button" class="mini-egg-progress" id="btn-goto-growth" title="학급점수 화면으로 이동">
+              <div class="mini-egg-top">
+                <i class="sp-icon sp-egg-bottom" aria-hidden="true"></i>
+                <span class="mini-egg-count">${state.growth.eggs}</span>
+              </div>
+              <div class="mini-stars-row">
+                ${Array.from({ length: starsPerEgg }, (_, i) => `<i class="sp-mini-star ${i < filledStars ? 'is-filled' : ''}" aria-hidden="true"></i>`).join('')}
+                <span class="mini-star-ratio">${filledStars}/${starsPerEgg}</span>
+              </div>
+            </button>
+          `}
+        </div>
 
         <div class="bottom-center-tools">
-          <button type="button" class="text-action-btn" id="btn-select-all">
+          <button type="button" class="text-action-btn ${allSelected ? 'is-active' : ''}" id="btn-select-all">
             <i class="sp-icon sp-all-select" aria-hidden="true"></i> 전체선택
           </button>
-          <button type="button" class="text-action-btn" id="btn-select-recent" ${lastSelectedIds.length === 0 ? 'disabled' : ''}>⋯ 최근 선택한 학생</button>
-          ${selectedIds.size > 0 ? `
+          ${hasSelection ? `
             <span class="selected-pill">${selectedIds.size}명 선택됨</span>
-            <button type="button" class="text-action-btn" id="btn-select-clear">선택해제</button>
-          ` : ''}
+            <span class="selected-names-summary" title="${escapeAttr(selectedNames.join(', '))}">${escapeHtml(selectedNamesSummary)}</span>
+          ` : `
+            <button type="button" class="text-action-btn" id="btn-select-recent" ${lastSelectedIds.length === 0 ? 'disabled' : ''}>
+              <i class="sp-icon sp-recent-dots" aria-hidden="true"></i> 최근 선택한 학생
+            </button>
+          `}
         </div>
 
-        <div class="award-btn-group">
-          <button type="button" class="btn-award-pill" id="btn-award-plus" ${selectedIds.size === 0 ? 'disabled' : ''}>
-            <i class="sp-icon sp-star-blue" style="transform:scale(0.84);" aria-hidden="true"></i> 으쓱
-          </button>
-          <button type="button" class="btn-penalty-pill" id="btn-award-minus" ${selectedIds.size === 0 ? 'disabled' : ''}>
-            <i class="sp-icon sp-cloud-red" style="transform:scale(0.84);" aria-hidden="true"></i> 머쓱
-          </button>
-        </div>
-
-        <div class="bottom-right-tools">
-          <button type="button" class="text-action-btn" id="btn-open-history">
-            <i class="sp-icon sp-history-list" aria-hidden="true"></i> 이력관리
-          </button>
-          <button type="button" class="attend-btn ${attendanceMode ? 'is-active' : ''}" id="btn-toggle-attend">
-            <i class="sp-icon sp-attend-badge" aria-hidden="true"></i>
-            <span>출석체크</span>
-          </button>
-          <div class="bottom-mini-stack">
-            <button type="button" class="bottom-mini-link" id="btn-reset-scores">
-              <i class="sp-icon sp-reset-arrow" aria-hidden="true"></i> 점수초기화
-            </button>
-            <button type="button" class="bottom-mini-link" id="btn-manage-students">
-              <i class="sp-icon sp-gear" style="transform:scale(0.56);width:15px;height:15px;" aria-hidden="true"></i> 학생설정
-            </button>
-          </div>
+        <div class="bottom-right-slot">
+          ${hasSelection ? `
+            <div class="award-btn-group">
+              <button type="button" class="btn-award-pill" id="btn-award-plus">
+                <i class="sp-icon sp-star-blue" style="transform:scale(0.84);" aria-hidden="true"></i> 으쓱
+              </button>
+              <button type="button" class="btn-penalty-pill" id="btn-award-minus">
+                <i class="sp-icon sp-cloud-red" style="transform:scale(0.84);" aria-hidden="true"></i> 머쓱
+              </button>
+            </div>
+          ` : `
+            <div class="bottom-right-tools">
+              <button type="button" class="text-action-btn" id="btn-open-history">
+                <i class="sp-icon sp-history-list" aria-hidden="true"></i> 이력관리
+              </button>
+              <button type="button" class="attend-btn ${attendanceMode ? 'is-active' : ''}" id="btn-toggle-attend">
+                <i class="sp-icon sp-attend-badge" aria-hidden="true"></i>
+                <span>출석체크</span>
+              </button>
+              <div class="bottom-mini-stack">
+                <button type="button" class="bottom-mini-link" id="btn-reset-scores">
+                  <i class="sp-icon sp-reset-arrow" aria-hidden="true"></i> 점수초기화
+                </button>
+                <button type="button" class="bottom-mini-link" id="btn-manage-students">
+                  <i class="sp-icon sp-gear" style="transform:scale(0.56);width:15px;height:15px;" aria-hidden="true"></i> 학생설정
+                </button>
+              </div>
+            </div>
+          `}
         </div>
       </div>
     </div>
@@ -533,8 +564,8 @@ function applyListFit(root) {
   const gridEl = root?.querySelector('#student-card-grid');
   if (!scrollEl || !fitEl || !gridEl) return;
 
-  const viewW = scrollEl.clientWidth || 1506;
-  const viewH = scrollEl.clientHeight || 736;
+  const viewW = scrollEl.clientWidth || Math.max(800, window.innerWidth - 96);
+  const viewH = scrollEl.clientHeight || Math.max(460, window.innerHeight - 130);
   const padX = 16;
   const padY = 14;
   const availW = Math.max(320, viewW - padX * 2);
@@ -545,17 +576,18 @@ function applyListFit(root) {
   const cardH = 126;
   const gapX = 14;
   const gapY = 18;
+  const maxScale = 1.55;
 
-  // 공간이 남을 때는 카드가 가장 크게(화면이 꽉 차 보이게) 되는 열 수(4~8열)를 선택하고, 카드가 많을 때는 8열 기준으로 축소
+  // 공간이 남을 때는 카드가 가장 크게(화면이 꽉 차 보이게) 되는 열 수(4~8열, 33명 이상 최대 10열)를 선택하고, 초과 시 비율 유지 축소
   let bestCols = 8;
   let bestScale = 0;
   const minCols = cards <= 6 ? Math.max(2, cards) : 4;
-  const maxCols = 8;
+  const maxCols = cards > 32 ? 10 : 8;
   for (let c = minCols; c <= maxCols; c++) {
     const rows = Math.ceil(cards / c);
     const w = c * cardW + (c - 1) * gapX;
     const h = rows * cardH + (rows - 1) * gapY;
-    const scale = Math.min(1.65, availW / w, availH / h);
+    const scale = Math.min(maxScale, availW / w, availH / h);
     if (scale >= bestScale) {
       bestScale = scale;
       bestCols = c;
@@ -567,7 +599,7 @@ function applyListFit(root) {
 
   const gridW = gridEl.offsetWidth || (bestCols * cardW + (bestCols - 1) * gapX);
   const gridH = gridEl.offsetHeight || (Math.ceil(cards / bestCols) * cardH + (Math.ceil(cards / bestCols) - 1) * gapY);
-  const fitScale = Math.min(1.65, availW / gridW, availH / gridH);
+  const fitScale = Math.min(maxScale, availW / gridW, availH / gridH);
 
   fitEl.style.width = `${gridW}px`;
   fitEl.style.height = `${gridH}px`;
@@ -621,13 +653,16 @@ function renderListBody(sortedStudents, scoreMode) {
 /** 자유형 자리배치 본문 (원본 내부공간 + 편집모드 어두운 배경 + 16:9 학생카드 + 180도 상하반전 + 자동 비율축소) */
 function renderSeatingBody(state, activeStudents, scoreMode) {
   const showAvatars = Boolean(state.uiPrefs.seatShowAvatars);
-  const displayBoxes = ensureGroupLayout(state.groups, activeStudents);
+  const curScroll = lastStudentsRoot?.querySelector('#seating-canvas-scroll');
+  const stageW = curScroll?.clientWidth || lastStudentsRoot?.querySelector('.students-shell')?.clientWidth || Math.max(800, window.innerWidth - 100);
+  const stageH = curScroll?.clientHeight || Math.max(460, window.innerHeight - 200);
+  const displayBoxes = ensureGroupLayout(state.groups, activeStudents, stageW);
 
   if (
     seatEditMode &&
     (!ghostAddPos || isBoxOverlapping({ x: ghostAddPos.x, y: ghostAddPos.y, w: GHOST_W, h: GHOST_H }, displayBoxes, 6))
   ) {
-    ghostAddPos = computeDefaultGhostPos(displayBoxes, 1506, 658);
+    ghostAddPos = computeDefaultGhostPos(displayBoxes, stageW, stageH);
   }
   const unassigned = activeStudents.filter((s) => !s.groupId || !state.groups.some((g) => g.id === s.groupId));
   const contentMaxX = Math.max(
@@ -789,19 +824,29 @@ function bindStudentsEvents(root, state, activeStudents) {
     bindSeatingEvents(root, state, activeStudents);
   }
 
-  // 하단 공통 액션바
-  root.querySelector('#btn-goto-growth').onclick = () => navigateCallback?.('growth');
-  root.querySelector('#btn-select-all').onclick = () => {
-    const selectable = activeStudents.filter((s) => !s.absent);
-    const allSel = selectable.length > 0 && selectable.every((s) => selectedIds.has(s.id));
-    if (allSel) selectedIds.clear();
-    else selectable.forEach((s) => selectedIds.add(s.id));
-    renderStudentsView(root);
-  };
-  root.querySelector('#btn-select-recent').onclick = () => {
-    selectedIds = new Set(lastSelectedIds.filter((id) => activeStudents.some((s) => s.id === id)));
-    renderStudentsView(root);
-  };
+  // 하단 공통 액션바 (조건부 렌더링 요소 모두 null-safe 바인딩)
+  const gotoGrowthBtn = root.querySelector('#btn-goto-growth');
+  if (gotoGrowthBtn) gotoGrowthBtn.onclick = () => navigateCallback?.('growth');
+
+  const selectAllBtn = root.querySelector('#btn-select-all');
+  if (selectAllBtn) {
+    selectAllBtn.onclick = () => {
+      const selectable = activeStudents.filter((s) => !s.absent);
+      const allSel = selectable.length > 0 && selectable.every((s) => selectedIds.has(s.id));
+      if (allSel) selectedIds.clear();
+      else selectable.forEach((s) => selectedIds.add(s.id));
+      renderStudentsView(root);
+    };
+  }
+
+  const selectRecentBtn = root.querySelector('#btn-select-recent');
+  if (selectRecentBtn) {
+    selectRecentBtn.onclick = () => {
+      selectedIds = new Set(lastSelectedIds.filter((id) => activeStudents.some((s) => s.id === id)));
+      renderStudentsView(root);
+    };
+  }
+
   const clearBtn = root.querySelector('#btn-select-clear');
   if (clearBtn) {
     clearBtn.onclick = () => {
@@ -821,14 +866,23 @@ function bindStudentsEvents(root, state, activeStudents) {
       },
     });
   };
-  root.querySelector('#btn-award-plus').onclick = () => triggerCompose('positive');
-  root.querySelector('#btn-award-minus').onclick = () => triggerCompose('negative');
+  const awardPlusBtn = root.querySelector('#btn-award-plus');
+  if (awardPlusBtn) awardPlusBtn.onclick = () => triggerCompose('positive');
+  const awardMinusBtn = root.querySelector('#btn-award-minus');
+  if (awardMinusBtn) awardMinusBtn.onclick = () => triggerCompose('negative');
 
-  root.querySelector('#btn-open-history').onclick = () => navigateCallback?.('bulk', { tab: 'history' });
-  root.querySelector('#btn-toggle-attend').onclick = () => {
-    attendanceMode = !attendanceMode;
-    renderStudentsView(root);
-  };
+  const openHistoryBtn = root.querySelector('#btn-open-history');
+  if (openHistoryBtn) openHistoryBtn.onclick = () => navigateCallback?.('bulk', { tab: 'history' });
+
+  const toggleAttendBtn = root.querySelector('#btn-toggle-attend');
+  if (toggleAttendBtn) {
+    toggleAttendBtn.onclick = () => {
+      attendanceMode = !attendanceMode;
+      if (attendanceMode) selectedIds.clear();
+      renderStudentsView(root);
+    };
+  }
+
   const endAttend = root.querySelector('#btn-end-attend');
   if (endAttend) {
     endAttend.onclick = () => {
@@ -836,15 +890,20 @@ function bindStudentsEvents(root, state, activeStudents) {
       renderStudentsView(root);
     };
   }
-  root.querySelector('#btn-reset-scores').onclick = () => openResetScoreModal();
-  root.querySelector('#btn-manage-students').onclick = () => openRosterManagerModal();
+
+  const resetScoresBtn = root.querySelector('#btn-reset-scores');
+  if (resetScoresBtn) resetScoresBtn.onclick = () => openResetScoreModal();
+  const manageStudentsBtn = root.querySelector('#btn-manage-students');
+  if (manageStudentsBtn) manageStudentsBtn.onclick = () => openRosterManagerModal();
 }
 
 /** 자유형 자리배치 전용 인터랙션 (전체 드래그 이동 / 모둠 통째 드래그·틈새삽입·자석격자 / 학생 2명 클릭 자리교환 / 점선 '+' 새 모둠) */
 function bindSeatingEvents(root, state, activeStudents) {
   const canvas = root.querySelector('#seating-canvas');
   const scrollEl = root.querySelector('#seating-canvas-scroll');
-  const baseBoxes = ensureGroupLayout(state.groups, activeStudents);
+  const viewW = scrollEl.clientWidth || Math.max(800, window.innerWidth - 100);
+  const viewH = scrollEl.clientHeight || Math.max(460, window.innerHeight - 200);
+  const baseBoxes = ensureGroupLayout(state.groups, activeStudents, viewW);
 
   // 빈 배경 드래그 → 전체 모둠 레이아웃 일괄 이동 (일반 모드·편집 모드 공통)
   if (scrollEl) {
@@ -1005,7 +1064,7 @@ function bindSeatingEvents(root, state, activeStudents) {
     const addGrpBtn = root.querySelector('#btn-seat-add-group');
     if (addGrpBtn) {
       addGrpBtn.onclick = () => {
-        const pos = ghostAddPos ? { ...ghostAddPos } : computeDefaultGhostPos(baseBoxes, 1506, 658);
+        const pos = ghostAddPos ? { ...ghostAddPos } : computeDefaultGhostPos(baseBoxes, viewW, viewH);
         openPlaceStudentModal(null, pos);
       };
     }
@@ -1014,8 +1073,8 @@ function bindSeatingEvents(root, state, activeStudents) {
     const recenterBtn = root.querySelector('#btn-seat-recenter');
     if (recenterBtn) {
       recenterBtn.onclick = async () => {
-        const curStageW = canvas?.offsetWidth || scrollEl?.clientWidth || 1506;
-        const curStageH = canvas?.offsetHeight || scrollEl?.clientHeight || 658;
+        const curStageW = canvas?.offsetWidth || scrollEl?.clientWidth || viewW;
+        const curStageH = canvas?.offsetHeight || scrollEl?.clientHeight || viewH;
 
         await store.update((s) => {
           const active = s.students.filter((x) => !x.trashed);
@@ -1070,10 +1129,10 @@ function bindSeatingEvents(root, state, activeStudents) {
   const toggleEdit = async () => {
     swapSourceStudentId = null;
     if (!seatEditMode) {
-      const viewW = scrollEl?.clientWidth || 1506;
-      const viewH = scrollEl?.clientHeight || 658;
-      const initialBoxes = ensureGroupLayout(state.groups, activeStudents, viewW);
-      ghostAddPos = computeDefaultGhostPos(initialBoxes, viewW, viewH);
+      const editViewW = scrollEl?.clientWidth || Math.max(800, window.innerWidth - 100);
+      const editViewH = scrollEl?.clientHeight || Math.max(460, window.innerHeight - 200);
+      const initialBoxes = ensureGroupLayout(state.groups, activeStudents, editViewW);
+      ghostAddPos = computeDefaultGhostPos(initialBoxes, editViewW, editViewH);
       seatEditMode = true;
       await store.update((s) => {
         initialBoxes.forEach((b) => {

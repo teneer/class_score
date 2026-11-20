@@ -149,7 +149,7 @@
         </div>
       </div>
 
-      <!-- 학급 설정 모달 (16:9 스테이지 내부 배치로 비율 동기화) -->
+      <!-- 학급 설정 모달 -->
       <div id="settings-dialog" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
         <form class="dialog-card" id="settings-form">
           <div class="dialog-header">
@@ -218,19 +218,6 @@
     </div>
   </div>
 
-  <!-- 초기 렌더 직전 16:9 전체 화면 단일 비율 스케일 적용 -->
-  <script>
-    (function () {
-      function fitStage() {
-        var el = document.getElementById('stage-16x9');
-        if (!el) return;
-        var s = Math.min(window.innerWidth / 1600, window.innerHeight / 900);
-        el.style.setProperty('--stage-scale', String(Math.max(0.1, s)));
-      }
-      fitStage();
-      window.addEventListener('resize', fitStage);
-    })();
-  </script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

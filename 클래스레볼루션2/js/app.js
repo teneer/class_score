@@ -85,7 +85,8 @@ function renderChrome() {
       if (selScore) selScore.value = prefs.scoreDisplayMode || 'net';
       if (selSort) {
         selSort.value = prefs.sortBy || 'number';
-        selSort.hidden = currentMode !== 'students';
+        selSort.hidden = false;
+        selSort.classList.toggle('is-invisible', currentMode !== 'students');
       }
     }
   }

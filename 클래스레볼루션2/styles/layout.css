@@ -1,42 +1,36 @@
-/* 16:9 고정 스테이지(1600x900) — 전체 화면 단일 비율 축소/확대, 빈 공간 공백 처리 */
+/* 풀-뷰포트 스테이지 — 전체화면 및 모든 브라우저 창에서 좌우 여백 없이 100% 채움 */
 .stage-viewport {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: clip;
+  overflow: hidden;
   background: #ffffff;
 }
 
 .stage-16x9 {
   position: relative;
-  width: 1600px;
-  height: 900px;
-  flex: none;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   background: #fff;
-  transform: scale(var(--stage-scale, 1));
-  transform-origin: center center;
 }
 
 /* 앱 셸 레이아웃 — 상단 헤더 + 좌측 사이드바 + 메인 전체화면 워크스페이스 */
 .app-shell {
   display: flex;
   flex-direction: column;
-  width: 1600px;
-  height: 900px;
+  width: 100%;
+  height: 100%;
   background: #fff;
 }
 
 .app-header {
   height: var(--header-h);
   flex: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 0 14px 0 10px;
   background: #fff;
@@ -45,6 +39,7 @@
 }
 
 .header-left {
+  justify-self: start;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -75,6 +70,7 @@
 .class-title-btn:hover { background: #f5f3eb; }
 
 .header-tabs {
+  justify-self: center;
   display: flex;
   align-items: stretch;
   height: 100%;
@@ -109,6 +105,7 @@
 }
 
 .header-right {
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -155,6 +152,17 @@
   cursor: pointer;
 }
 .header-select:focus { border-color: #e5b824; }
+.header-select.is-invisible {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (max-width: 1200px) {
+  .app-header {
+    display: flex;
+    justify-content: space-between;
+  }
+}
 
 .db-badge {
   display: inline-flex;

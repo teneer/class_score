@@ -1,15 +1,15 @@
 /* 점수 부여 모달(으쓱 파랑 / 머쓱 분홍, 한 장 주기 / 여러 장 주기) + 원본 영상 충실 연출 + 하단 검정 토스트 */
 
-/* 1. 점수 부여 풀페이지 모달 (16:9 스테이지 내부 absolute 배치) */
+/* 1. 점수 부여 풀페이지 모달 (워크스페이스 전체 채움) */
 .composer-overlay {
   position: absolute;
   top: var(--header-h);
   left: var(--rail-w);
-  right: 6px;
-  bottom: 6px;
+  right: 0;
+  bottom: 0;
   z-index: 520;
   background: var(--bg-cream);
-  border-radius: 12px 0 8px 8px;
+  border-radius: 0;
   padding: 28px 64px;
   overflow: auto;
   animation: fade-in 0.14s ease-out;

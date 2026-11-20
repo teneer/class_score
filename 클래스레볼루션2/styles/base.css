@@ -30,8 +30,8 @@
   --green-award: #78c832;
   --sky-cyan: #44d6ed;
 
-  --header-h: 48px;
-  --rail-w: 66px;
+  --header-h: 50px;
+  --rail-w: 64px;
 
   --shadow-sm: 0 2px 6px rgba(74, 66, 53, 0.08);
   --shadow-md: 0 8px 24px rgba(32, 26, 18, 0.16);
@@ -207,7 +207,7 @@ button:disabled {
 .dialog-card {
   width: 540px;
   max-width: 92%;
-  max-height: 820px;
+  max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -470,19 +470,36 @@ button:disabled {
 }
 .sp-mini-star {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   flex-shrink: 0;
-  background-image: url('../assets/visuals/sp_board_tree.png');
-  /* 640x560에서 좌상단 별 x=10, y=11, w=23, h=22 → 0.609배 */
-  background-size: 389.6px 340.9px;
-  background-position: -6.1px -6.7px;
+  background-image: url('../assets/visuals/sp_board_images.png');
+  /* 1660x580에서 정방향 단색 플랫 별 x=731, y=1, w=30, h=30 → 정확히 0.5배(15x15) */
+  background-size: 830px 290px;
+  background-position: -365.5px -0.5px;
   background-repeat: no-repeat;
-  filter: grayscale(1) opacity(0.28);
+  filter: grayscale(1) brightness(0.84) opacity(0.32);
   transition: filter 0.16s, transform 0.16s;
 }
 .sp-mini-star.is-filled {
-  filter: none;
+  /* 크림색 배경 위에서도 또렷하게 보이되 단색 플랫(음영 없음) 유지 */
+  filter: brightness(0.95) saturate(1.25);
+}
+.sp-cancel-circle {
+  width: 18px;
+  height: 18px;
+  background-image: url('../assets/visuals/sp_board_images.png');
+  /* 1660x580에서 회색 원형 X 아이콘 x=1331, y=181, w=64, h=64 → 0.28125배 */
+  background-size: 466.875px 163.125px;
+  background-position: -374.34px -50.91px;
+}
+.sp-recent-dots {
+  width: 18px;
+  height: 6px;
+  background-image: url('../assets/visuals/sp_board_images.png');
+  /* 1660x580에서 갈색 점 3개 x=952, y=7, w=18, h=4 */
+  background-size: 1660px 580px;
+  background-position: -952px -6px;
 }
 .sp-star-blue {
   width: 26px;

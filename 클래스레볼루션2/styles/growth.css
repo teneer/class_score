@@ -127,7 +127,7 @@
   right: 0;
   bottom: 0;
   width: 296px;
-  height: 1120px;
+  height: max(1200px, calc(100% + 260px));
   background-repeat: repeat-y;
   background-position: right bottom;
   background-size: 296px 864px;
@@ -145,6 +145,7 @@
   align-items: center;
   justify-content: center;
   padding: 78px 86px 52px 42px;
+  overflow: hidden;
 }
 
 /* 상단 우리 반의 한 마디 */
@@ -156,7 +157,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 600px;
+  width: min(600px, calc(100% - 140px));
   z-index: 4;
 }
 
@@ -195,10 +196,12 @@
   outline: none;
 }
 
-/* 중앙 별길 보드 (bg-class-clouds-way.png 1500x660 원본 비율 고정) */
+/* 중앙 별길 보드 (bg-class-clouds-way.png 1500x660 원본 비율 고정 + 뷰포트 반응형 스케일) */
 .star-way-wrap {
   position: relative;
   width: 1120px;
+  transform: scale(var(--star-scale, 1));
+  transform-origin: center center;
 }
 
 .star-way-board {

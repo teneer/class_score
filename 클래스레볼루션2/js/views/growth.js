@@ -44,6 +44,23 @@ let stepLoopRunning = false;
 let stepLoopRunId = 0;
 let lastGrowthRoot = null;
 
+/** 학급점수 화면 별길 보드가 뷰포트 크기에 맞춰 잘리지 않도록 비율 스케일 계산 */
+function applyGrowthFit(root) {
+  const skyArea = root?.querySelector('.growth-sky-area');
+  const wrap = root?.querySelector('.star-way-wrap');
+  if (!skyArea || !wrap) return;
+  const availW = Math.max(360, skyArea.clientWidth - 110);
+  const availH = Math.max(240, skyArea.clientHeight - 150);
+  const scale = Math.max(0.45, Math.min(1.25, availW / 1120, availH / 520));
+  wrap.style.setProperty('--star-scale', scale.toFixed(4));
+}
+
+window.addEventListener('resize', () => {
+  if (lastGrowthRoot && lastGrowthRoot.closest('.mode-view')?.classList.contains('is-active')) {
+    applyGrowthFit(lastGrowthRoot);
+  }
+});
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -413,6 +430,7 @@ function paintGrowthDom(root) {
   `;
 
   bindGrowthEvents(root, eggs, growth.specialEggs || 0);
+  applyGrowthFit(root);
 }
 
 /** 팝업 내부 숫자·버튼 상태만 부분 갱신 (전체 리렌더링 및 깜빡임 방지) */
