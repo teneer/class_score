@@ -12,6 +12,20 @@ export function setActiveModeProvider(fn) {
 const fxQueue = [];
 let fxPlaying = false;
 let fxTimer = null;
+let fxStepTimers = [];
+
+/** 연출 내부 단계 타이머 일괄 정리 */
+function clearFxStepTimers() {
+  for (const id of fxStepTimers) clearTimeout(id);
+  fxStepTimers = [];
+}
+
+/** 연출 내부 단계 타이머 등록 */
+function scheduleFxStep(fn, delay) {
+  const id = setTimeout(fn, delay);
+  fxStepTimers.push(id);
+  return id;
+}
 
 /** 하단 토스트 표시 (일반 알림용) */
 export function showToast({ title, detail = '', tone = 'info', duration = 3200 }) {
@@ -65,7 +79,7 @@ export function presentOutcome(outcome, { forceToast = false } = {}) {
     const totalPoints = Math.abs(outcome.delta) * (outcome.targets?.length || 1);
 
     if (useToast) {
-      playSound(isPos ? 'plus' : 'minus');
+      playSound(isPos ? 'plusBig' : 'minusBig');
       showCounterToast({ positive: isPos, totalCount: totalPoints });
     } else {
       fxQueue.push({
@@ -124,23 +138,25 @@ function runNextFx() {
 
   fxPlaying = true;
   clearTimeout(fxTimer);
+  clearFxStepTimers();
   stage.hidden = false;
   stage.className = 'fx-stage';
 
   let duration = 2600;
 
   if (item.type === 'positive') {
+    // 으쓱(상점) 4단계 원본 연출: 어두운 하늘·구름 하강·날개 상표 상승 → 노란 캐릭터 세로축 플립 → 정지 아바타 세로축 플립·1차 흰색 하이라이트 → 가로축 플립·스프라이트 전환·2차 흰색 하이라이트
     stage.classList.add('fx-positive');
-    duration = 3500;
     const perStudent = Math.abs(Math.trunc(Number(item.delta) || 1));
     const count = item.targets.length;
     const totalScore = perStudent * count;
-    playSound(perStudent >= 3 || count >= 4 ? 'plusBig' : 'plus');
-    const cheers = ['참 잘했어요', '열심히 한 보람이 있어요', '정말 멋져요'];
+    const shownTargets = item.targets.slice(0, 10);
+    const N = Math.max(1, shownTargets.length);
+    playSound('plusBig');
+    const cheers = ['열심히 한 보람이 있네요', '참 잘했어요', '정말 멋져요'];
     const cheerText = cheers[count % cheers.length];
     const isCompact = count >= 6;
     stage.innerHTML = `
-      <div class="fx-intro-mascot" aria-hidden="true"></div>
       <div class="fx-heading">
         <div class="fx-medal-wrap">
           <div class="fx-wing-l" aria-hidden="true"></div>
@@ -156,10 +172,10 @@ function runNextFx() {
         <h2 class="fx-reason-title">${escapeHtml(item.reason)}</h2>
       </div>
       <div class="fx-actors-row ${isCompact ? 'is-compact' : ''}">
-        ${item.targets.slice(0, 10).map((t, idx) => `
-          <div class="fx-actor-card" style="--pop-delay:${(0.88 + idx * 0.08).toFixed(2)}s;">
-            <div class="fx-actor-puff" aria-hidden="true"></div>
-            <div class="avatar-fx-sprite" style="background-image:url('${getFxAvatarUrl(t.avatarId)}')"></div>
+        ${shownTargets.map((t, idx) => `
+          <div class="fx-actor-card" data-actor-idx="${idx}" style="--flip-delay:${(1.05 + idx * 0.14).toFixed(2)}s;">
+            <img class="fx-still-img fx-actor-still" src="${getStillAvatarUrl(t.avatarId)}" alt="${escapeAttr(t.name)}">
+            <div class="avatar-fx-sprite fx-actor-anim" hidden style="background-image:url('${getFxAvatarUrl(t.avatarId)}')"></div>
             <span class="fx-actor-name">${escapeHtml(t.name)}</span>
           </div>
         `).join('')}
@@ -167,20 +183,57 @@ function runNextFx() {
       </div>
       <div class="fx-bottom-cheer">
         <div class="fx-cheer-pill">" ${cheerText} "</div>
+        <div class="fx-mascot fx-positive-mascot" aria-hidden="true"></div>
       </div>
     `;
+
+    const cards = [...stage.querySelectorAll('.fx-actor-card')];
+    const tWhite1Base = 1050 + (N - 1) * 140 + 380;
+    const tFlipXBase = tWhite1Base + (N - 1) * 160 + 260;
+    const tWhite2Base = tFlipXBase + 400;
+    const tAllDone = tWhite2Base + (N - 1) * 160 + 200;
+    duration = Math.max(5800, tAllDone + 2200);
+
+    // 1차 하얀색 순차 하이라이트 (정지 아바타 상태)
+    cards.forEach((card, idx) => {
+      const startAt = tWhite1Base + idx * 160;
+      scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
+      scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 155);
+    });
+
+    // 가로축 플립 및 중간 시점에 2프레임 스프라이트 애니메이션으로 전환
+    scheduleFxStep(() => {
+      cards.forEach((card) => card.classList.add('is-flipping-x'));
+    }, tFlipXBase);
+    scheduleFxStep(() => {
+      cards.forEach((card) => {
+        const stillEl = card.querySelector('.fx-actor-still');
+        const animEl = card.querySelector('.fx-actor-anim');
+        if (stillEl) stillEl.hidden = true;
+        if (animEl) animEl.hidden = false;
+      });
+    }, tFlipXBase + 165);
+
+    // 2차 하얀색 순차 하이라이트 (스프라이트 애니메이션 상태)
+    cards.forEach((card, idx) => {
+      const startAt = tWhite2Base + idx * 160;
+      scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
+      scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 155);
+    });
   } else if (item.type === 'negative') {
-    // 감점 시 원본 먹구름 스프라이트 + 빗줄기 + 노란 톱니·빨간 먹구름 배지 + 정지 아바타(still) + 하단 마스코트
+    // 머쓱(감점) 원본 연출: 빨간 배경→어두운 회색 전환 + 검은 먹구름·빗줄기 + 벌점표 반시계 회전 상승 확대 + 성난 노란 나무 캐릭터 플립 등장 + 정지 아바타 순차 플립 & 좌→우 흰색 하이라이트
     stage.classList.add('fx-negative');
-    duration = 3600;
     const perStudent = Math.abs(Math.trunc(Number(item.delta) || 1));
     const count = item.targets.length;
     const totalScore = perStudent * count;
-    playSound(perStudent >= 3 ? 'minusBig' : 'minus');
+    const shownTargets = item.targets.slice(0, 10);
+    const N = Math.max(1, shownTargets.length);
+    playSound('minusBig');
     const isCompact = count >= 6;
     stage.innerHTML = `
       <div class="fx-storm-rain" aria-hidden="true"></div>
       <div class="fx-storm-clouds" aria-hidden="true">
+        <div class="fx-storm-cloud-sprite c-shadow"></div>
         <div class="fx-storm-cloud-sprite c-left"></div>
         <div class="fx-storm-cloud-sprite c-right"></div>
         <div class="fx-storm-cloud-sprite c-center"></div>
@@ -197,19 +250,50 @@ function runNextFx() {
         <h2 class="fx-reason-title">${escapeHtml(item.reason)}</h2>
       </div>
       <div class="fx-actors-row ${isCompact ? 'is-compact' : ''}">
-        ${item.targets.slice(0, 10).map((t, idx) => `
-          <div class="fx-actor-card" style="--pop-delay:${(0.98 + idx * 0.08).toFixed(2)}s;">
-            <img class="fx-still-img" src="${getStillAvatarUrl(t.avatarId)}" alt="${escapeAttr(t.name)}">
+        ${shownTargets.map((t, idx) => `
+          <div class="fx-actor-card" data-actor-idx="${idx}" style="--flip-delay:${(1.15 + idx * 0.14).toFixed(2)}s;">
+            <img class="fx-still-img fx-actor-still" src="${getStillAvatarUrl(t.avatarId)}" alt="${escapeAttr(t.name)}">
             <span class="fx-actor-name">${escapeHtml(t.name)}</span>
           </div>
         `).join('')}
         ${count > 10 ? `<span class="fx-more-pill">외 ${count - 10}명</span>` : ''}
       </div>
       <div class="fx-bottom-cheer">
-        <div class="fx-cheer-pill">" 고쳐주세요 "</div>
-        <div class="fx-mascot" aria-hidden="true"></div>
+        <div class="fx-cheer-pill">" 다음엔 잘 해봐요 "</div>
+        <div class="fx-mascot fx-negative-mascot" aria-hidden="true">
+          <svg class="fx-angry-face" viewBox="0 0 80 54" aria-hidden="true">
+            <rect x="6" y="6" width="68" height="44" rx="14" fill="#fdb827"/>
+            <path d="M16 14 L34 21" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round"/>
+            <path d="M64 14 L46 21" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round"/>
+            <circle cx="26" cy="27" r="7.5" fill="#ffffff" stroke="#3c2607" stroke-width="2.2"/>
+            <circle cx="54" cy="27" r="7.5" fill="#ffffff" stroke="#3c2607" stroke-width="2.2"/>
+            <circle cx="27" cy="27" r="3.4" fill="#3c2607"/>
+            <circle cx="53" cy="27" r="3.4" fill="#3c2607"/>
+            <path d="M17 19 L34 24" stroke="#f59e0b" stroke-width="3.2" stroke-linecap="round"/>
+            <path d="M63 19 L46 24" stroke="#f59e0b" stroke-width="3.2" stroke-linecap="round"/>
+            <ellipse cx="14" cy="36" rx="4.2" ry="2.2" fill="#fff7d6" opacity="0.88"/>
+            <ellipse cx="66" cy="36" rx="4.2" ry="2.2" fill="#fff7d6" opacity="0.88"/>
+            <path d="M38 30 L40 27 L42 30" fill="none" stroke="#3c2607" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="28" y="36" width="24" height="9" rx="3" fill="#ffffff" stroke="#3c2607" stroke-width="2.2"/>
+            <line x1="34" y1="36" x2="34" y2="45" stroke="#3c2607" stroke-width="1.4"/>
+            <line x1="40" y1="36" x2="40" y2="45" stroke="#3c2607" stroke-width="1.4"/>
+            <line x1="46" y1="36" x2="46" y2="45" stroke="#3c2607" stroke-width="1.4"/>
+          </svg>
+        </div>
       </div>
     `;
+
+    const cards = [...stage.querySelectorAll('.fx-actor-card')];
+    const tWhiteBase = 1150 + (N - 1) * 140 + 380;
+    const tAllDone = tWhiteBase + (N - 1) * 170 + 220;
+    duration = Math.max(5400, tAllDone + 2200);
+
+    // 왼쪽에서 오른쪽으로 순차 하얀색 하이라이트
+    cards.forEach((card, idx) => {
+      const startAt = tWhiteBase + idx * 170;
+      scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
+      scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 165);
+    });
   } else if (item.type === 'egg') {
     // 3수업도구.mp4 00:31~00:33 — 검정 배경 + 흰 날개 달린 황금알 획득 연출
     stage.classList.add('fx-egg');
@@ -252,6 +336,7 @@ function runNextFx() {
 
   const finish = () => {
     clearTimeout(fxTimer);
+    clearFxStepTimers();
     stage.onclick = null;
     stage.hidden = true;
     fxPlaying = false;
