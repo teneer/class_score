@@ -91,15 +91,14 @@ export function presentOutcome(outcome, { forceToast = false } = {}) {
     }
 
     if (outcome.eggsDelta > 0) {
-      if (useToast) {
-        playSound('eggUp');
-      } else {
+      if (!useToast) {
         fxQueue.push({
           type: 'egg',
           delta: outcome.eggsDelta,
           eggsNow: outcome.eggsNow,
         });
       }
+      // 개인점수 누적 황금알 상승 사운드는 추후 전용 사운드 추가 전까지 재생하지 않음
     } else if (outcome.eggsDelta < 0) {
       playSound('eggDown');
     }
@@ -283,9 +282,8 @@ function runNextFx() {
       scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 175);
     });
   } else if (item.type === 'egg') {
-    // 3수업도구.mp4 00:31~00:33 — 검정 배경 + 흰 날개 달린 황금알 획득 연출
+    // 3수업도구.mp4 00:31~00:33 — 검정 배경 + 흰 날개 달린 황금알 획득 연출 (추후 전용 사운드 추가 전까지 무음)
     stage.classList.add('fx-egg');
-    playSound('successSmall');
     duration = 2500;
     stage.innerHTML = `
       <div class="fx-winged-egg-wrap">
