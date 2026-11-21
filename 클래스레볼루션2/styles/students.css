@@ -54,20 +54,22 @@
   box-shadow: 0 4px 12px rgba(228, 204, 56, 0.35);
 }
 
-/* 상점 연출 복귀 시 카드 좌우 틸트 & 축하 강조 */
+/* 상점/벌점 연출 복귀 시 노란 선택 하이라이트 유지 + 1초 좌우 4세트 틸트 (0.25s × 4 = 1.0s) */
 .student-card.is-celebrating,
 .seat-slot.is-celebrating {
   z-index: 6;
-  border-color: #29a3e0;
-  box-shadow: 0 8px 20px rgba(41, 163, 224, 0.35);
-  animation: card-happy-tilt 0.48s ease-in-out 4;
+  background: var(--yellow-select);
+  border-color: #e4cc38;
+  box-shadow: 0 6px 16px rgba(228, 204, 56, 0.42);
+  will-change: transform;
+  animation: card-happy-tilt 0.25s ease-in-out 4;
   transform-origin: center center;
 }
 @keyframes card-happy-tilt {
-  0% { transform: rotate(0deg) scale(1); }
-  25% { transform: rotate(-5.5deg) scale(1.04); }
-  50% { transform: rotate(0deg) scale(1.04); }
-  75% { transform: rotate(5.5deg) scale(1.04); }
+  0%   { transform: rotate(0deg) scale(1); }
+  25%  { transform: rotate(-5.5deg) scale(1.03); }
+  50%  { transform: rotate(0deg) scale(1.03); }
+  75%  { transform: rotate(5.5deg) scale(1.03); }
   100% { transform: rotate(0deg) scale(1); }
 }
 

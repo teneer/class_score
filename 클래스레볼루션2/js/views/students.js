@@ -31,8 +31,9 @@ let ghostAddPos = null; // 편집 모드 중 이동 가능한 1명 크기 점선
 let swapSourceStudentId = null; // 편집 모드에서 학생 카드 2개 클릭 자리 교환용 첫 번째 선택 학생 ID
 let navigateCallback = null;
 
-// 상점 연출 복귀 시 카드 틸트 + 좋아하는 표정 애니메이션 대상 관리
+// 상점/벌점 연출 복귀 시 노란 선택 하이라이트 유지 + 1초 좌우 4세트 틸트 (상점은 포즈 동반, 벌점은 포즈 없음) 후 선택 해제
 let celebratingIds = new Set();
+let celebratingType = null; // 'positive' | 'negative' | null
 let celebrateTimer = null;
 let lastStudentsRoot = null;
 let studentsResizeRaf = 0;
@@ -51,16 +52,20 @@ window.addEventListener('class123:award-finished', (ev) => {
   const ids = ev.detail?.studentIds || [];
   if (ids.length === 0) return;
   celebratingIds = new Set(ids);
+  celebratingType = ev.detail?.type === 'negative' ? 'negative' : 'positive';
+  selectedIds = new Set(ids);
   clearTimeout(celebrateTimer);
   if (lastStudentsRoot && lastStudentsRoot.closest('.mode-view')?.classList.contains('is-active')) {
     renderStudentsView(lastStudentsRoot);
   }
   celebrateTimer = setTimeout(() => {
     celebratingIds.clear();
+    celebratingType = null;
+    selectedIds.clear();
     if (lastStudentsRoot && lastStudentsRoot.closest('.mode-view')?.classList.contains('is-active')) {
       renderStudentsView(lastStudentsRoot);
     }
-  }, 2200);
+  }, 1020);
 });
 
 export function setStudentsNavigator(fn) {
@@ -620,10 +625,11 @@ function renderListBody(sortedStudents, scoreMode) {
         <div class="student-card-grid" id="student-card-grid">
           ${sortedStudents.map((s) => {
             const isCeleb = celebratingIds.has(s.id);
+            const showPose = isCeleb && celebratingType === 'positive';
             return `
               <div class="student-card ${selectedIds.has(s.id) ? 'is-selected' : ''} ${s.absent ? 'is-absent' : ''} ${isCeleb ? 'is-celebrating' : ''}" data-student-card="${s.id}" role="button" tabindex="0">
                 <div class="card-avatar-wrap">
-                  ${isCeleb
+                  ${showPose
                     ? `<div class="avatar-fx-sprite is-finite" style="background-image:url('${getFxAvatarUrl(s.avatarId)}')"></div>`
                     : `<img src="${getStillAvatarUrl(s.avatarId)}" alt="${escapeAttr(s.name)}" loading="lazy">`
                   }
@@ -711,7 +717,8 @@ function renderSeatingBody(state, activeStudents, scoreMode) {
                         return `<div class="seat-cell-empty ${seatEditMode && swapSourceStudentId ? 'is-swap-ready' : ''}" data-empty-seat-group="${g.id}" data-empty-seat-index="${slotIdx}"></div>`;
                       }
                       const isCeleb = celebratingIds.has(st.id);
-                      const hasAv = showAvatars || isCeleb;
+                      const showPose = isCeleb && celebratingType === 'positive';
+                      const hasAv = showAvatars || showPose;
                       const isSwapSrc = seatEditMode && swapSourceStudentId === st.id;
                       return `
                         <div class="seat-slot ${selectedIds.has(st.id) ? 'is-selected' : ''} ${st.absent ? 'is-absent' : ''} ${isCeleb ? 'is-celebrating' : ''} ${hasAv ? 'has-avatar' : ''} ${seatEditMode ? 'is-edit-draggable' : ''} ${isSwapSrc ? 'is-swap-source' : ''}"
@@ -720,7 +727,7 @@ function renderSeatingBody(state, activeStudents, scoreMode) {
                              data-seat-index="${slotIdx}">
                           <div class="seat-num-bar">${st.number}</div>
                           ${isSwapSrc ? `<span class="seat-swap-badge">교환 선택</span>` : ''}
-                          ${isCeleb
+                          ${showPose
                             ? `<div class="avatar-fx-sprite is-finite seat-avatar-fx" style="background-image:url('${getFxAvatarUrl(st.avatarId)}')"></div>`
                             : (showAvatars ? `<img class="seat-avatar" src="${getStillAvatarUrl(st.avatarId)}" alt="">` : '')
                           }
@@ -862,7 +869,7 @@ function bindStudentsEvents(root, state, activeStudents) {
       studentIds: lastSelectedIds,
       initialType: type,
       onApplied: () => {
-        selectedIds.clear();
+        // 연출 종료 후 1초 좌우 4세트 틸트가 끝날 때까지 노란 선택 하이라이트를 유지하고, 완료 시 자동 선택 해제
         renderStudentsView(root);
       },
     });

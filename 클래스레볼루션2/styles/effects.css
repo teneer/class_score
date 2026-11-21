@@ -506,11 +506,11 @@
   cursor: pointer;
 }
 
-/* (A) 상점(으쓱) 연출 — 어두운 하늘·구름 하강·날개 상표 상승 → 밝은 하늘·노란 캐릭터 세로축 플립 → 정지 아바타 플립·흰색 하이라이트 → 가로축 플립·스프라이트 전환·2차 하이라이트 */
+/* (A) 상점(으쓱) 연출 — 총 4.5초 (0~2s 구름 하강·상표 상승 최대화 → 2~3s 나무·학생 플립·상표 안착·메시지 → 3~4.5s 하이라이트·모션) */
 .fx-stage.fx-positive {
   background: #29ace2;
   padding-bottom: 0;
-  animation: fx-sky-phase 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: fx-sky-phase 2.3s ease-in-out both;
 }
 .fx-stage.fx-positive::before {
   content: "";
@@ -518,28 +518,28 @@
   inset: 0 0 auto;
   height: 185%;
   background: url('../assets/visuals/bg-effect-wow-cloud.png') center top / 100% 100% no-repeat;
-  animation: fx-clouds-drop 1.05s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+  animation: fx-clouds-drop 2.1s cubic-bezier(0.25, 0.1, 0.25, 1) both;
   pointer-events: none;
   z-index: 0;
 }
 
 @keyframes fx-sky-phase {
   0%   { background-color: #3f5863; }
-  56%  { background-color: #3f5863; }
-  90%  { background-color: #29ace2; }
+  70%  { background-color: #3f5863; }
   100% { background-color: #29ace2; }
 }
 @keyframes fx-clouds-drop {
-  0%   { transform: translateY(-32%); opacity: 0.48; }
-  45%  { transform: translateY(-20%); opacity: 1; }
-  100% { transform: translateY(0%); opacity: 1; }
+  0%   { transform: translate3d(0, -32%, 0); opacity: 0.48; }
+  45%  { transform: translate3d(0, -18%, 0); opacity: 1; }
+  100% { transform: translate3d(0, 0%, 0); opacity: 1; }
 }
 
-/* (B) 감점(머쓱) 연출 — 빨간 배경→어두운 회색 전환 + 전용 애셋(sp_effect_oops.png, bg-effect-oops-cloud.png) */
+/* (B) 감점(머쓱) 연출 — 총 4.0초 (0~1s 먹구름·비 하강·벌점표 360도 회전 상승 최대화 → 1~2s 나무·학생 플립·안착 → 2~4s 2회 하이라이트) */
 .fx-stage.fx-negative {
   background: #3b3e45;
   padding-bottom: 0;
-  animation: fx-storm-bg 1.25s ease-out both;
+  animation: fx-storm-bg 1.65s ease-in-out both;
 }
 .fx-stage.fx-negative::before {
   content: "";
@@ -549,34 +549,40 @@
   pointer-events: none;
   z-index: 0;
 }
-/* 상단 먹구름 아래 대각선 빗줄기 애셋 애니메이션 (sp_effect_oops.png x=916..1226, y=16..298) */
+/* 상단 먹구름 아래 대각선 빗줄기 애셋 애니메이션 (3장 교차로 끊김 없이 연속 낙하) */
 .fx-storm-rain {
   position: absolute;
   top: 0;
   left: 50%;
-  transform: translateX(-50%);
-  width: 580px;
+  width: 600px;
   height: 410px;
   overflow: hidden;
   pointer-events: none;
   z-index: 1;
+  will-change: transform;
+  animation: fx-storm-rain-drop 1.0s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .fx-storm-rain-sprite {
   position: absolute;
-  top: 10px;
+  top: 6px;
   width: 340px;
   height: 310px;
   background: url('../assets/visuals/sp_effect_oops.png') -1004.6px -17.5px / 1360px 1042px no-repeat;
-  animation: fx-rain-sprite-fall 0.85s linear infinite;
+  will-change: transform, opacity;
+  animation: fx-rain-sprite-fall 1.05s linear infinite;
 }
 .fx-storm-rain-sprite.r1 {
-  left: 24px;
+  left: 16px;
 }
 .fx-storm-rain-sprite.r2 {
-  right: 24px;
-  animation-delay: -0.42s;
+  left: 132px;
+  animation-delay: -0.35s;
 }
-/* 상단 대형 검은 먹구름 + 회색 밑그림자 (sp_effect_oops.png x=20..556, y=0..202) */
+.fx-storm-rain-sprite.r3 {
+  right: 16px;
+  animation-delay: -0.70s;
+}
+/* 상단 대형 검은 먹구름 + 회색 밑그림자 (시작 시 위에서 살짝 내려옴) */
 .fx-storm-clouds {
   position: absolute;
   top: -12px;
@@ -587,6 +593,8 @@
   justify-content: center;
   pointer-events: none;
   z-index: 2;
+  will-change: transform;
+  animation: fx-storm-cloud-drop 1.0s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .fx-storm-cloud-main {
   width: 680px;
@@ -596,16 +604,22 @@
 
 @keyframes fx-storm-bg {
   0%   { background-color: #9b4242; }
-  36%  { background-color: #9b4242; }
-  62%  { background-color: #5c4246; }
-  88%  { background-color: #3b3e45; }
+  60%  { background-color: #9b4242; }
   100% { background-color: #3b3e45; }
 }
+@keyframes fx-storm-cloud-drop {
+  0%   { transform: translate3d(0, -40px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+@keyframes fx-storm-rain-drop {
+  0%   { transform: translate3d(-50%, -40px, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
 @keyframes fx-rain-sprite-fall {
-  0%   { transform: translate(26px, -42px); opacity: 0; }
-  18%  { opacity: 0.95; }
-  82%  { opacity: 0.9; }
-  100% { transform: translate(-34px, 68px); opacity: 0; }
+  0%   { transform: translate3d(28px, -48px, 0); opacity: 0; }
+  20%  { opacity: 0.92; }
+  80%  { opacity: 0.88; }
+  100% { transform: translate3d(-36px, 74px, 0); opacity: 0; }
 }
 
 /* (C) 별길 꽉 참 → 날개 달린 황금알 획득 연출 (3수업도구.mp4 00:31~00:33, 02:51~02:53) */
@@ -811,22 +825,36 @@
   text-align: center;
 }
 
-/* 으쓱 메달 (sp_effect_wow.png 원본 통일 배율 s=0.35 — 좌·우 날개 y=70..254, 메달 y=10..329, 별, 반짝이) */
+/* 으쓱 메달 (0~2.0s 구름 통과 상승 최대화 → 2.0~2.65s 원래 크기 상단 안착, 끊김 없는 GPU 곡선) */
 .fx-medal-wrap {
   position: relative;
   width: 288px;
   height: 112px;
   display: grid;
   place-items: center;
-  animation: fx-medal-intro 1.15s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+  animation: fx-medal-intro 2.65s both;
 }
 @keyframes fx-medal-intro {
-  0%   { transform: translateY(68vh) scale(0.38); opacity: 0; }
-  14%  { transform: translateY(60vh) scale(0.46); opacity: 0.9; }
-  42%  { transform: translateY(28vh) scale(1.12); opacity: 1; }
-  62%  { transform: translateY(18vh) scale(1.85); opacity: 1; }
-  74%  { transform: translateY(14vh) scale(1.78); opacity: 1; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
+  0% {
+    transform: translate3d(0, 68vh, 0) scale(0.38);
+    opacity: 0;
+    animation-timing-function: ease-out;
+  }
+  10% {
+    transform: translate3d(0, 58vh, 0) scale(0.52);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+  75% {
+    transform: translate3d(0, 16vh, 0) scale(1.85);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
 }
 
 .fx-wing-l,
@@ -902,21 +930,35 @@
   100% { opacity: 1; transform: scale(1.18) rotate(12deg); }
 }
 
-/* 머쓱 벌점표 (sp_effect_oops.png x=550..869, y=10..329 — 하단 아주 작게 출발 → 반시계 회전 상승·최대 확대 → 상단 안착) */
+/* 머쓱 벌점표 (0~1.0s 하단에서 불투명해지며 360도 반시계 회전 상승·최대화 → 1.0~1.55s 원래 크기 상단 안착, 끊김 없는 GPU 곡선) */
 .fx-storm-badge-wrap {
   position: relative;
   width: 112px;
   height: 112px;
   background: url('../assets/visuals/sp_effect_oops.png') -192.5px -3.5px / 434px 332.5px no-repeat;
-  animation: fx-storm-badge-intro 1.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+  animation: fx-storm-badge-intro 1.55s both;
 }
 @keyframes fx-storm-badge-intro {
-  0%   { transform: translateY(72vh) scale(0.30) rotate(0deg); opacity: 0.45; }
-  14%  { transform: translateY(64vh) scale(0.40) rotate(-105deg); opacity: 0.94; }
-  40%  { transform: translateY(34vh) scale(1.06) rotate(-320deg); opacity: 1; }
-  62%  { transform: translateY(14vh) scale(1.86) rotate(-540deg); opacity: 1; }
-  74%  { transform: translateY(10vh) scale(1.80) rotate(-625deg); opacity: 1; }
-  100% { transform: translateY(0) scale(1) rotate(-720deg); opacity: 1; }
+  0% {
+    transform: translate3d(0, 70vh, 0) scale(0.32) rotate(0deg);
+    opacity: 0;
+    animation-timing-function: linear;
+  }
+  12% {
+    transform: translate3d(0, 62vh, 0) scale(0.46) rotate(-65deg);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+  65% {
+    transform: translate3d(0, 14vh, 0) scale(1.85) rotate(-360deg);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(-360deg);
+    opacity: 1;
+  }
 }
 
 /* 점수 블록 (작게: +3점 × 2명 / 크게: +6점) + 사유 텍스트 — 배지 안착 시 등장 */
@@ -927,10 +969,11 @@
   gap: 2px;
   margin-top: 2px;
   opacity: 0;
-  animation: fx-reveal-pop 0.38s cubic-bezier(0.22, 1.25, 0.38, 1) 0.94s forwards;
+  will-change: transform, opacity;
+  animation: fx-reveal-pop 0.36s cubic-bezier(0.22, 1.25, 0.38, 1) 2.25s forwards;
 }
 .fx-negative .fx-score-banner {
-  animation-delay: 1.04s;
+  animation-delay: 1.25s;
 }
 .fx-score-formula {
   padding: 2px 12px;
@@ -961,10 +1004,11 @@
   color: #fff;
   text-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
   opacity: 0;
-  animation: fx-reveal-pop 0.38s cubic-bezier(0.22, 1.25, 0.38, 1) 0.98s forwards;
+  will-change: transform, opacity;
+  animation: fx-reveal-pop 0.36s cubic-bezier(0.22, 1.25, 0.38, 1) 2.30s forwards;
 }
 .fx-negative .fx-reason-title {
-  animation-delay: 1.08s;
+  animation-delay: 1.30s;
 }
 
 @keyframes fx-reveal-pop {
@@ -997,27 +1041,26 @@
   flex-shrink: 0;
   opacity: 0;
   transform-origin: center center;
-  animation: fx-actor-flip-y-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) var(--flip-delay, 1.05s) forwards;
+  will-change: transform, opacity;
+  animation: fx-actor-flip-y-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) var(--flip-delay, 2.1s) forwards;
 }
 .fx-actor-card [hidden] {
   display: none !important;
 }
 /* 세로축 플립 순차 등장 (rotateY) */
 @keyframes fx-actor-flip-y-in {
-  0%   { opacity: 0; transform: perspective(520px) rotateY(-90deg) scaleX(0.06); }
-  30%  { opacity: 1; transform: perspective(520px) rotateY(-62deg) scaleX(0.28); }
-  70%  { opacity: 1; transform: perspective(520px) rotateY(-18deg) scaleX(0.82); }
+  0%   { opacity: 0; transform: perspective(520px) rotateY(-90deg) scaleX(0.08); }
   100% { opacity: 1; transform: perspective(520px) rotateY(0deg) scaleX(1); }
 }
 
 /* 가로축 플립 (rotateX — 정지 아바타 → 2프레임 스프라이트 전환) */
 .fx-actor-card.is-flipping-x {
   opacity: 1;
-  animation: fx-actor-flip-x 0.34s ease-in-out 0s both;
+  animation: fx-actor-flip-x 0.32s ease-in-out 0s both;
 }
 @keyframes fx-actor-flip-x {
   0%   { opacity: 1; transform: perspective(520px) rotateX(0deg) scaleY(1); }
-  48%  { opacity: 1; transform: perspective(520px) rotateX(76deg) scaleY(0.18); }
+  50%  { opacity: 1; transform: perspective(520px) rotateX(78deg) scaleY(0.16); }
   100% { opacity: 1; transform: perspective(520px) rotateX(0deg) scaleY(1); }
 }
 
@@ -1090,11 +1133,12 @@
   font-weight: 800;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
   opacity: 0;
-  animation: fx-reveal-pop 0.36s ease-out 0.96s forwards;
+  will-change: transform, opacity;
+  animation: fx-reveal-pop 0.36s ease-out 2.20s forwards;
 }
 .fx-negative .fx-cheer-pill {
   background: #eb5246;
-  animation-delay: 1.05s;
+  animation-delay: 1.22s;
 }
 .fx-mascot {
   position: relative;
@@ -1102,21 +1146,20 @@
   height: 112px;
   background: url('../assets/visuals/sp_effect_wow.png') 0 -330.4px / 583.5px 447.1px no-repeat;
   opacity: 0;
+  will-change: transform, opacity;
   transform-style: preserve-3d;
 }
 .fx-mascot.fx-positive-mascot {
-  animation: fx-mascot-flip-y-in 0.58s cubic-bezier(0.22, 1, 0.36, 1) 0.56s both;
+  animation: fx-mascot-flip-y-in 0.65s cubic-bezier(0.22, 1, 0.36, 1) 1.98s both;
 }
 .fx-mascot.fx-negative-mascot {
   background-image: url('../assets/visuals/sp_effect_oops.png');
-  animation: fx-mascot-flip-y-in 0.58s cubic-bezier(0.22, 1, 0.36, 1) 0.58s both;
+  animation: fx-mascot-flip-y-in 0.62s cubic-bezier(0.22, 1, 0.36, 1) 1.00s both;
 }
 @keyframes fx-mascot-flip-y-in {
-  0%   { opacity: 0; transform: perspective(600px) translateY(96px) rotateY(0deg) scale(0.84); }
-  20%  { opacity: 1; transform: perspective(600px) translateY(44px) rotateY(180deg) scale(0.95); }
-  50%  { opacity: 1; transform: perspective(600px) translateY(12px) rotateY(360deg) scale(1.04); }
-  78%  { opacity: 1; transform: perspective(600px) translateY(2px) rotateY(540deg) scale(1.02); }
-  100% { opacity: 1; transform: perspective(600px) translateY(0) rotateY(720deg) scale(1); }
+  0%   { opacity: 0; transform: perspective(600px) translate3d(0, 96px, 0) rotateY(0deg) scale(0.86); }
+  15%  { opacity: 1; }
+  100% { opacity: 1; transform: perspective(600px) translate3d(0, 0, 0) rotateY(720deg) scale(1); }
 }
 
 /* 3. 하단 토스트 팝업 (원본 여러 장 주기 검정 바 + 일반 알림 토스트) */
