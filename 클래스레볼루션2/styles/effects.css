@@ -821,11 +821,11 @@
   animation: fx-medal-intro 1.15s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes fx-medal-intro {
-  0%   { transform: translateY(64vh) scale(0.42); opacity: 0; }
-  14%  { transform: translateY(58vh) scale(0.48); opacity: 0.88; }
-  42%  { transform: translateY(30vh) scale(0.96); opacity: 1; }
-  64%  { transform: translateY(10vh) scale(1.48); opacity: 1; }
-  76%  { transform: translateY(2vh) scale(1.82); opacity: 1; }
+  0%   { transform: translateY(68vh) scale(0.38); opacity: 0; }
+  14%  { transform: translateY(60vh) scale(0.46); opacity: 0.9; }
+  42%  { transform: translateY(28vh) scale(1.12); opacity: 1; }
+  62%  { transform: translateY(18vh) scale(1.85); opacity: 1; }
+  74%  { transform: translateY(14vh) scale(1.78); opacity: 1; }
   100% { transform: translateY(0) scale(1); opacity: 1; }
 }
 
@@ -887,13 +887,13 @@
   animation: fx-medal-spark-twinkle 0.65s ease-in-out infinite alternate;
 }
 .fx-medal-spark.s1 {
-  left: 102px;
-  top: 14px;
+  left: 96px;
+  top: 12px;
   background-position: -194px -139px;
 }
 .fx-medal-spark.s2 {
-  right: 102px;
-  bottom: 14px;
+  right: 96px;
+  bottom: 12px;
   background-position: -245px -148px;
   animation-delay: 0.28s;
 }
@@ -902,20 +902,20 @@
   100% { opacity: 1; transform: scale(1.18) rotate(12deg); }
 }
 
-/* 머쓱 벌점표 (sp_effect_oops.png x=550..869, y=10..329 — 하단 출발 → 반시계 회전 상승·최대 확대 → 상단 안착) */
+/* 머쓱 벌점표 (sp_effect_oops.png x=550..869, y=10..329 — 하단 아주 작게 출발 → 반시계 회전 상승·최대 확대 → 상단 안착) */
 .fx-storm-badge-wrap {
   position: relative;
   width: 112px;
   height: 112px;
   background: url('../assets/visuals/sp_effect_oops.png') -192.5px -3.5px / 434px 332.5px no-repeat;
-  animation: fx-storm-badge-intro 1.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: fx-storm-badge-intro 1.24s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes fx-storm-badge-intro {
-  0%   { transform: translateY(66vh) scale(0.38) rotate(0deg); opacity: 0.45; }
-  16%  { transform: translateY(60vh) scale(0.46) rotate(-110deg); opacity: 0.92; }
-  42%  { transform: translateY(34vh) scale(1.02) rotate(-320deg); opacity: 1; }
-  66%  { transform: translateY(12vh) scale(1.68) rotate(-540deg); opacity: 1; }
-  78%  { transform: translateY(4vh) scale(1.82) rotate(-630deg); opacity: 1; }
+  0%   { transform: translateY(72vh) scale(0.30) rotate(0deg); opacity: 0.45; }
+  14%  { transform: translateY(64vh) scale(0.40) rotate(-105deg); opacity: 0.94; }
+  40%  { transform: translateY(34vh) scale(1.06) rotate(-320deg); opacity: 1; }
+  62%  { transform: translateY(14vh) scale(1.86) rotate(-540deg); opacity: 1; }
+  74%  { transform: translateY(10vh) scale(1.80) rotate(-625deg); opacity: 1; }
   100% { transform: translateY(0) scale(1) rotate(-720deg); opacity: 1; }
 }
 
@@ -1049,7 +1049,7 @@
   height: 112px;
 }
 .fx-actor-name {
-  color: #1c2e38;
+  color: #194052;
   font-size: 20px;
   font-weight: 800;
   text-shadow: 0 1px 4px rgba(255, 255, 255, 0.25);
@@ -1105,11 +1105,11 @@
   transform-style: preserve-3d;
 }
 .fx-mascot.fx-positive-mascot {
-  animation: fx-mascot-flip-y-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.68s both;
+  animation: fx-mascot-flip-y-in 0.58s cubic-bezier(0.22, 1, 0.36, 1) 0.56s both;
 }
 .fx-mascot.fx-negative-mascot {
   background-image: url('../assets/visuals/sp_effect_oops.png');
-  animation: fx-mascot-flip-y-in 0.58s cubic-bezier(0.22, 1, 0.36, 1) 0.66s both;
+  animation: fx-mascot-flip-y-in 0.58s cubic-bezier(0.22, 1, 0.36, 1) 0.58s both;
 }
 @keyframes fx-mascot-flip-y-in {
   0%   { opacity: 0; transform: perspective(600px) translateY(96px) rotateY(0deg) scale(0.84); }

@@ -231,6 +231,8 @@ function runNextFx() {
     const shownTargets = item.targets.slice(0, 10);
     const N = Math.max(1, shownTargets.length);
     playSound('minusBig');
+    const warns = ['고쳐주세요', '다음엔 잘 해봐요'];
+    const warnText = warns[count % warns.length];
     const isCompact = count >= 6;
     stage.innerHTML = `
       <div class="fx-storm-rain" aria-hidden="true">
@@ -258,7 +260,7 @@ function runNextFx() {
         ${count > 10 ? `<span class="fx-more-pill">외 ${count - 10}명</span>` : ''}
       </div>
       <div class="fx-bottom-cheer">
-        <div class="fx-cheer-pill">" 다음엔 잘 해봐요 "</div>
+        <div class="fx-cheer-pill">" ${warnText} "</div>
         <div class="fx-mascot fx-negative-mascot" aria-hidden="true"></div>
       </div>
     `;
