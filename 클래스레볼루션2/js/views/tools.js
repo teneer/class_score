@@ -136,7 +136,7 @@ function renderPickerHub(root, filteredPool, remaining) {
       await store.update((s) => {
         s.tools.pickedIds = Array.from(new Set([...(s.tools.pickedIds || []), ...chosen.map((c) => c.id)]));
       });
-      playSound('successSmall');
+      playSound('pickResult');
       pickerSubTool = 'result';
       renderPickerView(root);
     };
@@ -225,7 +225,7 @@ function renderShuffleTool(root, activeStudents) {
   };
   root.querySelector('#btn-shuffle-all-open').onclick = () => {
     shuffleCards.forEach((c) => { c.flipped = true; });
-    playSound('successSmall');
+    playSound('cardFlip');
     renderPickerView(root);
   };
   root.querySelectorAll('[data-shuffle-idx]').forEach((b) => {
@@ -299,7 +299,7 @@ function renderGroupPickerTool(root, state) {
       step++;
       if (step >= totalSteps) {
         clearInterval(timer);
-        playSound('successSmall');
+        playSound('slotDone');
       }
     }, 85);
   };
@@ -399,7 +399,7 @@ function renderRouletteTool(root, state, activeStudents) {
       } else {
         wheelSpinning = false;
         wheelResult = items[curIdx];
-        playSound('successSmall');
+        playSound('rouletteWin');
         renderPickerView(root);
       }
     };
@@ -561,7 +561,7 @@ function renderLadderTool(root, state, activeStudents) {
       const { endCol } = traceLadderPath(ladderState, idx);
       ladderState.revealed[idx] = endCol;
     });
-    playSound('successSmall');
+    playSound('ladderReveal');
     renderPickerView(root);
   };
   root.querySelectorAll('[data-ladder-start]').forEach((b) => {

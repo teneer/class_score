@@ -224,7 +224,7 @@ async function bootstrap() {
     try {
       const text = await file.text();
       await store.importBackupJson(text);
-      playSound('successSmall');
+      playSound('restoreDone');
       showToast({ title: '백업 파일 복원이 완료되었습니다!', tone: 'plus' });
       closeSettingsDialog();
     } catch (err) {

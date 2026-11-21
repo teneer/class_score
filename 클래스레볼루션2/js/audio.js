@@ -12,6 +12,13 @@ const SOUND_FILES = {
   successBig: 'assets/audio/Success orinal.MP3',
   tick: 'assets/audio/select_tick.mp3',
   fanfare: 'assets/audio/select_win.mp3',
+  timerAlarm: 'assets/audio/timer_alarm.mp3',
+  restoreDone: 'assets/audio/restore_done.mp3',
+  pickResult: 'assets/audio/pick_result.mp3',
+  cardFlip: 'assets/audio/card_flip.mp3',
+  slotDone: 'assets/audio/slot_done.mp3',
+  rouletteWin: 'assets/audio/roulette_win.mp3',
+  ladderReveal: 'assets/audio/ladder_reveal.mp3',
 };
 
 let soundEnabled = true;
@@ -71,7 +78,7 @@ export function playTick() {
 /** 타이머 종료 알림음 */
 export function playTimerAlarm() {
   if (!soundEnabled) return;
-  playSound('successSmall');
+  playSound('timerAlarm');
   const ctx = getAudioContext();
   if (!ctx) return;
   try {
