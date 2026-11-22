@@ -280,7 +280,7 @@ function openAssignmentEditorModal(existing, onSaved) {
     backdrop.innerHTML = `
       <form class="dialog-card is-wide asg-editor-dialog">
         <div class="dialog-header">
-          <h2>${existing ? '과제 수정' : '새 과제 만들기'}</h2>
+          <h2>${existing?.id ? '과제 수정' : '새 과제 만들기'}</h2>
           <button type="button" class="dialog-close">&times;</button>
         </div>
         <div class="dialog-body asg-editor-body">
@@ -442,7 +442,7 @@ function openAssignmentEditorModal(existing, onSaved) {
         </div>
         <div class="dialog-footer">
           <button type="button" class="btn-ghost" data-cancel>취소</button>
-          <button type="submit" class="btn-yellow">${existing ? '과제 수정 저장' : '과제 출제하기'}</button>
+          <button type="submit" class="btn-yellow">${existing?.id ? '과제 수정 저장' : '과제 출제하기'}</button>
         </div>
       </form>
     `;
