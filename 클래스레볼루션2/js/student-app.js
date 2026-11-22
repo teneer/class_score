@@ -456,7 +456,11 @@ function renderAssignmentWork(me, asg) {
         }
 
         await persistSubmission(asg.id, me.id, payload);
-        showStToast('과제를 제출했습니다! 🎉');
+        showStToast('제출 완료! 홈 화면으로 이동합니다.');
+        if (!(asg.kind === 'quiz' && asg.quizMode === 'live' && asg.liveQuiz?.active)) {
+          activeAssignmentId = null;
+          activeWorksheetCtrl = null;
+        }
         render();
       } catch (err) {
         showStToast(`제출 실패: ${err.message}`);
