@@ -11,8 +11,8 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  padding: 16px 24px;
-  gap: 12px;
+  padding: clamp(10px, 1.5vh, 16px) clamp(14px, 2vw, 24px);
+  gap: clamp(8px, 1.2vh, 12px);
 }
 
 .asg-topbar,
@@ -499,7 +499,7 @@
 }
 .asg-composite-canvas {
   max-width: 100%;
-  max-height: 460px;
+  max-height: calc(100vh - 245px);
   width: auto;
   height: auto;
   border-radius: 6px;
