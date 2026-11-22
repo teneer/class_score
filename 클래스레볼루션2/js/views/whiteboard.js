@@ -2,7 +2,7 @@
 
 import { store, getStillAvatarUrl, todayIso } from '../store.js';
 import { playSound } from '../audio.js';
-import { applyClassEggDelta } from '../score-engine.js';
+import { adjustSpecialEggs } from '../score-engine.js';
 import { openScoreComposer, presentOutcome, showToast, escapeHtml } from '../effects.js';
 
 let mounted = false;
@@ -293,7 +293,7 @@ function renderFloatingPanel(container) {
       activeSelfCheckId = selfChecks[0]?.id || null;
     }
     const curSc = selfChecks.find((x) => x.id === activeSelfCheckId) || null;
-    const cols = curSc?.columns === 10 ? 10 : 5;
+    const cols = (curSc?.gridColumns || curSc?.columns) === 10 ? 10 : 5;
     const targetList = curSc && Array.isArray(curSc.targetStudentIds)
       ? students.filter((s) => curSc.targetStudentIds.includes(s.id))
       : students;
@@ -460,9 +460,9 @@ function renderFloatingPanel(container) {
 
   // 학급점수(황금알) 조정
   const eggInc = panelEl.querySelector('#wbf-egg-inc');
-  if (eggInc) eggInc.onclick = async () => { const out = await applyClassEggDelta(1); presentOutcome(out); renderFloatingPanel(container); };
+  if (eggInc) eggInc.onclick = async () => { const out = await adjustSpecialEggs(1); presentOutcome(out); renderFloatingPanel(container); };
   const eggDec = panelEl.querySelector('#wbf-egg-dec');
-  if (eggDec) eggDec.onclick = async () => { const out = await applyClassEggDelta(-1); presentOutcome(out); renderFloatingPanel(container); };
+  if (eggDec) eggDec.onclick = async () => { const out = await adjustSpecialEggs(-1); presentOutcome(out); renderFloatingPanel(container); };
 
   // 셀프 체크표 터치
   const scSel = panelEl.querySelector('#wbf-sc-select');
@@ -472,7 +472,10 @@ function renderFloatingPanel(container) {
       const c = Number(b.dataset.wbfCols);
       await store.update((s) => {
         const sc = (s.selfChecks || []).find((x) => x.id === activeSelfCheckId);
-        if (sc) sc.columns = c;
+        if (sc) {
+          sc.gridColumns = c;
+          sc.columns = c;
+        }
       });
       renderFloatingPanel(container);
     };
