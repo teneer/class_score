@@ -9,8 +9,10 @@ import { renderChecklistView } from './views/checklist.js';
 import { renderPickerView, renderTimerView, setPickerSubTool } from './views/tools.js';
 import { renderBulkScoreView, setBulkScoreTab } from './views/bulk-score.js';
 import { renderWhiteboardView } from './views/whiteboard.js';
+import { renderAssignmentsView, initTeacherCloudAutoConnect } from './views/assignments.js';
+import { isCloudConnected, syncTeacherStateToCloud } from './cloud-sync.js';
 
-let currentMode = 'students'; // 'students' | 'seats' | 'growth' | 'checklist' | 'picker' | 'timer' | 'bulk' | 'whiteboard'
+let currentMode = 'students'; // 'students' | 'seats' | 'growth' | 'checklist' | 'picker' | 'timer' | 'bulk' | 'whiteboard' | 'assignments'
 
 const VIEW_CONTAINERS = {
   students: () => document.getElementById('view-students'),
@@ -21,6 +23,7 @@ const VIEW_CONTAINERS = {
   timer: () => document.getElementById('view-timer'),
   bulk: () => document.getElementById('view-bulk'),
   whiteboard: () => document.getElementById('view-whiteboard'),
+  assignments: () => document.getElementById('view-assignments'),
 };
 
 function switchMode(mode, options = {}) {
@@ -105,6 +108,7 @@ function renderCurrentView() {
   else if (currentMode === 'timer') renderTimerView(container);
   else if (currentMode === 'bulk') renderBulkScoreView(container);
   else if (currentMode === 'whiteboard') renderWhiteboardView(container);
+  else if (currentMode === 'assignments') renderAssignmentsView(container);
 }
 
 function triggerBackupDownload() {
@@ -143,11 +147,21 @@ async function bootstrap() {
   setActiveModeProvider(() => currentMode);
   setStudentsNavigator((mode, opts) => switchMode(mode, opts));
 
-  // 상태 변경 구독
+  // 상태 변경 구독 (클라우드 연결 시 학생 계정·점수·과제 변경 자동 동기화)
+  let cloudSyncDebounce = null;
   store.subscribe(() => {
     renderChrome();
     renderCurrentView();
+    if (isCloudConnected()) {
+      clearTimeout(cloudSyncDebounce);
+      cloudSyncDebounce = setTimeout(() => {
+        syncTeacherStateToCloud(store.getState()).catch(() => {});
+      }, 450);
+    }
   });
+
+  // 저장된 서버 연결이 있으면 백그라운드 자동 복원
+  initTeacherCloudAutoConnect();
 
   // 다른 탭에서 온 실시간 동기화 이벤트
   store.onRemoteSync((ev) => {

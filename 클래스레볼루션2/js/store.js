@@ -70,6 +70,9 @@ export function createDefaultState() {
       score: pos - neg,
       absent: false,
       trashed: false,
+      loginId: `s${String(idx + 1).padStart(2, '0')}`,
+      loginPw: '1234',
+      loginEnabled: true,
     };
   });
 
@@ -166,6 +169,14 @@ export function createDefaultState() {
       rouletteItems: ['발표하기', '칠판 지우기', '우유 당번', '자유선택', '으쓱 +2점', '노래 한 소절'],
       ladderResults: ['당첨!', '통과', '통과', '보너스 +1', '통과', '발표왕'],
     },
+    assignments: [],
+    submissions: {}, // { [assignmentId]: { [studentId]: Submission } }
+    cloudConfig: {
+      firebaseConfig: null,
+      classId: '',
+      driveBridgeUrl: '',
+      driveFolderName: '클래스레볼루션2',
+    },
   };
 }
 
@@ -200,9 +211,19 @@ class AppStore {
 
   _ensureShape(data) {
     const def = createDefaultState();
+    const rawStudents = Array.isArray(data.students) ? data.students : def.students;
+    const students = rawStudents.map((s, idx) => ({
+      ...s,
+      loginId: typeof s.loginId === 'string' && s.loginId.trim()
+        ? s.loginId.trim()
+        : `s${String(Number(s.number) || idx + 1).padStart(2, '0')}`,
+      loginPw: typeof s.loginPw === 'string' ? s.loginPw : '1234',
+      loginEnabled: s.loginEnabled !== false,
+    }));
     return {
       ...def,
       ...data,
+      students,
       classInfo: { ...def.classInfo, ...(data.classInfo || {}) },
       uiPrefs: { ...def.uiPrefs, ...(data.uiPrefs || {}) },
       growth: {
@@ -219,6 +240,13 @@ class AppStore {
       },
       tools: { ...def.tools, ...(data.tools || {}) },
       history: Array.isArray(data.history) ? data.history : [],
+      assignments: Array.isArray(data.assignments) ? data.assignments : [],
+      submissions: data.submissions && typeof data.submissions === 'object' ? data.submissions : {},
+      cloudConfig: {
+        ...def.cloudConfig,
+        ...(data.cloudConfig || {}),
+        driveFolderName: (data.cloudConfig?.driveFolderName || '클래스레볼루션2').trim() || '클래스레볼루션2',
+      },
     };
   }
 

@@ -2386,6 +2386,20 @@ export function openStudentEditModal(studentId = null, defaultGroupId = null) {
             </select>
           </label>
         </div>
+        <div class="field-row">
+          <label class="field-label">
+            <span>학생 접속 아이디</span>
+            <input type="text" name="loginId" maxlength="24" value="${escapeAttr(existing?.loginId || `s${String(nextNumber).padStart(2, '0')}`)}" placeholder="예: s01" required>
+          </label>
+          <label class="field-label">
+            <span>접속 비밀번호</span>
+            <input type="text" name="loginPw" maxlength="24" value="${escapeAttr(existing?.loginPw ?? '1234')}" placeholder="예: 1234" required>
+          </label>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#4f4638;cursor:pointer;">
+          <input type="checkbox" name="loginEnabled" ${existing?.loginEnabled !== false ? 'checked' : ''}>
+          <span>학생용 과제 페이지 로그인 허용</span>
+        </label>
         <div class="field-label">
           <span>아바타 선택 (70종)</span>
           <div class="avatar-picker-grid">
@@ -2447,7 +2461,16 @@ export function openStudentEditModal(studentId = null, defaultGroupId = null) {
     const name = String(fd.get('name') || '').trim();
     const groupId = String(fd.get('groupId') || '') || null;
     const gender = String(fd.get('gender') || 'F');
+    const loginId = String(fd.get('loginId') || '').trim() || `s${String(num).padStart(2, '0')}`;
+    const loginPw = String(fd.get('loginPw') || '').trim() || '1234';
+    const loginEnabled = fd.get('loginEnabled') === 'on';
     if (!name) return;
+
+    const dup = store.getState().students.find((x) => !x.trashed && x.id !== existing?.id && (x.loginId || '').toLowerCase() === loginId.toLowerCase());
+    if (dup) {
+      showToast({ title: `아이디 '${loginId}'는 ${dup.number}번 ${dup.name} 학생이 이미 사용 중입니다.`, tone: 'minus' });
+      return;
+    }
 
     await store.update((s) => {
       if (existing) {
@@ -2457,6 +2480,9 @@ export function openStudentEditModal(studentId = null, defaultGroupId = null) {
           st.name = name;
           st.gender = gender;
           st.avatarId = pickedAvatar;
+          st.loginId = loginId;
+          st.loginPw = loginPw;
+          st.loginEnabled = loginEnabled;
           if (st.groupId !== groupId) {
             st.groupId = groupId;
             if (groupId) {
@@ -2488,6 +2514,9 @@ export function openStudentEditModal(studentId = null, defaultGroupId = null) {
           score: 0,
           absent: false,
           trashed: false,
+          loginId,
+          loginPw,
+          loginEnabled,
         });
       }
     });
@@ -2505,15 +2534,54 @@ function openRosterManagerModal() {
 
   const renderModal = () => {
     const state = store.getState();
+    const activeStudents = state.students.filter((s) => !s.trashed).sort((a, b) => a.number - b.number);
     const trashed = state.students.filter((s) => s.trashed);
 
     backdrop.innerHTML = `
       <div class="dialog-card is-wide">
         <div class="dialog-header">
-          <h2>학생 설정 · 명단 붙여넣기 · 휴지통</h2>
+          <h2>학생 설정 · 접속 계정(ID/PW) · 명단 · 휴지통</h2>
           <button type="button" class="dialog-close">&times;</button>
         </div>
-        <div class="dialog-body">
+        <div class="dialog-body" style="max-height:76vh;overflow-y:auto;">
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+              <h3 style="margin:0;font-size:14px;color:#3f3629;">🔑 학생 접속 아이디 · 비밀번호 관리 (${activeStudents.length}명)</h3>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button type="button" class="btn-outline" id="btn-acc-auto-num" style="padding:4px 9px;font-size:12px;">번호별 일괄생성(s01/1234)</button>
+                <button type="button" class="btn-outline" id="btn-acc-rand-pw" style="padding:4px 9px;font-size:12px;">4자리 랜덤비번</button>
+                <button type="button" class="btn-outline" id="btn-acc-copy" style="padding:4px 9px;font-size:12px;">안내표 복사</button>
+                <button type="button" class="btn-yellow" id="btn-acc-save" style="padding:4px 12px;font-size:12px;">계정 저장</button>
+              </div>
+            </div>
+            <div style="max-height:220px;overflow-y:auto;border:1px solid #e4dfd0;border-radius:8px;background:#fff;">
+              <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+                <thead>
+                  <tr style="background:#f7f5ee;color:#5d5242;text-align:left;">
+                    <th style="padding:6px 8px;width:54px;">번호</th>
+                    <th style="padding:6px 8px;width:96px;">이름</th>
+                    <th style="padding:6px 8px;">접속 아이디</th>
+                    <th style="padding:6px 8px;">비밀번호</th>
+                    <th style="padding:6px 8px;width:54px;text-align:center;">허용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${activeStudents.map((st) => `
+                    <tr style="border-top:1px solid #f0ede3;" data-acc-row="${st.id}">
+                      <td style="padding:5px 8px;font-weight:700;color:#7a7162;">${st.number}</td>
+                      <td style="padding:5px 8px;font-weight:800;color:#3d352a;">${escapeHtml(st.name)}</td>
+                      <td style="padding:4px 6px;"><input type="text" data-acc-id="${st.id}" value="${escapeAttr(st.loginId || '')}" maxlength="24" style="width:100%;height:28px;padding:0 8px;border:1px solid #d9d3c3;border-radius:6px;font-size:12.5px;"></td>
+                      <td style="padding:4px 6px;"><input type="text" data-acc-pw="${st.id}" value="${escapeAttr(st.loginPw ?? '1234')}" maxlength="24" style="width:100%;height:28px;padding:0 8px;border:1px solid #d9d3c3;border-radius:6px;font-size:12.5px;"></td>
+                      <td style="padding:4px 6px;text-align:center;"><input type="checkbox" data-acc-en="${st.id}" ${st.loginEnabled !== false ? 'checked' : ''}></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="settings-divider"></div>
+
           <div class="field-label">
             <span>명단 일괄 붙여넣기 (엑셀/한글에서 복사해 붙여넣으세요)</span>
             <p style="margin:0;font-size:12px;color:#887f70;font-weight:400;">
@@ -2554,6 +2622,78 @@ function openRosterManagerModal() {
     backdrop.querySelector('.dialog-close').onclick = close;
     backdrop.querySelector('[data-close]').onclick = close;
     backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+
+    // 학생 접속 계정(ID/PW) 일괄 관리 핸들러
+    backdrop.querySelector('#btn-acc-auto-num').onclick = async () => {
+      if (!confirm('모든 학생의 접속 아이디를 s01, s02... 형태로, 비밀번호를 1234로 일괄 설정할까요?')) return;
+      await store.update((s) => {
+        s.students.filter((x) => !x.trashed).forEach((st) => {
+          st.loginId = `s${String(st.number).padStart(2, '0')}`;
+          st.loginPw = '1234';
+          st.loginEnabled = true;
+        });
+      });
+      playSound('confirm');
+      showToast({ title: '번호별 접속 계정을 일괄 생성했습니다.', tone: 'plus' });
+      renderModal();
+    };
+
+    backdrop.querySelector('#btn-acc-rand-pw').onclick = async () => {
+      if (!confirm('모든 학생의 비밀번호를 4자리 무작위 숫자로 새로 생성할까요?')) return;
+      await store.update((s) => {
+        s.students.filter((x) => !x.trashed).forEach((st) => {
+          st.loginPw = String(1000 + Math.floor(Math.random() * 9000));
+        });
+      });
+      playSound('confirm');
+      showToast({ title: '4자리 랜덤 비밀번호를 생성했습니다.', tone: 'plus' });
+      renderModal();
+    };
+
+    backdrop.querySelector('#btn-acc-copy').onclick = async () => {
+      const rows = activeStudents.map((st) => `${st.number}번\t${st.name}\t아이디: ${st.loginId}\t비번: ${st.loginPw}`);
+      const text = `[${state.classInfo?.name || '우리 반'} 학생 접속 계정 안내]\n` + rows.join('\n');
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast({ title: '학생 계정 안내표를 클립보드에 복사했습니다!', tone: 'plus' });
+      } catch {
+        prompt('아래 계정 안내표를 복사하세요:', text);
+      }
+    };
+
+    backdrop.querySelector('#btn-acc-save').onclick = async () => {
+      const updates = [];
+      const seen = new Set();
+      for (const st of activeStudents) {
+        const idVal = String(backdrop.querySelector(`[data-acc-id="${st.id}"]`)?.value || '').trim();
+        const pwVal = String(backdrop.querySelector(`[data-acc-pw="${st.id}"]`)?.value || '').trim();
+        const enVal = Boolean(backdrop.querySelector(`[data-acc-en="${st.id}"]`)?.checked);
+        if (!idVal) {
+          showToast({ title: `${st.number}번 ${st.name}의 아이디를 입력해 주세요.`, tone: 'minus' });
+          return;
+        }
+        const key = idVal.toLowerCase();
+        if (seen.has(key)) {
+          showToast({ title: `중복된 아이디가 있습니다: ${idVal}`, tone: 'minus' });
+          return;
+        }
+        seen.add(key);
+        updates.push({ id: st.id, loginId: idVal, loginPw: pwVal || '1234', loginEnabled: enVal });
+      }
+      await store.update((s) => {
+        for (const u of updates) {
+          const target = s.students.find((x) => x.id === u.id);
+          if (target) {
+            target.loginId = u.loginId;
+            target.loginPw = u.loginPw;
+            target.loginEnabled = u.loginEnabled;
+          }
+        }
+      });
+      playSound('confirm');
+      showToast({ title: '학생 접속 계정이 저장되었습니다!', tone: 'plus' });
+      renderModal();
+    };
 
     const handlePaste = async (replaceAll) => {
       const text = backdrop.querySelector('#paste-roster-area').value;
