@@ -29,8 +29,7 @@
   height: var(--header-h);
   max-height: var(--header-h);
   flex: none;
-  display: grid;
-  grid-template-columns: max-content auto 1fr;
+  display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 12px 0 10px;
@@ -46,11 +45,10 @@
 }
 
 .header-left {
-  justify-self: start;
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
+  flex-shrink: 0;
 }
 
 .icon-btn {
@@ -77,11 +75,11 @@
 .class-title-btn:hover { background: #f5f3eb; }
 
 .header-tabs {
-  justify-self: start;
   display: flex;
   align-items: stretch;
   height: var(--header-h);
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .header-tab {
@@ -112,7 +110,7 @@
 }
 
 .header-right {
-  justify-self: end;
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -188,7 +186,6 @@
 
 @media (max-width: 1240px) {
   .app-header {
-    grid-template-columns: auto auto 1fr;
     gap: 8px;
   }
   .header-tab {

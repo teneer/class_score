@@ -214,8 +214,10 @@ function renderItemColumn(item, students, entries) {
     `;
   } else if (item.type === 'score') {
     const nums = students
-      .map((st) => Number(entries[`${st.id}::${item.id}`]))
-      .filter((n) => !Number.isNaN(n) && entries[`${st.id}::${item.id}`] !== '' && entries[`${st.id}::${item.id}`] !== undefined);
+      .map((st) => entries[`${st.id}::${item.id}`])
+      .filter((raw) => raw !== '' && raw !== undefined && raw !== null)
+      .map((raw) => Number(raw))
+      .filter((n) => !Number.isNaN(n));
     const sum = nums.reduce((a, b) => a + b, 0);
     const avg = nums.length > 0 ? (sum / nums.length).toFixed(1) : '0';
     filterRowHtml = `
