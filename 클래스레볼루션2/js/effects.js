@@ -72,7 +72,7 @@ export function showCounterToast({ positive = true, totalCount = 1, duration = 2
 export function presentOutcome(outcome, { forceToast = false } = {}) {
   if (!outcome) return;
   const mode = getActiveModeFn();
-  const useToast = forceToast || (mode !== 'students' && mode !== 'seats' && mode !== 'growth');
+  const useToast = forceToast || (mode !== 'students' && mode !== 'seats' && mode !== 'growth' && mode !== 'whiteboard');
 
   if (outcome.kind === 'score') {
     const isPos = outcome.delta > 0;

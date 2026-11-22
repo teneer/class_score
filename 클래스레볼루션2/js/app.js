@@ -8,8 +8,9 @@ import { renderGrowthView } from './views/growth.js';
 import { renderChecklistView } from './views/checklist.js';
 import { renderPickerView, renderTimerView, setPickerSubTool } from './views/tools.js';
 import { renderBulkScoreView, setBulkScoreTab } from './views/bulk-score.js';
+import { renderWhiteboardView } from './views/whiteboard.js';
 
-let currentMode = 'students'; // 'students' | 'seats' | 'growth' | 'checklist' | 'picker' | 'timer' | 'bulk'
+let currentMode = 'students'; // 'students' | 'seats' | 'growth' | 'checklist' | 'picker' | 'timer' | 'bulk' | 'whiteboard'
 
 const VIEW_CONTAINERS = {
   students: () => document.getElementById('view-students'),
@@ -19,6 +20,7 @@ const VIEW_CONTAINERS = {
   picker: () => document.getElementById('view-picker'),
   timer: () => document.getElementById('view-timer'),
   bulk: () => document.getElementById('view-bulk'),
+  whiteboard: () => document.getElementById('view-whiteboard'),
 };
 
 function switchMode(mode, options = {}) {
@@ -51,7 +53,7 @@ function switchMode(mode, options = {}) {
   // 상단 탭 활성 상태
   document.querySelectorAll('.header-tab[data-quick-tab]').forEach((tab) => {
     const t = tab.dataset.quickTab;
-    const active = t === mode || (t === 'students' && (mode === 'seats' || mode === 'picker' || mode === 'timer'));
+    const active = t === mode || (t === 'students' && (mode === 'seats' || mode === 'picker' || mode === 'timer' || mode === 'whiteboard'));
     tab.classList.toggle('is-active', active);
   });
 
@@ -102,6 +104,7 @@ function renderCurrentView() {
   else if (currentMode === 'picker') renderPickerView(container);
   else if (currentMode === 'timer') renderTimerView(container);
   else if (currentMode === 'bulk') renderBulkScoreView(container);
+  else if (currentMode === 'whiteboard') renderWhiteboardView(container);
 }
 
 function triggerBackupDownload() {
