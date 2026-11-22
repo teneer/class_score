@@ -8,7 +8,7 @@ import { renderGrowthView } from './views/growth.js';
 import { renderChecklistView } from './views/checklist.js';
 import { renderPickerView, renderTimerView, setPickerSubTool } from './views/tools.js';
 import { renderBulkScoreView, setBulkScoreTab } from './views/bulk-score.js';
-import { renderWhiteboardView } from './views/whiteboard.js';
+import { renderWhiteboardView, setWhiteboardNavigator } from './views/whiteboard.js';
 import { renderAssignmentsView, initTeacherCloudAutoConnect } from './views/assignments.js';
 import { isCloudConnected, syncTeacherStateToCloud } from './cloud-sync.js';
 
@@ -146,6 +146,22 @@ async function bootstrap() {
   await store.init();
   setActiveModeProvider(() => currentMode);
   setStudentsNavigator((mode, opts) => switchMode(mode, opts));
+  setWhiteboardNavigator((mode, opts) => switchMode(mode, opts));
+
+  // 학생 태블릿에서 온 셀프 퀘스트 체크 실시간 반영
+  window.addEventListener('class123:remote-selfchecks', async (ev) => {
+    const entries = ev.detail || {};
+    await store.update((s) => {
+      for (const sc of s.selfChecks || []) {
+        const map = entries[sc.id];
+        if (!map) continue;
+        if (!sc.entries) sc.entries = {};
+        for (const [stId, val] of Object.entries(map)) {
+          sc.entries[stId] = val;
+        }
+      }
+    });
+  });
 
   // 상태 변경 구독 (클라우드 연결 시 학생 계정·점수·과제 변경 자동 동기화)
   let cloudSyncDebounce = null;

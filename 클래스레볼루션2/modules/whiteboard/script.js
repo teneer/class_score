@@ -1326,7 +1326,7 @@ async function boot() {
   c.on('text:editing:exited',()=>{if(cancelledText)return;if(groupSession)closeGroupSession();else changed();flush().then(()=>{if(cloudActive())requestCloudRefresh();else return applyLocalView();}).catch(fail);});
 
   wireUI();
-  const scoreSync={snapshot:async()=>null,refresh:()=>{},restoreLocal:async()=>{}};
+  const scoreSync={snapshot:async()=>null,refresh:()=>{},restoreLocal:async()=>{},ready:async()=>{}};
   const useLocal = async()=>{
     await scoreSync.restoreLocal().catch(fail);
     clearTimeout(viewTimer);seenView=null;cloudHistory=null;
@@ -1363,5 +1363,28 @@ async function boot() {
   reconnect.catch(fail).finally(()=>scoreSync.ready().catch(fail));
   if (navigator.onLine === false) cloud.setOffline();
   window.addEventListener('offline',()=>cloud.setOffline());
+
+  // 클래스레볼루션2 부모 앱에서 학생 과제 이미지(개별/다중/전체) 수신 브리지
+  window.addEventListener('message', async (ev) => {
+    const msg = ev.data;
+    if (!msg || msg.type !== 'cr2-wb-import-images' || !Array.isArray(msg.items) || msg.items.length === 0) return;
+    try {
+      const files = [];
+      for (const item of msg.items) {
+        if (!item?.dataUrl) continue;
+        const resp = await fetch(item.dataUrl);
+        const blob = await resp.blob();
+        const safeName = String(item.name || `student_${files.length + 1}.png`);
+        files.push(new File([blob], safeName, { type: blob.type || 'image/png' }));
+      }
+      if (files.length > 0) {
+        await importFiles(files);
+        notify(`${files.length}개의 과제 이미지를 불러왔습니다.`);
+      }
+    } catch (err) {
+      fail(err);
+    }
+  });
+  try { window.parent?.postMessage({ type: 'cr2-wb-ready' }, '*'); } catch {}
 }
 boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'?' 파일을 직접 열지 말고 HTTPS 배포 주소 또는 localhost에서 실행해주세요.':'';const fatal=$('fatalError');if(fatal){fatal.textContent=`앱을 시작하지 못했습니다. ${error.message}${hint}`;fatal.hidden=false;}status('시작 실패','error');});

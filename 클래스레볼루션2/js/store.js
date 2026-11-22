@@ -171,6 +171,7 @@ export function createDefaultState() {
     },
     assignments: [],
     submissions: {}, // { [assignmentId]: { [studentId]: Submission } }
+    selfChecks: [], // 전자칠판 5열/10열 터치 셀프체크 & 학생 태블릿 퀘스트 목록
     cloudConfig: {
       firebaseConfig: null,
       classId: '',
@@ -242,6 +243,7 @@ class AppStore {
       history: Array.isArray(data.history) ? data.history : [],
       assignments: Array.isArray(data.assignments) ? data.assignments : [],
       submissions: data.submissions && typeof data.submissions === 'object' ? data.submissions : {},
+      selfChecks: Array.isArray(data.selfChecks) ? data.selfChecks : [],
       cloudConfig: {
         ...def.cloudConfig,
         ...(data.cloudConfig || {}),

@@ -137,43 +137,84 @@ export function drawAnswerLayer(ctx, answerLayer, w = WORKSHEET_W, h = WORKSHEET
   ctx.restore();
 }
 
-/** 배경지 + 학생 답변 레이어 실시간 전체 합성 렌더링 */
-export async function renderWorksheetComposite(canvas, template, answerLayer) {
+/** 템플릿을 표준 다중 페이지 배열로 정규화 (단일 페이지 하위 호환) */
+export function getTemplatePages(template) {
+  if (Array.isArray(template?.pages) && template.pages.length > 0) {
+    return template.pages.map((p, idx) => ({
+      pageIndex: idx,
+      preset: p.preset || template.preset || 'blank',
+      imageUrl: p.imageUrl || '',
+      width: Number(p.width) || WORKSHEET_W,
+      height: Number(p.height) || WORKSHEET_H,
+    }));
+  }
+  return [{
+    pageIndex: 0,
+    preset: template?.preset || 'blank',
+    imageUrl: template?.imageUrl || '',
+    width: Number(template?.width) || WORKSHEET_W,
+    height: Number(template?.height) || WORKSHEET_H,
+  }];
+}
+
+/** 특정 쪽의 학생 답변 레이어 추출 (단일 페이지 데이터 하위 호환) */
+export function getPageAnswerLayer(worksheetData, pageIndex = 0) {
+  if (!worksheetData) return { strokes: [], texts: [] };
+  if (worksheetData.pages && typeof worksheetData.pages === 'object') {
+    const p = worksheetData.pages[String(pageIndex)];
+    return {
+      strokes: Array.isArray(p?.strokes) ? p.strokes : [],
+      texts: Array.isArray(p?.texts) ? p.texts : [],
+    };
+  }
+  if (pageIndex === 0) {
+    return {
+      strokes: Array.isArray(worksheetData.strokes) ? worksheetData.strokes : [],
+      texts: Array.isArray(worksheetData.texts) ? worksheetData.texts : [],
+    };
+  }
+  return { strokes: [], texts: [] };
+}
+
+/** 배경지 + 학생 답변 레이어 실시간 전체 합성 렌더링 (pageIndex 지원) */
+export async function renderWorksheetComposite(canvas, template, worksheetData, pageIndex = 0) {
   if (!canvas) return;
-  const w = Number(template?.width) || WORKSHEET_W;
-  const h = Number(template?.height) || WORKSHEET_H;
+  const pages = getTemplatePages(template);
+  const page = pages[Math.max(0, Math.min(pages.length - 1, Number(pageIndex) || 0))];
+  const w = Number(page?.width) || WORKSHEET_W;
+  const h = Number(page?.height) || WORKSHEET_H;
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
 
-  if (template?.imageUrl) {
+  if (page?.imageUrl) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, w, h);
-    const img = await loadBgImage(template.imageUrl);
+    const img = await loadBgImage(page.imageUrl);
     if (img) {
-      // 비율 유지하며 캔버스에 맞춤
       const ratio = Math.min(w / img.width, h / img.height);
       const dw = img.width * ratio;
       const dh = img.height * ratio;
       ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
     } else {
-      drawBuiltinBackground(ctx, template.preset || 'blank', w, h);
+      drawBuiltinBackground(ctx, page.preset || 'blank', w, h);
     }
   } else {
-    drawBuiltinBackground(ctx, template?.preset || 'blank', w, h);
+    drawBuiltinBackground(ctx, page?.preset || 'blank', w, h);
   }
 
+  const answerLayer = getPageAnswerLayer(worksheetData, page.pageIndex);
   drawAnswerLayer(ctx, answerLayer, w, h);
 }
 
 /**
  * 문항별 영역 크롭 렌더링:
- * 배경지 + 학생 답변을 합성한 뒤 지정된 정규화 영역(box: { x, y, w, h })만 잘라 targetCanvas에 표시
+ * 배경지 + 학생 답변을 합성한 뒤 지정된 정규화 영역(box: { pageIndex, x, y, w, h })만 잘라 targetCanvas에 표시
  */
-export async function renderCroppedRegion(targetCanvas, template, answerLayer, box) {
+export async function renderCroppedRegion(targetCanvas, template, worksheetData, box) {
   if (!targetCanvas || !box) return;
   const full = document.createElement('canvas');
-  await renderWorksheetComposite(full, template, answerLayer);
+  await renderWorksheetComposite(full, template, worksheetData, box.pageIndex || 0);
 
   const sx = Math.max(0, Math.round(box.x * full.width));
   const sy = Math.max(0, Math.round(box.y * full.height));
@@ -197,10 +238,18 @@ export async function renderCroppedRegion(targetCanvas, template, answerLayer, b
  */
 export function mountWorksheetEditor(hostEl, { template, allowedTools = DEFAULT_ALLOWED_TOOLS, initialAnswer = null, readOnly = false, onChange = null } = {}) {
   const tools = { ...DEFAULT_ALLOWED_TOOLS, ...(allowedTools || {}) };
-  const answer = {
-    strokes: Array.isArray(initialAnswer?.strokes) ? structuredClone(initialAnswer.strokes) : [],
-    texts: Array.isArray(initialAnswer?.texts) ? structuredClone(initialAnswer.texts) : [],
-  };
+  const templatePages = getTemplatePages(template);
+  const pageCount = templatePages.length;
+  let currentPage = 0;
+
+  // 다중 페이지 답변 구조로 정규화 (단일 페이지 데이터 자동 이관)
+  const pagesAnswer = {};
+  for (let i = 0; i < pageCount; i++) {
+    pagesAnswer[String(i)] = getPageAnswerLayer(initialAnswer, i);
+  }
+  const curLayer = () => pagesAnswer[String(currentPage)];
+  const exportAnswer = () => ({ pages: structuredClone(pagesAnswer) });
+
   const undoStack = [];
   const redoStack = [];
 
@@ -220,6 +269,13 @@ export function mountWorksheetEditor(hostEl, { template, allowedTools = DEFAULT_
 
   hostEl.innerHTML = `
     <div class="ws-editor">
+      ${pageCount > 1 ? `
+        <div class="ws-page-nav" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:6px 10px;background:#eef6ff;border-radius:9px;font-weight:800;font-size:13.5px;">
+          <button type="button" class="ws-act-btn" id="ws-page-prev">◀ 이전 쪽</button>
+          <span id="ws-page-label">1 / ${pageCount}쪽</span>
+          <button type="button" class="ws-act-btn" id="ws-page-next">다음 쪽 ▶</button>
+        </div>
+      ` : ''}
       ${!readOnly ? `
         <div class="ws-toolbar">
           <div class="ws-tool-group">
@@ -242,7 +298,7 @@ export function mountWorksheetEditor(hostEl, { template, allowedTools = DEFAULT_
             <div class="ws-action-group">
               <button type="button" class="ws-act-btn" id="ws-undo" title="실행 취소">↶ 취소</button>
               <button type="button" class="ws-act-btn" id="ws-redo" title="다시 실행">↷ 다시</button>
-              <button type="button" class="ws-act-btn is-danger" id="ws-clear" title="내 답변 지우기">초기화</button>
+              <button type="button" class="ws-act-btn is-danger" id="ws-clear" title="현재 쪽 답변 지우기">초기화</button>
             </div>
           ` : ''}
         </div>
@@ -256,15 +312,34 @@ export function mountWorksheetEditor(hostEl, { template, allowedTools = DEFAULT_
   const canvas = hostEl.querySelector('#ws-canvas');
 
   const pushUndo = () => {
-    undoStack.push(structuredClone(answer));
+    undoStack.push({ page: currentPage, layer: structuredClone(curLayer()) });
     if (undoStack.length > 40) undoStack.shift();
     redoStack.length = 0;
   };
 
-  const redraw = async () => {
-    await renderWorksheetComposite(canvas, template, answer);
-    if (typeof onChange === 'function') onChange(structuredClone(answer));
+  const updatePageLabel = () => {
+    const lbl = hostEl.querySelector('#ws-page-label');
+    if (lbl) lbl.textContent = `${currentPage + 1} / ${pageCount}쪽`;
+    const prev = hostEl.querySelector('#ws-page-prev');
+    const next = hostEl.querySelector('#ws-page-next');
+    if (prev) prev.disabled = currentPage <= 0;
+    if (next) next.disabled = currentPage >= pageCount - 1;
   };
+
+  const redraw = async () => {
+    updatePageLabel();
+    await renderWorksheetComposite(canvas, template, exportAnswer(), currentPage);
+    if (typeof onChange === 'function') onChange(exportAnswer());
+  };
+
+  if (pageCount > 1) {
+    hostEl.querySelector('#ws-page-prev').onclick = () => {
+      if (currentPage > 0) { currentPage--; redraw(); }
+    };
+    hostEl.querySelector('#ws-page-next').onclick = () => {
+      if (currentPage < pageCount - 1) { currentPage++; redraw(); }
+    };
+  }
 
   redraw();
 
@@ -299,25 +374,24 @@ export function mountWorksheetEditor(hostEl, { template, allowedTools = DEFAULT_
 
     hostEl.querySelector('#ws-undo').onclick = () => {
       if (undoStack.length === 0) return;
-      redoStack.push(structuredClone(answer));
-      const prev = undoStack.pop();
-      answer.strokes = prev.strokes;
-      answer.texts = prev.texts;
+      const snap = undoStack.pop();
+      redoStack.push({ page: snap.page, layer: structuredClone(pagesAnswer[String(snap.page)]) });
+      pagesAnswer[String(snap.page)] = snap.layer;
+      currentPage = snap.page;
       redraw();
     };
     hostEl.querySelector('#ws-redo').onclick = () => {
       if (redoStack.length === 0) return;
-      undoStack.push(structuredClone(answer));
-      const next = redoStack.pop();
-      answer.strokes = next.strokes;
-      answer.texts = next.texts;
+      const snap = redoStack.pop();
+      undoStack.push({ page: snap.page, layer: structuredClone(pagesAnswer[String(snap.page)]) });
+      pagesAnswer[String(snap.page)] = snap.layer;
+      currentPage = snap.page;
       redraw();
     };
     hostEl.querySelector('#ws-clear').onclick = () => {
-      if (!confirm('내가 작성한 필기와 텍스트를 모두 지울까요? (배경지는 유지됩니다)')) return;
+      if (!confirm('현재 쪽에 작성한 필기와 텍스트를 모두 지울까요? (배경지는 유지됩니다)')) return;
       pushUndo();
-      answer.strokes = [];
-      answer.texts = [];
+      pagesAnswer[String(currentPage)] = { strokes: [], texts: [] };
       redraw();
     };
 
@@ -330,17 +404,18 @@ export function mountWorksheetEditor(hostEl, { template, allowedTools = DEFAULT_
     };
 
     const eraseAt = (nx, ny) => {
+      const layer = curLayer();
       const radius = 0.028;
       let changed = false;
-      const beforeS = answer.strokes.length;
-      answer.strokes = answer.strokes.filter((st) =>
+      const beforeS = layer.strokes.length;
+      layer.strokes = layer.strokes.filter((st) =>
         !(st.points || []).some(([px, py]) => Math.hypot(px - nx, py - ny) < radius)
       );
-      if (answer.strokes.length !== beforeS) changed = true;
+      if (layer.strokes.length !== beforeS) changed = true;
 
-      const beforeT = answer.texts.length;
-      answer.texts = answer.texts.filter((t) => Math.hypot((t.x || 0) - nx, (t.y || 0) - ny) > 0.045);
-      if (answer.texts.length !== beforeT) changed = true;
+      const beforeT = layer.texts.length;
+      layer.texts = layer.texts.filter((t) => Math.hypot((t.x || 0) - nx, (t.y || 0) - ny) > 0.045);
+      if (layer.texts.length !== beforeT) changed = true;
       return changed;
     };
 
@@ -352,7 +427,7 @@ export function mountWorksheetEditor(hostEl, { template, allowedTools = DEFAULT_
         const val = prompt('입력할 텍스트를 작성하세요:');
         if (val && val.trim()) {
           pushUndo();
-          answer.texts.push({
+          curLayer().texts.push({
             x: nx,
             y: ny,
             text: val.trim(),
@@ -382,7 +457,7 @@ export function mountWorksheetEditor(hostEl, { template, allowedTools = DEFAULT_
           size: activeTool === 'highlighter' ? Math.max(16, activeSize) : activeSize,
           points: [[Number(nx.toFixed(4)), Number(ny.toFixed(4))]],
         };
-        answer.strokes.push(activeStroke);
+        curLayer().strokes.push(activeStroke);
         redraw();
       }
     });
@@ -412,7 +487,7 @@ export function mountWorksheetEditor(hostEl, { template, allowedTools = DEFAULT_
   }
 
   return {
-    getAnswer: () => structuredClone(answer),
+    getAnswer: exportAnswer,
     redraw,
   };
 }

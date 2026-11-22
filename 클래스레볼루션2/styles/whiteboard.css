@@ -1,4 +1,4 @@
-/* 만능칠판 6.0 이식 뷰 + 칠판 위 빠른 점수 부여 플로팅 바 */
+/* 만능칠판 6.0 이식 뷰 + 자유 이동/리사이즈/확대·축소 플로팅 패널 */
 
 #view-whiteboard {
   padding: 0;
@@ -22,178 +22,301 @@
   background: #d6b588;
 }
 
-/* 칠판 우측 상단 빠른 으쓱/머쓱 버튼 바 */
+/* 칠판 우측 상단 플로팅 도구 바 */
 .wb-quick-score-bar {
   position: absolute;
-  top: 12px;
-  right: 14px;
+  top: 10px;
+  right: 12px;
   z-index: 30;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 5px 8px;
   border-radius: 99px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(6px);
+  flex-wrap: wrap;
+}
+
+.wb-panel-toggle {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 99px;
+  background: #f3f1e9;
+  color: #4a4134;
+  font-size: 12px;
+  font-weight: 800;
+  transition: background 0.12s, color 0.12s;
+}
+.wb-panel-toggle:hover { background: #e8e4d7; }
+.wb-panel-toggle.is-active {
+  background: #f4d03f;
+  color: #3a2c04;
+}
+
+.wb-bar-sep {
+  width: 1px;
+  height: 18px;
+  background: #dcd6c7;
+  margin: 0 2px;
 }
 
 .wb-quick-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 32px;
-  padding: 0 12px 0 8px;
+  gap: 3px;
+  height: 30px;
+  padding: 0 11px 0 7px;
   border-radius: 99px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 800;
   color: #fff;
-  transition: transform 0.1s, filter 0.12s;
 }
-.wb-quick-btn:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.05);
-}
-.wb-quick-btn.is-plus {
-  background: #198bd2;
-}
-.wb-quick-btn.is-minus {
-  background: #df3357;
-}
+.wb-quick-btn.is-plus { background: #198bd2; }
+.wb-quick-btn.is-minus { background: #df3357; }
 
-/* 빠른 학생 선택 팝오버 */
-.wb-quick-picker {
+/* 자유 이동 · 리사이즈 · 확대/축소 플로팅 패널 */
+.wb-float-panel {
   position: absolute;
-  top: 58px;
-  right: 14px;
-  z-index: 40;
-  width: min(390px, calc(100% - 28px));
-  max-height: calc(100% - 80px);
+  z-index: 45;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.97);
-  border: 2px solid #198bd2;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  background: rgba(255, 255, 255, 0.96);
+  border: 2px solid #d5cebe;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.24);
   overflow: hidden;
-}
-.wb-quick-picker.is-minus {
-  border-color: #df3357;
+  min-width: 280px;
 }
 
-.wb-qp-head {
+.wbf-header {
+  flex: none;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  padding: 8px 12px;
+  background: #f7f4eb;
+  border-bottom: 1px solid #e6e0d1;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
 }
-.wb-qp-head strong {
-  font-size: 15px;
-  font-weight: 800;
-  color: #243647;
+.wbf-title {
+  font-size: 13.5px;
+  font-weight: 900;
+  color: #3a3226;
 }
-.wb-qp-count {
-  margin-left: auto;
-  padding: 2px 9px;
-  border-radius: 99px;
-  background: #eef4fa;
-  color: #198bd2;
-  font-size: 12px;
-  font-weight: 800;
-}
-.wb-quick-picker.is-minus .wb-qp-count {
-  background: #fff0f3;
-  color: #df3357;
-}
-.wb-qp-close {
-  font-size: 22px;
-  line-height: 1;
-  color: #6b7682;
-  padding: 0 4px;
-}
-
-.wb-qp-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.wb-qp-chip {
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 99px;
-  background: #f1f0e8;
-  color: #4b4338;
-  font-size: 12px;
-  font-weight: 700;
-}
-.wb-qp-chip.is-active {
-  background: #f4d03f;
-  color: #3a2e08;
-}
-
-.wb-qp-grid {
-  flex: 1;
-  min-height: 120px;
-  overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-  padding-right: 2px;
-}
-.wb-qp-student {
-  display: flex;
+.wbf-zoom-controls {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 7px 6px;
-  border-radius: 8px;
-  background: #f8f7f2;
-  border: 1.5px solid #e5e1d5;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #3a342c;
-  overflow: hidden;
 }
-.wb-qp-student.is-selected {
-  background: #fff4b8;
-  border-color: #e2be2b;
-  color: #2e2404;
+.wbf-icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #d8d2c3;
+  color: #4f4638;
+  font-size: 14px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
 }
-.wb-qp-num {
-  font-size: 11px;
+.wbf-icon-btn:hover { background: #eef6ff; border-color: #198bd2; }
+.wbf-zoom-label {
+  min-width: 40px;
+  text-align: center;
+  font-size: 11.5px;
   font-weight: 800;
-  color: #8b8273;
-  flex-shrink: 0;
-}
-.wb-qp-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #6b6152;
+  font-variant-numeric: tabular-nums;
 }
 
-.wb-qp-foot {
-  flex: none;
+.wbf-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
 }
-.wb-qp-submit {
-  width: 100%;
-  height: 40px;
+
+.wbf-student-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  gap: 7px;
+}
+.wbf-st-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 5px;
   border-radius: 9px;
-  font-size: 14px;
+  background: #faf9f4;
+  border: 1.5px solid #e4dfd1;
+  position: relative;
+}
+.wbf-st-card.is-selected {
+  background: #fff3b0;
+  border-color: #e2be2b;
+}
+.wbf-st-card.is-absent { opacity: 0.45; }
+.wbf-st-card img { width: 42px; height: 42px; object-fit: contain; }
+.wbf-st-num { position: absolute; top: 4px; left: 5px; font-size: 10px; font-weight: 800; color: #8c8273; }
+.wbf-st-name { font-size: 12px; font-weight: 800; color: #362f24; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wbf-st-score { font-size: 11.5px; font-weight: 900; color: #198bd2; }
+
+.wbf-seat-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+}
+.wbf-group-box {
+  border: 1.5px solid #e2dccb;
+  border-radius: 10px;
+  background: #faf9f4;
+  overflow: hidden;
+}
+.wbf-group-head {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 9px;
+  background: #efeae0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #4b4235;
+}
+.wbf-group-head.is-selected { background: #f4d03f; color: #3a2c04; }
+.wbf-group-members {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 6px;
+}
+.wbf-seat-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #e0dacb;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.wbf-seat-pill.is-selected { background: #fff3b0; border-color: #e2be2b; }
+.wbf-seat-pill strong { color: #198bd2; }
+
+.wbf-growth-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 10px;
+}
+.wbf-egg-hero { text-align: center; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.wbf-egg-num { font-size: 36px; font-weight: 900; color: #c48400; }
+.wbf-egg-sub { font-size: 14px; font-weight: 800; color: #544b3c; }
+.wbf-goal-pill { padding: 5px 12px; border-radius: 99px; background: #fff4c2; color: #7a5800; font-size: 12.5px; font-weight: 800; }
+.wbf-egg-btns { display: flex; gap: 10px; }
+
+/* 셀프 체크표 (전자칠판 터치용 5열/10열 버튼형) */
+.wbf-sc-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.wbf-sc-bar select {
+  flex: 1;
+  min-width: 140px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1.5px solid #d9d3c3;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.wbf-sc-prog { margin-left: auto; font-size: 12.5px; font-weight: 900; color: #167a48; }
+.wbf-sc-grid {
+  display: grid;
+  gap: 6px;
+}
+.wbf-sc-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 54px;
+  padding: 6px 4px;
+  border-radius: 9px;
+  background: #f7f5ee;
+  border: 2px solid #e0dacb;
+  color: #3f372b;
+  transition: transform 0.08s, background 0.12s;
+}
+.wbf-sc-btn:active { transform: scale(0.95); }
+.wbf-sc-btn.is-done {
+  background: #23a862;
+  border-color: #17824a;
+  color: #fff;
+}
+.wbf-sc-num { font-size: 13px; font-weight: 900; }
+.wbf-sc-name { font-size: 11px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wbf-sc-mark { font-size: 10.5px; font-weight: 900; opacity: 0.92; }
+.wbf-empty-sc { text-align: center; padding: 28px 12px; color: #7d7465; font-size: 13px; }
+
+.wbf-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #f7f4eb;
+  border-top: 1px solid #e6e0d1;
+}
+.wbf-mini-btn {
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #d8d2c3;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #4f4638;
+}
+.wbf-mini-btn.is-active { background: #198bd2; border-color: #198bd2; color: #fff; }
+.wbf-sel-cnt { margin-left: auto; font-size: 12px; font-weight: 800; color: #198bd2; }
+.wbf-act-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-size: 12.5px;
   font-weight: 800;
   color: #fff;
 }
-.wb-qp-submit.is-plus {
-  background: #198bd2;
-}
-.wb-qp-submit.is-minus {
-  background: #df3357;
-}
-.wb-qp-submit:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.wbf-act-btn.is-plus { background: #198bd2; }
+.wbf-act-btn.is-minus { background: #df3357; }
+.wbf-act-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.wbf-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, #c6bfae 50%, #c6bfae 65%, transparent 65%, transparent 78%, #9c9482 78%);
 }
 
-/* 좌측 사이드바 SVG 아이콘 (만능칠판 등) */
+/* 좌측 사이드바 SVG 아이콘 */
 .rail-svg-icon {
   width: 24px;
   height: 24px;

@@ -1,6 +1,6 @@
 // 학생용 별도 접속 페이지 (관리페이지 종속 자동 서버 접속 · ID/PW 로그인 · 워크시트 경량 답변 제출 · 구글드라이브 사진 제출/열람/다운로드 · AI 퀴즈 개인/실시간 풀이)
 
-import { store, getStillAvatarUrl } from './store.js';
+import { store, getStillAvatarUrl, todayIso } from './store.js';
 import { gradeQuizSubmission } from './quiz-csv.js';
 import { mountWorksheetEditor, renderWorksheetComposite } from './worksheet-renderer.js';
 import {
@@ -20,10 +20,11 @@ let classData = {
   driveFolderName: '클래스레볼루션2',
   students: [],
   assignments: [],
+  selfChecks: [],
 };
 let allSubmissions = {}; // { [assignmentId]: { [studentId]: Submission } }
 let loggedStudentId = null;
-let activeTab = 'todo'; // 'todo' | 'done' | 'gallery'
+let activeTab = 'todo'; // 'todo' | 'quests' | 'done' | 'gallery'
 let activeAssignmentId = null;
 let activeWorksheetCtrl = null;
 let draftFiles = [];
@@ -78,6 +79,32 @@ async function persistSubmission(assignmentId, studentId, submission) {
       s.submissions[assignmentId][studentId] = submission;
     });
     allSubmissions = store.getState().submissions || {};
+  }
+}
+
+/** 학생 셀프 체크표(퀘스트) 저장 (클라우드/로컬 양쪽 지원 + 체크표 자동 연동) */
+async function persistSelfCheck(checkId, studentId, value) {
+  if (dataMode === 'cloud' && cloudClient) {
+    // UI 즉시 반영
+    const target = (classData.selfChecks || []).find((c) => c.id === checkId);
+    if (target) {
+      if (!target.entries) target.entries = {};
+      target.entries[studentId] = value;
+    }
+    await cloudClient.saveSelfCheckEntry(checkId, studentId, value);
+  } else {
+    const today = todayIso();
+    await store.update((s) => {
+      const target = (s.selfChecks || []).find((c) => c.id === checkId);
+      if (!target) return;
+      if (!target.entries) target.entries = {};
+      target.entries[studentId] = value;
+      if (target.linkedChecklistItemId) {
+        if (!s.checklist.entriesByDate[today]) s.checklist.entriesByDate[today] = {};
+        s.checklist.entriesByDate[today][`${studentId}::${target.linkedChecklistItemId}`] =
+          target.mode === 'count' ? (Number(value) > 0 ? String(value) : '') : Boolean(value);
+      }
+    });
   }
 }
 
@@ -173,7 +200,11 @@ function renderHeader(me) {
 }
 
 function renderHome(me) {
-  const assignments = [...(classData.assignments || [])].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  // 본인에게 배정된 과제만 필터링 (targetStudentIds가 없거나 비어있으면 학급 전체 대상)
+  const assignments = [...(classData.assignments || [])]
+    .filter((a) => !Array.isArray(a.targetStudentIds) || a.targetStudentIds.length === 0 || a.targetStudentIds.includes(me.id))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
   const todoList = assignments.filter((a) => {
     const sub = allSubmissions[a.id]?.[me.id];
     return !sub || sub.status === 'redo';
@@ -184,6 +215,12 @@ function renderHome(me) {
   });
   const galleryList = assignments.filter((a) => a.visibility === 'shared');
 
+  // 본인에게 배정된 태블릿 퀘스트(셀프 체크표)만 표시 (자기 것만)
+  const myQuests = [...(classData.selfChecks || [])]
+    .filter((sc) => sc.sendToTablet !== false)
+    .filter((sc) => !Array.isArray(sc.targetStudentIds) || sc.targetStudentIds.length === 0 || sc.targetStudentIds.includes(me.id))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
   const list = activeTab === 'todo' ? todoList : activeTab === 'done' ? doneList : galleryList;
 
   appEl.innerHTML = `
@@ -191,11 +228,53 @@ function renderHome(me) {
     <main class="st-main">
       <div class="st-tabs">
         <button type="button" class="st-tab ${activeTab === 'todo' ? 'is-active' : ''}" data-st-tab="todo">할 과제 (${todoList.length})</button>
+        <button type="button" class="st-tab ${activeTab === 'quests' ? 'is-active' : ''}" data-st-tab="quests">🎯 내 퀘스트 (${myQuests.length})</button>
         <button type="button" class="st-tab ${activeTab === 'done' ? 'is-active' : ''}" data-st-tab="done">제출한 과제 (${doneList.length})</button>
         <button type="button" class="st-tab ${activeTab === 'gallery' ? 'is-active' : ''}" data-st-tab="gallery">친구 작품 (${galleryList.length})</button>
       </div>
 
-      ${list.length === 0 ? `
+      ${activeTab === 'quests' ? (
+        myQuests.length === 0 ? `
+          <div class="st-work-card" style="text-align:center;color:#7d7465;padding:38px 20px;">
+            🎯 현재 진행 중인 내 퀘스트가 없습니다.
+          </div>
+        ` : `
+          <div class="st-card-grid">
+            ${myQuests.map((sc) => {
+              const isCount = sc.mode === 'count';
+              const targetCnt = Math.max(1, Number(sc.targetCount) || 1);
+              const raw = sc.entries?.[me.id];
+              const cnt = Number(raw || 0);
+              const done = isCount ? cnt >= targetCnt : Boolean(raw);
+              const pct = isCount ? Math.min(100, Math.round((cnt / targetCnt) * 100)) : (done ? 100 : 0);
+              return `
+                <article class="st-card" style="border-color:${done ? '#2ca978' : '#e0dacb'};background:${done ? '#f0fbf5' : '#fff'};cursor:default;">
+                  <div class="st-card-meta">
+                    <span>${isCount ? `🎯 목표 ${targetCnt}회 퀘스트` : '☑️ 셀프 체크 퀘스트'}</span>
+                    <span class="st-badge ${done ? 'is-graded' : 'is-todo'}">${done ? '✓ 완료!' : isCount ? `${cnt} / ${targetCnt}회` : '미완료'}</span>
+                  </div>
+                  <h3 style="margin:6px 0 10px;font-size:18px;">${esc(sc.title)}</h3>
+                  ${isCount ? `
+                    <div style="height:10px;border-radius:999px;background:#e6dfd0;overflow:hidden;margin-bottom:12px;">
+                      <div style="width:${pct}%;height:100%;background:${done ? '#2ca978' : '#2b8be0'};transition:width 0.2s;"></div>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                      <button type="button" class="st-btn is-outline is-sm" data-q-dec="${sc.id}" ${cnt <= 0 ? 'disabled' : ''}>-1</button>
+                      <button type="button" class="st-btn is-primary" style="flex:1;" data-q-inc="${sc.id}">
+                        ${done ? `🎉 목표 달성 (${cnt}/${targetCnt}회)` : `+1 체크하기 (${cnt}/${targetCnt}회)`}
+                      </button>
+                    </div>
+                  ` : `
+                    <button type="button" class="st-btn ${done ? 'is-outline' : 'is-primary'}" style="width:100%;padding:12px;font-size:15px;" data-q-toggle="${sc.id}">
+                      ${done ? '✓ 완료됨 (누르면 취소)' : '☑️ 완료 체크하기'}
+                    </button>
+                  `}
+                </article>
+              `;
+            }).join('')}
+          </div>
+        `
+      ) : list.length === 0 ? `
         <div class="st-work-card" style="text-align:center;color:#7d7465;padding:38px 20px;">
           ${activeTab === 'todo' ? '🎉 밀린 과제가 없습니다!' : activeTab === 'done' ? '아직 제출한 과제가 없습니다.' : '공유된 친구 작품 과제가 없습니다.'}
         </div>
@@ -234,6 +313,38 @@ function renderHome(me) {
   };
   appEl.querySelectorAll('[data-st-tab]').forEach((b) => {
     b.onclick = () => { activeTab = b.dataset.stTab; renderHome(me); };
+  });
+  appEl.querySelectorAll('[data-q-toggle]').forEach((b) => {
+    b.onclick = async () => {
+      const sc = myQuests.find((x) => x.id === b.dataset.qToggle);
+      if (!sc) return;
+      const next = !Boolean(sc.entries?.[me.id]);
+      await persistSelfCheck(sc.id, me.id, next);
+      showStToast(next ? `✓ '${sc.title}' 완료 체크!` : `'${sc.title}' 체크를 취소했습니다.`);
+      renderHome(me);
+    };
+  });
+  appEl.querySelectorAll('[data-q-inc]').forEach((b) => {
+    b.onclick = async () => {
+      const sc = myQuests.find((x) => x.id === b.dataset.qInc);
+      if (!sc) return;
+      const targetCnt = Math.max(1, Number(sc.targetCount) || 1);
+      const cur = Number(sc.entries?.[me.id] || 0);
+      const next = cur >= targetCnt ? targetCnt : cur + 1;
+      await persistSelfCheck(sc.id, me.id, next);
+      showStToast(next >= targetCnt ? `🎉 '${sc.title}' 목표 달성!` : `'${sc.title}' ${next}/${targetCnt}회 체크!`);
+      renderHome(me);
+    };
+  });
+  appEl.querySelectorAll('[data-q-dec]').forEach((b) => {
+    b.onclick = async () => {
+      const sc = myQuests.find((x) => x.id === b.dataset.qDec);
+      if (!sc) return;
+      const cur = Number(sc.entries?.[me.id] || 0);
+      const next = Math.max(0, cur - 1);
+      await persistSelfCheck(sc.id, me.id, next);
+      renderHome(me);
+    };
   });
   appEl.querySelectorAll('[data-open-work]').forEach((card) => {
     card.onclick = () => {
@@ -561,6 +672,7 @@ async function bootstrapStudentApp() {
             driveFolderName: data.driveFolderName || '클래스레볼루션2',
             students: Array.isArray(data.students) ? data.students : [],
             assignments: Array.isArray(data.assignments) ? data.assignments : [],
+            selfChecks: Array.isArray(data.selfChecks) ? data.selfChecks : [],
           };
           render();
         },
@@ -586,6 +698,7 @@ async function bootstrapStudentApp() {
       driveFolderName: st.cloudConfig?.driveFolderName || '클래스레볼루션2',
       students: (st.students || []).filter((s) => !s.trashed),
       assignments: st.assignments || [],
+      selfChecks: st.selfChecks || [],
     };
     allSubmissions = st.submissions || {};
     render();

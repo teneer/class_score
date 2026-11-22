@@ -295,6 +295,18 @@ export async function connectTeacherCloud(firebaseConfig, classId, { onRemoteSub
     });
     fbRuntime.unsubs.push(unsub);
   }
+  const scCol = rt.fs.collection(rt.db, 'cr2Classes', cid, 'selfCheckEntries');
+  const unsubSc = rt.fs.onSnapshot(scCol, (snap) => {
+    const entries = {};
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (!d?.checkId || !d?.studentId) return;
+      if (!entries[d.checkId]) entries[d.checkId] = {};
+      entries[d.checkId][d.studentId] = d.value;
+    });
+    window.dispatchEvent(new CustomEvent('class123:remote-selfchecks', { detail: entries }));
+  }, () => {});
+  fbRuntime.unsubs.push(unsubSc);
   return cid;
 }
 
@@ -327,6 +339,7 @@ export async function syncTeacherStateToCloud(state) {
     driveFolderName: state.cloudConfig?.driveFolderName || '클래스레볼루션2',
     students: publicStudents,
     assignments: Array.isArray(state.assignments) ? state.assignments : [],
+    selfChecks: Array.isArray(state.selfChecks) ? state.selfChecks : [],
     updatedAt: Date.now(),
   }, { merge: true });
 }
@@ -377,6 +390,16 @@ export async function connectStudentCloud(firebaseConfig, classId, { onClassUpda
         ...submission,
         assignmentId,
         studentId,
+        updatedAt: Date.now(),
+      }, { merge: true });
+    },
+    saveSelfCheckEntry: async (checkId, studentId, value) => {
+      const docId = `${checkId}__${studentId}`;
+      const ref = rt.fs.doc(rt.db, 'cr2Classes', classId, 'selfCheckEntries', docId);
+      await rt.fs.setDoc(ref, {
+        checkId,
+        studentId,
+        value,
         updatedAt: Date.now(),
       }, { merge: true });
     },

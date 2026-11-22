@@ -3,9 +3,22 @@
 import { store, todayIso, uid } from '../store.js';
 import { openScoreComposer, showToast, escapeHtml, escapeAttr } from '../effects.js';
 import { playSound } from '../audio.js';
+import { toggleSelfCheckValue } from './whiteboard.js';
+import { isCloudConnected, syncTeacherStateToCloud } from '../cloud-sync.js';
 
 let currentDate = todayIso();
 let pickedStudentIds = new Set();
+let checklistTab = 'matrix'; // 'matrix' | 'selfCheck'
+let activeSelfCheckId = null;
+
+async function syncSelfChecksToCloud() {
+  if (!isCloudConnected()) return;
+  try {
+    await syncTeacherStateToCloud(store.getState());
+  } catch (err) {
+    console.warn('[CR2 SelfCheck] cloud sync failed:', err);
+  }
+}
 
 const ITEM_COLORS = ['#f29038', '#6b86e8', '#39b3a2', '#e86f86', '#8dc228', '#9975d6', '#3ea6d8'];
 const SYMBOLS = [
@@ -58,6 +71,11 @@ function countDayEntries(state, iso) {
 }
 
 export function renderChecklistView(root) {
+  if (checklistTab === 'selfCheck') {
+    renderSelfCheckTab(root);
+    return;
+  }
+
   const state = store.getState();
   const students = state.students.filter((s) => !s.trashed).sort((a, b) => a.number - b.number);
   const activeItems = state.checklist.items.filter((it) => !it.archived).sort((a, b) => a.order - b.order);
@@ -70,6 +88,10 @@ export function renderChecklistView(root) {
 
   root.innerHTML = `
     <div class="checklist-shell ${state.uiPrefs.showNumbers ? '' : 'hide-numbers'}">
+      <div class="checklist-mode-bar">
+        <button type="button" class="cl-mode-tab is-active" data-cl-mode="matrix">📋 교사 체크표</button>
+        <button type="button" class="cl-mode-tab" data-cl-mode="selfCheck">☑️ 학생 셀프 체크표 · 퀘스트 (${(state.selfChecks || []).length})</button>
+      </div>
       <div class="checklist-topbar">
         <div class="week-nav">
           <button type="button" class="week-arrow-btn" id="cl-prev-week" title="이전 주">‹</button>
@@ -265,6 +287,12 @@ function renderItemColumn(item, students, entries) {
 }
 
 function bindChecklistEvents(root, students, activeItems, entries) {
+  root.querySelectorAll('[data-cl-mode]').forEach((b) => {
+    b.onclick = () => {
+      checklistTab = b.dataset.clMode;
+      renderChecklistView(root);
+    };
+  });
   root.querySelector('#cl-prev-week').onclick = () => {
     const d = parseIso(currentDate);
     d.setDate(d.getDate() - 7);
@@ -656,4 +684,368 @@ function downloadChecklistCsv(students, items, entries) {
   a.click();
   URL.revokeObjectURL(a.href);
   showToast({ title: `${currentDate} 체크표 CSV를 다운로드했습니다.`, tone: 'plus' });
+}
+
+// ============================================================
+// 학생 셀프 체크표 / 퀘스트 (전자칠판 5열·10열 터치 버튼형 + 태블릿 전송 + 체크표 자동 연동)
+// ============================================================
+function renderSelfCheckTab(root) {
+  const state = store.getState();
+  const selfChecks = state.selfChecks || [];
+  const allStudents = state.students.filter((s) => !s.trashed).sort((a, b) => a.number - b.number);
+
+  if (!activeSelfCheckId || !selfChecks.some((c) => c.id === activeSelfCheckId)) {
+    activeSelfCheckId = selfChecks[0]?.id || null;
+  }
+  const active = selfChecks.find((c) => c.id === activeSelfCheckId) || null;
+  const targetStudents = active && Array.isArray(active.targetStudentIds) && active.targetStudentIds.length > 0
+    ? allStudents.filter((s) => active.targetStudentIds.includes(s.id))
+    : allStudents;
+
+  const isCount = active?.mode === 'count';
+  const targetCnt = Math.max(1, Number(active?.targetCount) || 1);
+  const entries = active?.entries || {};
+  const doneCount = active ? targetStudents.filter((st) => {
+    const v = entries[st.id];
+    return isCount ? Number(v || 0) >= targetCnt : Boolean(v);
+  }).length : 0;
+  const cols = active?.gridColumns === 10 ? 10 : 5;
+
+  root.innerHTML = `
+    <div class="checklist-shell">
+      <div class="checklist-mode-bar">
+        <button type="button" class="cl-mode-tab" data-cl-mode="matrix">📋 교사 체크표</button>
+        <button type="button" class="cl-mode-tab is-active" data-cl-mode="selfCheck">☑️ 학생 셀프 체크표 · 퀘스트 (${selfChecks.length})</button>
+      </div>
+
+      <div class="sc-topbar">
+        <div class="sc-quest-pills">
+          ${selfChecks.map((sc) => `
+            <button type="button" class="sc-quest-pill ${sc.id === activeSelfCheckId ? 'is-active' : ''}" data-sc-pick="${sc.id}">
+              <span>${sc.mode === 'count' ? '🎯' : '☑️'} ${escapeHtml(sc.title)}</span>
+              ${sc.sendToTablet !== false ? `<small>태블릿</small>` : ''}
+            </button>
+          `).join('')}
+        </div>
+        <div class="sc-top-actions">
+          <button type="button" class="btn-yellow" id="sc-btn-create" style="padding:7px 14px;font-size:13px;">+ 새 셀프 체크표 / 퀘스트</button>
+        </div>
+      </div>
+
+      <div class="sc-body">
+        ${!active ? `
+          <div class="sc-empty">
+            <div style="font-size:44px;margin-bottom:8px;">☑️</div>
+            <h3>학생 셀프 체크표 / 퀘스트를 만들어 보세요</h3>
+            <p>전자칠판에서 학생이 자기 번호 버튼을 직접 터치하거나, 학생 태블릿(<code>student.html</code>)으로 퀘스트를 보내 자기 것만 체크하게 할 수 있습니다.<br>
+            (예: 휴대폰 끄기, 발표 5번, 사물함 청소)</p>
+            <button type="button" class="btn-yellow" id="sc-btn-create-empty" style="margin-top:12px;">+ 첫 퀘스트 만들기</button>
+          </div>
+        ` : `
+          <div class="sc-board-head">
+            <div>
+              <h3>${escapeHtml(active.title)}</h3>
+              <span class="sc-board-meta">
+                완료 <strong>${doneCount} / ${targetStudents.length}명</strong>
+                ${isCount ? ` · 목표 ${targetCnt}회` : ' · 단일 체크'}
+                ${Array.isArray(active.targetStudentIds) && active.targetStudentIds.length > 0 ? ` · 일부 ${targetStudents.length}명 배정` : ' · 학급 전체'}
+                ${active.sendToTablet !== false ? ' · 📱 태블릿 전송 ON' : ' · 전자칠판 전용'}
+                ${active.linkedChecklistItemId ? ' · 📋 체크표 연동됨' : ''}
+              </span>
+            </div>
+            <div class="sc-board-controls">
+              <div class="sc-col-toggle">
+                <button type="button" class="${cols === 5 ? 'is-active' : ''}" data-sc-cols="5">5열 보기</button>
+                <button type="button" class="${cols === 10 ? 'is-active' : ''}" data-sc-cols="10">10열 보기</button>
+              </div>
+              <button type="button" class="btn-outline" id="sc-btn-reset" style="padding:5px 10px;font-size:12px;">초기화</button>
+              <button type="button" class="btn-outline" id="sc-btn-edit" style="padding:5px 10px;font-size:12px;">수정</button>
+              <button type="button" class="btn-ghost" id="sc-btn-del" style="padding:5px 10px;font-size:12px;color:#d63957;">삭제</button>
+            </div>
+          </div>
+
+          <div class="sc-touch-grid cols-${cols}">
+            ${targetStudents.map((st) => {
+              const raw = entries[st.id];
+              const cnt = Number(raw || 0);
+              const done = isCount ? cnt >= targetCnt : Boolean(raw);
+              return `
+                <button type="button" class="sc-touch-card ${done ? 'is-done' : cnt > 0 ? 'is-progress' : ''}" data-sc-toggle="${st.id}">
+                  <span class="sc-card-num">${st.number}</span>
+                  <span class="sc-card-name">${escapeHtml(st.name)}</span>
+                  <span class="sc-card-state">
+                    ${isCount ? `${cnt} / ${targetCnt}회` : (done ? '✓ 완료' : '미완료')}
+                  </span>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+
+  root.querySelectorAll('[data-cl-mode]').forEach((b) => {
+    b.onclick = () => {
+      checklistTab = b.dataset.clMode;
+      renderChecklistView(root);
+    };
+  });
+
+  const openNew = () => openSelfCheckModal(null, () => renderSelfCheckTab(root));
+  root.querySelector('#sc-btn-create').onclick = openNew;
+  const emptyBtn = root.querySelector('#sc-btn-create-empty');
+  if (emptyBtn) emptyBtn.onclick = openNew;
+
+  root.querySelectorAll('[data-sc-pick]').forEach((b) => {
+    b.onclick = () => {
+      activeSelfCheckId = b.dataset.scPick;
+      renderSelfCheckTab(root);
+    };
+  });
+
+  if (!active) return;
+
+  root.querySelectorAll('[data-sc-cols]').forEach((b) => {
+    b.onclick = async () => {
+      const nextCols = Number(b.dataset.scCols) === 10 ? 10 : 5;
+      await store.update((s) => {
+        const sc = (s.selfChecks || []).find((x) => x.id === active.id);
+        if (sc) sc.gridColumns = nextCols;
+      });
+      renderSelfCheckTab(root);
+    };
+  });
+
+  root.querySelectorAll('[data-sc-toggle]').forEach((b) => {
+    b.onclick = async () => {
+      await toggleSelfCheckValue(active.id, b.dataset.scToggle);
+      await syncSelfChecksToCloud();
+      renderSelfCheckTab(root);
+    };
+  });
+
+  root.querySelector('#sc-btn-reset').onclick = async () => {
+    if (!confirm(`'${active.title}' 체크 기록을 모두 초기화할까요?`)) return;
+    await store.update((s) => {
+      const sc = (s.selfChecks || []).find((x) => x.id === active.id);
+      if (sc) sc.entries = {};
+    });
+    await syncSelfChecksToCloud();
+    showToast({ title: '체크 기록을 초기화했습니다.' });
+    renderSelfCheckTab(root);
+  };
+
+  root.querySelector('#sc-btn-edit').onclick = () => {
+    openSelfCheckModal(active, () => renderSelfCheckTab(root));
+  };
+
+  root.querySelector('#sc-btn-del').onclick = async () => {
+    if (!confirm(`'${active.title}' 셀프 체크표(퀘스트)를 삭제할까요?`)) return;
+    await store.update((s) => {
+      s.selfChecks = (s.selfChecks || []).filter((x) => x.id !== active.id);
+    });
+    await syncSelfChecksToCloud();
+    activeSelfCheckId = null;
+    showToast({ title: '셀프 체크표를 삭제했습니다.' });
+    renderSelfCheckTab(root);
+  };
+}
+
+/** 셀프 체크표 / 퀘스트 생성·수정 모달 */
+function openSelfCheckModal(existing, onSaved) {
+  const state = store.getState();
+  const allStudents = state.students.filter((s) => !s.trashed).sort((a, b) => a.number - b.number);
+  const allGroups = [...(state.groups || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const modalRoot = document.getElementById('modal-root');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  const close = () => backdrop.remove();
+
+  let title = existing?.title || '';
+  let mode = existing?.mode === 'count' ? 'count' : 'toggle';
+  let targetCount = Number(existing?.targetCount || 5);
+  let gridColumns = existing?.gridColumns === 10 ? 10 : 5;
+  let sendToTablet = existing?.sendToTablet !== false;
+  let linkToChecklist = existing ? Boolean(existing.linkedChecklistItemId) : true;
+  let targetMode = Array.isArray(existing?.targetStudentIds) && existing.targetStudentIds.length > 0 ? 'partial' : 'all';
+  let targetSelected = new Set(Array.isArray(existing?.targetStudentIds) ? existing.targetStudentIds : []);
+
+  const renderModal = () => {
+    backdrop.innerHTML = `
+      <form class="dialog-card is-wide">
+        <div class="dialog-header">
+          <h2>${existing ? '셀프 체크표 · 퀘스트 수정' : '새 셀프 체크표 · 퀘스트 만들기'}</h2>
+          <button type="button" class="dialog-close">&times;</button>
+        </div>
+        <div class="dialog-body" style="max-height:76vh;overflow-y:auto;">
+          <label class="field-label">
+            <span>체크표 / 퀘스트 이름</span>
+            <input type="text" id="sc-f-title" maxlength="40" value="${escapeAttr(title)}" placeholder="예: 휴대폰 끄기, 발표 5번, 사물함 청소" required>
+          </label>
+
+          <div class="field-row" style="margin-top:10px;">
+            <label class="field-label">
+              <span>체크 방식</span>
+              <select id="sc-f-mode">
+                <option value="toggle" ${mode === 'toggle' ? 'selected' : ''}>☑️ 단일 체크 (완료 / 미완료)</option>
+                <option value="count" ${mode === 'count' ? 'selected' : ''}>🎯 횟수 누적 퀘스트 (예: 발표 5번)</option>
+              </select>
+            </label>
+            ${mode === 'count' ? `
+              <label class="field-label">
+                <span>목표 횟수</span>
+                <input type="number" id="sc-f-target" min="1" max="99" value="${targetCount}">
+              </label>
+            ` : ''}
+            <label class="field-label">
+              <span>전자칠판 배치 열 수</span>
+              <select id="sc-f-cols">
+                <option value="5" ${gridColumns === 5 ? 'selected' : ''}>5열 버튼형 (큰 버튼)</option>
+                <option value="10" ${gridColumns === 10 ? 'selected' : ''}>10열 버튼형 (한눈에 보기)</option>
+              </select>
+            </label>
+          </div>
+
+          <div style="display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;padding:10px 12px;background:#faf8f2;border-radius:10px;border:1px solid #e6dfd0;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;">
+              <input type="checkbox" id="sc-f-tablet" ${sendToTablet ? 'checked' : ''} style="accent-color:#2b8be0;">
+              <span>📱 학생 태블릿(student.html)으로 전송 (자기 것만 표시)</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;">
+              <input type="checkbox" id="sc-f-link" ${linkToChecklist ? 'checked' : ''} style="accent-color:#2b8be0;">
+              <span>📋 교사 체크표 항목과 자동 연동</span>
+            </label>
+          </div>
+
+          <div style="padding:10px 12px;background:#faf8f2;border-radius:10px;border:1px solid #e6dfd0;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <strong style="font-size:13px;">🎯 배포 대상 학생</strong>
+              <div style="display:flex;gap:6px;">
+                <button type="button" class="btn-outline" data-sc-tmode="all" style="padding:4px 10px;font-size:12px;${targetMode === 'all' ? 'background:#2b8be0;color:#fff;border-color:#2b8be0;' : ''}">학급 전체 (${allStudents.length}명)</button>
+                <button type="button" class="btn-outline" data-sc-tmode="partial" style="padding:4px 10px;font-size:12px;${targetMode === 'partial' ? 'background:#2b8be0;color:#fff;border-color:#2b8be0;' : ''}">일부 학생 선택 (${targetSelected.size}명)</button>
+              </div>
+            </div>
+            ${targetMode === 'partial' ? `
+              <div style="display:flex;gap:5px;flex-wrap:wrap;margin:8px 0 6px;">
+                ${allGroups.map((g) => `<button type="button" class="btn-outline" data-sc-grp="${g.id}" style="padding:2px 8px;font-size:11px;">${escapeHtml(g.name)}</button>`).join('')}
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:5px;max-height:120px;overflow-y:auto;">
+                ${allStudents.map((st) => `
+                  <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:4px 6px;border-radius:6px;background:${targetSelected.has(st.id) ? '#fff3b0' : '#fff'};border:1px solid #e0dacb;cursor:pointer;">
+                    <input type="checkbox" data-sc-st="${st.id}" ${targetSelected.has(st.id) ? 'checked' : ''}>
+                    <span>${st.number} ${escapeHtml(st.name)}</span>
+                  </label>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button type="button" class="btn-ghost" data-cancel>취소</button>
+          <button type="submit" class="btn-yellow">${existing ? '수정 저장' : '퀘스트 만들기'}</button>
+        </div>
+      </form>
+    `;
+
+    backdrop.querySelector('.dialog-close').onclick = close;
+    backdrop.querySelector('[data-cancel]').onclick = close;
+    backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+
+    const syncLocal = () => {
+      title = backdrop.querySelector('#sc-f-title')?.value || '';
+      mode = backdrop.querySelector('#sc-f-mode')?.value || 'toggle';
+      const tInp = backdrop.querySelector('#sc-f-target');
+      if (tInp) targetCount = Math.max(1, Number(tInp.value) || 5);
+      gridColumns = Number(backdrop.querySelector('#sc-f-cols')?.value) === 10 ? 10 : 5;
+      sendToTablet = Boolean(backdrop.querySelector('#sc-f-tablet')?.checked);
+      linkToChecklist = Boolean(backdrop.querySelector('#sc-f-link')?.checked);
+    };
+
+    backdrop.querySelector('#sc-f-mode').onchange = () => { syncLocal(); renderModal(); };
+    backdrop.querySelectorAll('[data-sc-tmode]').forEach((b) => {
+      b.onclick = () => { syncLocal(); targetMode = b.dataset.scTmode; renderModal(); };
+    });
+    backdrop.querySelectorAll('[data-sc-grp]').forEach((b) => {
+      b.onclick = () => {
+        syncLocal();
+        const members = allStudents.filter((s) => s.groupId === b.dataset.scGrp);
+        const allIn = members.every((m) => targetSelected.has(m.id));
+        if (allIn) members.forEach((m) => targetSelected.delete(m.id));
+        else members.forEach((m) => targetSelected.add(m.id));
+        renderModal();
+      };
+    });
+    backdrop.querySelectorAll('[data-sc-st]').forEach((chk) => {
+      chk.onchange = () => {
+        if (chk.checked) targetSelected.add(chk.dataset.scSt);
+        else targetSelected.delete(chk.dataset.scSt);
+      };
+    });
+
+    backdrop.querySelector('form').onsubmit = async (e) => {
+      e.preventDefault();
+      syncLocal();
+      const cleanTitle = title.trim();
+      if (!cleanTitle) return;
+      if (targetMode === 'partial' && targetSelected.size === 0) {
+        showToast({ title: '일부 배포 대상 학생을 1명 이상 선택해 주세요.', tone: 'minus' });
+        return;
+      }
+
+      const id = existing?.id || uid('sc');
+      let linkedItemId = existing?.linkedChecklistItemId || null;
+
+      await store.update((s) => {
+        if (!Array.isArray(s.selfChecks)) s.selfChecks = [];
+        if (linkToChecklist) {
+          if (!linkedItemId) linkedItemId = `chk-sc-${id}`;
+          let chkItem = s.checklist.items.find((it) => it.id === linkedItemId);
+          if (!chkItem) {
+            s.checklist.items.push({
+              id: linkedItemId,
+              title: `[퀘스트] ${cleanTitle.slice(0, 12)}`,
+              type: mode === 'count' ? 'score' : 'check',
+              color: '#39b3a2',
+              memo: '셀프 체크표 자동 연동',
+              archived: false,
+              order: s.checklist.items.length,
+            });
+          } else {
+            chkItem.title = `[퀘스트] ${cleanTitle.slice(0, 12)}`;
+            chkItem.type = mode === 'count' ? 'score' : 'check';
+          }
+        } else {
+          linkedItemId = null;
+        }
+
+        const payload = {
+          id,
+          title: cleanTitle,
+          mode,
+          targetCount: mode === 'count' ? targetCount : 1,
+          gridColumns,
+          sendToTablet,
+          targetStudentIds: targetMode === 'partial' ? Array.from(targetSelected) : null,
+          linkedChecklistItemId: linkedItemId,
+          entries: existing?.entries ? { ...existing.entries } : {},
+          createdAt: existing?.createdAt || Date.now(),
+        };
+
+        const idx = s.selfChecks.findIndex((x) => x.id === id);
+        if (idx >= 0) s.selfChecks[idx] = payload;
+        else s.selfChecks.unshift(payload);
+      });
+
+      activeSelfCheckId = id;
+      await syncSelfChecksToCloud();
+      playSound('confirm');
+      showToast({ title: existing ? '셀프 체크표를 수정했습니다!' : '새 셀프 체크표를 만들었습니다!', tone: 'plus' });
+      close();
+      if (typeof onSaved === 'function') onSaved();
+    };
+  };
+
+  modalRoot.appendChild(backdrop);
+  renderModal();
 }

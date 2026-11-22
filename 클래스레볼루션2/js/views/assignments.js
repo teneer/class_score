@@ -12,9 +12,12 @@ import {
 import {
   BUILTIN_BACKGROUNDS,
   DEFAULT_ALLOWED_TOOLS,
+  getTemplatePages,
   renderWorksheetComposite,
   renderCroppedRegion,
 } from '../worksheet-renderer.js';
+import { importTemplateFiles } from '../doc-importer.js';
+import { sendImagesToWhiteboard } from './whiteboard.js';
 import {
   GOOGLE_APPS_SCRIPT_TEMPLATE,
   parseFirebaseConfig,
@@ -39,6 +42,20 @@ let selectedGradeStudentIds = new Set();
 let anonymousGrading = false;
 let onlyUngraded = false;
 let editingRegions = false;
+let regionPageIndex = 0;
+let regionRefStudentId = '';
+let viewerPageIndex = 0;
+let wbSendSelectedIds = new Set();
+
+/** 과제 대상 학생 목록 반환 (전체 또는 일부 선택) */
+function getTargetStudentsForAssignment(state, asg) {
+  const all = (state.students || []).filter((s) => !s.trashed).sort((a, b) => a.number - b.number);
+  if (Array.isArray(asg?.targetStudentIds) && asg.targetStudentIds.length > 0) {
+    const set = new Set(asg.targetStudentIds);
+    return all.filter((s) => set.has(s.id));
+  }
+  return all;
+}
 
 /** 교사 상태 변경 시 클라우드 연결되어 있으면 자동 동기화 */
 async function syncIfConnected() {
@@ -138,23 +155,27 @@ function renderAssignmentsDashboard(container) {
         ` : `
           <div class="asg-card-grid">
             ${filtered.map((a) => {
+              const targetStudents = getTargetStudentsForAssignment(state, a);
               const subMap = submissions[a.id] || {};
-              const submittedCnt = activeStudents.filter((s) => Boolean(subMap[s.id])).length;
-              const gradedCnt = activeStudents.filter((s) => subMap[s.id]?.status === 'graded').length;
-              const pct = activeStudents.length > 0 ? Math.round((submittedCnt / activeStudents.length) * 100) : 0;
+              const submittedCnt = targetStudents.filter((s) => Boolean(subMap[s.id])).length;
+              const gradedCnt = targetStudents.filter((s) => subMap[s.id]?.status === 'graded').length;
+              const totalCnt = targetStudents.length;
+              const isPartial = Array.isArray(a.targetStudentIds) && a.targetStudentIds.length > 0;
+              const pct = totalCnt > 0 ? Math.round((submittedCnt / totalCnt) * 100) : 0;
               const kindLabel = a.kind === 'worksheet' ? '📝 워크시트' : a.kind === 'quiz' ? (a.quizMode === 'live' ? '⚡ 실시간 퀴즈' : '⚡ 퀴즈과제') : '📎 일반과제';
               return `
                 <article class="asg-card ${a.closed ? 'is-closed' : ''}" data-open-asg="${a.id}">
                   <div class="asg-card-head">
                     <span class="asg-kind-badge is-${a.kind}">${kindLabel}</span>
                     ${a.subject ? `<span class="asg-subj-tag">${escapeHtml(a.subject)}</span>` : ''}
+                    ${isPartial ? `<span class="asg-subj-tag" style="background:#fff3cd;color:#8a5d00;">일부 ${totalCnt}명</span>` : ''}
                     ${a.closed ? `<span class="asg-closed-tag">마감</span>` : ''}
                   </div>
                   <h3 class="asg-card-title">${escapeHtml(a.title)}</h3>
                   <p class="asg-card-desc">${escapeHtml(a.description || '안내 설명 없음')}</p>
                   <div class="asg-progress-wrap">
                     <div class="asg-progress-meta">
-                      <span>제출 <strong>${submittedCnt}</strong> / ${activeStudents.length}명 (채점 ${gradedCnt}명)</span>
+                      <span>제출 <strong>${submittedCnt}</strong> / ${totalCnt}명 (채점 ${gradedCnt}명)</span>
                       <span>${pct}%</span>
                     </div>
                     <div class="asg-progress-track"><div class="asg-progress-fill" style="width:${pct}%"></div></div>
@@ -242,12 +263,18 @@ function openAssignmentEditorModal(existing, onSaved) {
 
   let kind = existing?.kind || 'worksheet';
   let bgPreset = existing?.template?.preset || 'blank';
-  let bgImageUrl = existing?.template?.imageUrl || '';
+  let templatePages = Array.isArray(existing?.template?.pages) && existing.template.pages.length > 0
+    ? structuredClone(existing.template.pages)
+    : (existing?.template?.imageUrl ? [{ pageIndex: 0, imageUrl: existing.template.imageUrl, width: 1200, height: 850 }] : []);
   let bgFileName = existing?.template?.fileName || '';
   let allowedTools = { ...DEFAULT_ALLOWED_TOOLS, ...(existing?.allowedTools || {}) };
   let quizQuestions = Array.isArray(existing?.quiz?.questions) ? structuredClone(existing.quiz.questions) : [];
   let quizMode = existing?.quizMode || 'self'; // 'self' | 'live'
   let showExplainImmediately = existing?.quiz?.showExplainImmediately !== false;
+  let targetMode = Array.isArray(existing?.targetStudentIds) && existing.targetStudentIds.length > 0 ? 'partial' : 'all';
+  let targetSelected = new Set(Array.isArray(existing?.targetStudentIds) ? existing.targetStudentIds : []);
+  const allActiveStudents = state.students.filter((s) => !s.trashed).sort((a, b) => a.number - b.number);
+  const allGroups = [...(state.groups || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   const renderModal = () => {
     backdrop.innerHTML = `
@@ -297,20 +324,53 @@ function openAssignmentEditorModal(existing, onSaved) {
             </label>
           </div>
 
+          <div class="asg-subpanel">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <h4 style="margin:0;">🎯 배포 대상 학생</h4>
+              <div style="display:flex;gap:6px;">
+                <button type="button" class="asg-chip ${targetMode === 'all' ? 'is-active' : ''}" data-tmode="all">학급 전체 (${allActiveStudents.length}명)</button>
+                <button type="button" class="asg-chip ${targetMode === 'partial' ? 'is-active' : ''}" data-tmode="partial">일부 학생 선택 (${targetSelected.size}명)</button>
+              </div>
+            </div>
+            ${targetMode === 'partial' ? `
+              <div style="display:flex;gap:5px;flex-wrap:wrap;margin:8px 0 6px;">
+                ${allGroups.map((g) => `<button type="button" class="asg-mini-btn" data-tgrp="${g.id}">${escapeHtml(g.name)}</button>`).join('')}
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:5px;max-height:110px;overflow-y:auto;">
+                ${allActiveStudents.map((st) => `
+                  <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:4px 6px;border-radius:6px;background:${targetSelected.has(st.id) ? '#fff3b0' : '#fff'};border:1px solid #e0dacb;cursor:pointer;">
+                    <input type="checkbox" data-tst="${st.id}" ${targetSelected.has(st.id) ? 'checked' : ''}>
+                    <span>${st.number} ${escapeHtml(st.name)}</span>
+                  </label>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+
           ${kind === 'worksheet' ? `
             <div class="asg-subpanel">
-              <h4>📄 템플릿(배경지) 설정 <small>— 과제당 1회만 저장, 학생 제출 시 답변 레이어만 전송</small></h4>
+              <h4>📄 템플릿(배경지) 설정 <small>— 이미지(복수) · PDF · HWPX 여러 쪽 지원 · 과제당 1회 저장</small></h4>
               <div class="asg-bg-presets">
                 ${BUILTIN_BACKGROUNDS.map((bg) => `
-                  <button type="button" class="asg-chip ${!bgImageUrl && bgPreset === bg.id ? 'is-active' : ''}" data-bg-preset="${bg.id}">${bg.label}</button>
+                  <button type="button" class="asg-chip ${templatePages.length === 0 && bgPreset === bg.id ? 'is-active' : ''}" data-bg-preset="${bg.id}">${bg.label}</button>
                 `).join('')}
                 <label class="asg-chip is-upload">
-                  🖼️ 배경지 이미지 올리기
-                  <input type="file" id="asg-bg-upload" accept="image/*" hidden>
+                  📂 이미지 · PDF · HWPX 올리기
+                  <input type="file" id="asg-bg-upload" accept="image/*,.pdf,.hwpx" multiple hidden>
                 </label>
-                ${bgImageUrl ? `<button type="button" class="asg-chip is-danger" id="asg-bg-clear">이미지 제거 (${escapeHtml(bgFileName || '업로드됨')})</button>` : ''}
+                ${templatePages.length > 0 ? `<button type="button" class="asg-chip is-danger" id="asg-bg-clear">배경지 초기화 (${templatePages.length}쪽)</button>` : ''}
               </div>
-              ${bgImageUrl ? `<div class="asg-bg-thumb"><img src="${escapeAttr(bgImageUrl)}" alt="배경지 미리보기"></div>` : ''}
+              ${templatePages.length > 0 ? `
+                <div style="display:flex;gap:8px;overflow-x:auto;margin-top:8px;padding-bottom:4px;">
+                  ${templatePages.map((p, idx) => `
+                    <div style="position:relative;flex:none;border:1px solid #d8d2c3;border-radius:7px;background:#fff;padding:4px;text-align:center;">
+                      <img src="${escapeAttr(p.imageUrl)}" alt="${idx + 1}쪽" style="height:96px;display:block;border-radius:4px;">
+                      <span style="font-size:11px;font-weight:800;color:#5b5244;">${idx + 1}쪽</span>
+                      <button type="button" data-del-bgpage="${idx}" style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#df3357;color:#fff;font-size:11px;">&times;</button>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
 
               <h4 style="margin-top:12px;">🔒 학생 허용 도구 제한 (체크한 도구만 학생 화면에 표시)</h4>
               <div class="asg-tool-checks">
@@ -409,39 +469,67 @@ function openAssignmentEditorModal(existing, onSaved) {
       b.onclick = () => { keepFormValues(); kind = b.dataset.kind; renderModal(); };
     });
 
+    backdrop.querySelectorAll('[data-tmode]').forEach((b) => {
+      b.onclick = () => { keepFormValues(); targetMode = b.dataset.tmode; renderModal(); };
+    });
+    backdrop.querySelectorAll('[data-tgrp]').forEach((b) => {
+      b.onclick = () => {
+        const gid = b.dataset.tgrp;
+        const members = allActiveStudents.filter((s) => s.groupId === gid);
+        const allIn = members.every((m) => targetSelected.has(m.id));
+        if (allIn) members.forEach((m) => targetSelected.delete(m.id));
+        else members.forEach((m) => targetSelected.add(m.id));
+        keepFormValues();
+        renderModal();
+      };
+    });
+    backdrop.querySelectorAll('[data-tst]').forEach((chk) => {
+      chk.onchange = () => {
+        if (chk.checked) targetSelected.add(chk.dataset.tst);
+        else targetSelected.delete(chk.dataset.tst);
+      };
+    });
+
     if (kind === 'worksheet') {
       backdrop.querySelectorAll('[data-bg-preset]').forEach((b) => {
-        b.onclick = () => { keepFormValues(); bgPreset = b.dataset.bgPreset; bgImageUrl = ''; bgFileName = ''; renderModal(); };
+        b.onclick = () => { keepFormValues(); bgPreset = b.dataset.bgPreset; templatePages = []; bgFileName = ''; renderModal(); };
       });
       const bgClear = backdrop.querySelector('#asg-bg-clear');
-      if (bgClear) bgClear.onclick = () => { keepFormValues(); bgImageUrl = ''; bgFileName = ''; renderModal(); };
+      if (bgClear) bgClear.onclick = () => { keepFormValues(); templatePages = []; bgFileName = ''; renderModal(); };
+      backdrop.querySelectorAll('[data-del-bgpage]').forEach((b) => {
+        b.onclick = () => {
+          keepFormValues();
+          templatePages.splice(Number(b.dataset.delBgpage), 1);
+          templatePages.forEach((p, idx) => { p.pageIndex = idx; });
+          renderModal();
+        };
+      });
 
       const bgInput = backdrop.querySelector('#asg-bg-upload');
       if (bgInput) {
         bgInput.onchange = async () => {
-          const file = bgInput.files?.[0];
-          if (!file) return;
+          const files = bgInput.files;
+          if (!files || files.length === 0) return;
           keepFormValues();
           try {
-            showToast({ title: '배경지 이미지를 처리하는 중...' });
+            showToast({ title: '배경지(이미지·PDF·HWPX)를 페이지로 변환하는 중...' });
             const cfg = store.getState().cloudConfig || {};
-            if (cfg.driveBridgeUrl) {
-              const up = await uploadFileToDrive({
-                bridgeUrl: cfg.driveBridgeUrl,
-                folderName: cfg.driveFolderName || '클래스레볼루션2',
-                assignmentTitle: existing?.title || '배경지_템플릿',
-                studentLabel: 'TEMPLATE',
-                file,
-              });
-              bgImageUrl = up.thumbnailUrl || up.viewUrl;
-            } else {
-              bgImageUrl = await compressImageToDataUrl(file, 1400, 0.82);
+            const imported = await importTemplateFiles(files, {
+              driveBridgeUrl: cfg.driveBridgeUrl || '',
+              driveFolderName: cfg.driveFolderName || '클래스레볼루션2',
+              assignmentTitle: existing?.title || '배경지_템플릿',
+            });
+            if (imported.length === 0) {
+              showToast({ title: '지원하지 않는 파일 형식입니다.', tone: 'minus' });
+              return;
             }
-            bgFileName = file.name;
-            showToast({ title: '배경지 이미지가 설정되었습니다!', tone: 'plus' });
+            const startIdx = templatePages.length;
+            imported.forEach((p, i) => templatePages.push({ ...p, pageIndex: startIdx + i }));
+            bgFileName = files[0].name;
+            showToast({ title: `배경지 ${imported.length}쪽을 추가했습니다! (총 ${templatePages.length}쪽)`, tone: 'plus' });
             renderModal();
           } catch (err) {
-            showToast({ title: '배경지 업로드 실패', detail: err.message, tone: 'minus' });
+            showToast({ title: '배경지 변환 실패', detail: err.message, tone: 'minus' });
           }
         };
       }
@@ -508,6 +596,11 @@ function openAssignmentEditorModal(existing, onSaved) {
         return;
       }
 
+      if (targetMode === 'partial' && targetSelected.size === 0) {
+        showToast({ title: '일부 배포 대상 학생을 1명 이상 선택해 주세요.', tone: 'minus' });
+        return;
+      }
+
       const payload = {
         id: existing?.id || uid('asg'),
         kind,
@@ -517,9 +610,18 @@ function openAssignmentEditorModal(existing, onSaved) {
         dueDate: String(fd.get('dueDate') || '').trim(),
         rewardPoints: Math.max(0, Math.min(20, Math.trunc(Number(fd.get('rewardPoints') || 0)))),
         visibility: String(fd.get('visibility') || 'private'),
+        targetStudentIds: targetMode === 'partial' ? Array.from(targetSelected) : null,
+        checklistLinkMode: existing?.checklistLinkMode || 'check', // 'check' | 'score'
         closed: Boolean(existing?.closed),
         createdAt: existing?.createdAt || Date.now(),
-        template: kind === 'worksheet' ? { preset: bgPreset, imageUrl: bgImageUrl, fileName: bgFileName, width: 1200, height: 850 } : null,
+        template: kind === 'worksheet' ? {
+          preset: bgPreset,
+          imageUrl: templatePages[0]?.imageUrl || '',
+          pages: templatePages,
+          fileName: bgFileName,
+          width: templatePages[0]?.width || 1200,
+          height: templatePages[0]?.height || 850,
+        } : null,
         allowedTools: kind === 'worksheet' ? { ...allowedTools } : null,
         regions: Array.isArray(existing?.regions) ? existing.regions : [],
         quizMode: kind === 'quiz' ? quizMode : null,
@@ -557,9 +659,10 @@ function renderAssignmentDetail(container, assignmentId) {
     return;
   }
 
-  const students = state.students.filter((s) => !s.trashed).sort((a, b) => a.number - b.number);
+  const students = getTargetStudentsForAssignment(state, asg);
   const subMap = (state.submissions && state.submissions[asg.id]) || {};
   const submittedStudents = students.filter((s) => Boolean(subMap[s.id]));
+  const linkMode = asg.checklistLinkMode === 'score' ? 'score' : 'check';
 
   container.innerHTML = `
     <div class="asg-shell">
@@ -567,7 +670,7 @@ function renderAssignmentDetail(container, assignmentId) {
         <button type="button" class="asg-btn is-outline" id="asg-btn-back">← 과제 목록</button>
         <div class="asg-detail-title">
           <h2>${escapeHtml(asg.title)}</h2>
-          <span class="asg-detail-meta">제출 ${submittedStudents.length} / ${students.length}명${asg.dueDate ? ` · 마감 ${escapeHtml(asg.dueDate)}` : ''}</span>
+          <span class="asg-detail-meta">제출 ${submittedStudents.length} / ${students.length}명${asg.dueDate ? ` · 마감 ${escapeHtml(asg.dueDate)}` : ''}${Array.isArray(asg.targetStudentIds) && asg.targetStudentIds.length > 0 ? ' · 일부 배포' : ''}</span>
         </div>
         <div class="asg-detail-tabs">
           <button type="button" class="asg-tab ${detailTab === 'overview' ? 'is-active' : ''}" data-dtab="overview">학생별 채점</button>
@@ -579,7 +682,7 @@ function renderAssignmentDetail(container, assignmentId) {
           ` : ''}
         </div>
         <div class="asg-top-actions">
-          <button type="button" class="asg-btn is-outline is-sm" id="asg-btn-export-chk">체크표 반영</button>
+          <button type="button" class="asg-btn is-outline is-sm" id="asg-btn-export-chk">체크표 연동 (${linkMode === 'score' ? '점수' : '체크'})</button>
           <button type="button" class="asg-btn is-primary is-sm" id="asg-btn-bulk-reward">★ 제출자 일괄 으쓱</button>
         </div>
       </div>
@@ -590,6 +693,7 @@ function renderAssignmentDetail(container, assignmentId) {
 
   container.querySelector('#asg-btn-back').onclick = () => {
     activeAssignmentId = null;
+    wbSendSelectedIds.clear();
     renderAssignmentsDashboard(container);
   };
   container.querySelectorAll('[data-dtab]').forEach((b) => {
@@ -600,29 +704,9 @@ function renderAssignmentDetail(container, assignmentId) {
     };
   });
 
-  // 체크표로 제출 현황 원클릭 반영
-  container.querySelector('#asg-btn-export-chk').onclick = async () => {
-    const today = todayIso();
-    await store.update((s) => {
-      const chkId = `chk-asg-${asg.id}`;
-      if (!s.checklist.items.some((it) => it.id === chkId)) {
-        s.checklist.items.push({
-          id: chkId,
-          title: `[과제] ${asg.title.slice(0, 14)}`,
-          type: 'check',
-          color: '#2b8be0',
-          memo: '과제 모듈 자동 연동',
-          archived: false,
-          order: s.checklist.items.length,
-        });
-      }
-      if (!s.checklist.entriesByDate[today]) s.checklist.entriesByDate[today] = {};
-      for (const st of submittedStudents) {
-        s.checklist.entriesByDate[today][`${st.id}::${chkId}`] = true;
-      }
-    });
-    playSound('confirm');
-    showToast({ title: `체크표(${today})에 제출자 ${submittedStudents.length}명을 반영했습니다!`, tone: 'plus' });
+  // 체크표 연동 (체크표 제출여부 ↔ 점수 자동 입력 선택 및 중간 변경)
+  container.querySelector('#asg-btn-export-chk').onclick = () => {
+    openChecklistLinkModal(asg, students, subMap, () => renderAssignmentDetail(container, asg.id));
   };
 
   // 제출자 일괄 으쓱 부여 (미지급자만)
@@ -663,34 +747,182 @@ function renderAssignmentDetail(container, assignmentId) {
   }
 }
 
-/** 탭 1: 학생별 제출 현황 및 상세 채점 (배경지+답변 실시간 합성 + 구글 드라이브 사진 열람/다운로드) */
+/** 체크표 연동 모달 — 체크표(제출 여부) ↔ 점수(채점 점수 자동 입력) 선택 및 중간 변경 */
+function openChecklistLinkModal(asg, students, subMap, onUpdated) {
+  const modalRoot = document.getElementById('modal-root');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  const close = () => backdrop.remove();
+  const currentMode = asg.checklistLinkMode === 'score' ? 'score' : 'check';
+  const today = todayIso();
+
+  backdrop.innerHTML = `
+    <div class="dialog-card">
+      <div class="dialog-header">
+        <h2>☑️ 체크표 연동 설정</h2>
+        <button type="button" class="dialog-close">&times;</button>
+      </div>
+      <div class="dialog-body">
+        <p class="asg-hint">체크표에 반영할 방식을 선택하세요. <strong>중간에 언제든 체크표 ↔ 점수로 변경</strong>할 수 있습니다.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;margin:12px 0;">
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid ${currentMode === 'check' ? '#2b8be0' : '#e0dacb'};border-radius:10px;cursor:pointer;">
+            <input type="radio" name="chk-link-mode" value="check" ${currentMode === 'check' ? 'checked' : ''} style="margin-top:3px;">
+            <div>
+              <strong>☑️ 체크표 (제출 여부)</strong>
+              <div class="asg-hint" style="margin:2px 0 0;">과제를 제출한 학생에게 자동으로 ✓ 체크 표시합니다.</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid ${currentMode === 'score' ? '#2b8be0' : '#e0dacb'};border-radius:10px;cursor:pointer;">
+            <input type="radio" name="chk-link-mode" value="score" ${currentMode === 'score' ? 'checked' : ''} style="margin-top:3px;">
+            <div>
+              <strong>💯 점수 (채점 점수 자동 입력)</strong>
+              <div class="asg-hint" style="margin:2px 0 0;">문항별 채점/퀴즈 채점 총점을 체크표 점수 열에 숫자로 자동 입력합니다.</div>
+            </div>
+          </label>
+        </div>
+        <label class="field-label">
+          <span>반영 날짜</span>
+          <input type="date" id="chk-link-date" value="${today}">
+        </label>
+      </div>
+      <div class="dialog-footer">
+        <button type="button" class="btn-ghost" data-cancel>취소</button>
+        <button type="button" class="btn-yellow" id="btn-apply-chk-link">체크표에 반영하기</button>
+      </div>
+    </div>
+  `;
+
+  modalRoot.appendChild(backdrop);
+  backdrop.querySelector('.dialog-close').onclick = close;
+  backdrop.querySelector('[data-cancel]').onclick = close;
+  backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+
+  backdrop.querySelector('#btn-apply-chk-link').onclick = async () => {
+    const mode = backdrop.querySelector('input[name="chk-link-mode"]:checked')?.value || 'check';
+    const targetDate = backdrop.querySelector('#chk-link-date').value || today;
+    let appliedCnt = 0;
+
+    await store.update((s) => {
+      const targetAsg = s.assignments.find((x) => x.id === asg.id);
+      if (targetAsg) targetAsg.checklistLinkMode = mode;
+
+      const chkId = `chk-asg-${asg.id}`;
+      let item = s.checklist.items.find((it) => it.id === chkId);
+      if (!item) {
+        item = {
+          id: chkId,
+          title: `[과제] ${asg.title.slice(0, 14)}`,
+          type: mode === 'score' ? 'score' : 'check',
+          color: mode === 'score' ? '#6b86e8' : '#2b8be0',
+          memo: '과제 모듈 자동 연동',
+          archived: false,
+          order: s.checklist.items.length,
+        };
+        s.checklist.items.push(item);
+      } else {
+        // 중간에 연동 유형 변경 (체크 ↔ 점수)
+        item.type = mode === 'score' ? 'score' : 'check';
+        item.color = mode === 'score' ? '#6b86e8' : '#2b8be0';
+      }
+
+      if (!s.checklist.entriesByDate[targetDate]) s.checklist.entriesByDate[targetDate] = {};
+      for (const st of students) {
+        const sub = subMap[st.id];
+        if (!sub) continue;
+        if (mode === 'score') {
+          const tot = recalcSubmissionTotal(sub);
+          s.checklist.entriesByDate[targetDate][`${st.id}::${chkId}`] = tot.count > 0 ? String(tot.total) : '';
+          if (tot.count > 0) appliedCnt++;
+        } else {
+          s.checklist.entriesByDate[targetDate][`${st.id}::${chkId}`] = true;
+          appliedCnt++;
+        }
+      }
+    });
+
+    await syncIfConnected();
+    playSound('confirm');
+    showToast({
+      title: mode === 'score'
+        ? `체크표(${targetDate})에 채점 점수 ${appliedCnt}명을 자동 입력했습니다!`
+        : `체크표(${targetDate})에 제출 여부 ${appliedCnt}명을 반영했습니다!`,
+      tone: 'plus',
+    });
+    close();
+    if (typeof onUpdated === 'function') onUpdated();
+  };
+}
+
+/** 선택한 학생들의 과제 결과(합성 워크시트 또는 첨부 이미지)를 만능칠판 전송용 이미지 배열로 변환 */
+async function buildStudentWhiteboardItems(asg, targetStudents, subMap, pageIdx = 0) {
+  const items = [];
+  for (const st of targetStudents) {
+    const sub = subMap[st.id];
+    if (!sub) continue;
+    if (asg.kind === 'worksheet') {
+      const off = document.createElement('canvas');
+      await renderWorksheetComposite(off, asg.template, sub.worksheetData, pageIdx);
+      items.push({
+        name: `${st.number}번_${st.name}_${asg.title}_${pageIdx + 1}쪽.png`,
+        dataUrl: off.toDataURL('image/png'),
+      });
+    } else if (Array.isArray(sub.files) && sub.files.length > 0) {
+      const imgFiles = sub.files.filter((f) => f.mimeType?.startsWith('image/') && (f.viewUrl || f.thumbnailUrl));
+      for (const f of imgFiles) {
+        items.push({
+          name: `${st.number}번_${st.name}_${f.name}`,
+          dataUrl: f.viewUrl || f.thumbnailUrl,
+        });
+      }
+    }
+  }
+  return items;
+}
+
+/** 탭 1: 학생별 제출 현황 및 상세 채점 (다중 페이지 · 만능칠판 다중 전송 · 학생 답지에서 바로 채점영역 지정) */
 function renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender) {
-  if (!selectedStudentId) {
+  if (!selectedStudentId || !students.some((s) => s.id === selectedStudentId)) {
     selectedStudentId = students.find((s) => Boolean(subMap[s.id]))?.id || students[0]?.id || null;
   }
   const curStudent = students.find((s) => s.id === selectedStudentId) || null;
   const curSub = curStudent ? subMap[curStudent.id] || null : null;
+  const pages = asg.kind === 'worksheet' ? getTemplatePages(asg.template) : [];
+  if (viewerPageIndex >= pages.length) viewerPageIndex = 0;
 
   bodyEl.innerHTML = `
     <div class="asg-split-layout">
       <aside class="asg-student-list">
         <div class="asg-sl-head">
           <span>학생 명단 (${students.length}명)</span>
-          <button type="button" class="asg-mini-btn" id="btn-copy-unsub">미제출자 복사</button>
+          <div style="display:flex;gap:4px;">
+            <button type="button" class="asg-mini-btn" id="btn-wb-sel-all" title="제출 학생 전체 선택">전체</button>
+            <button type="button" class="asg-mini-btn" id="btn-copy-unsub">미제출</button>
+          </div>
         </div>
+        ${wbSendSelectedIds.size > 0 ? `
+          <div style="padding:6px 8px;background:#eef5ff;border-bottom:1px solid #d5e4ff;display:flex;align-items:center;justify-content:space-between;gap:4px;">
+            <span style="font-size:11px;font-weight:800;color:#1b62ba;">${wbSendSelectedIds.size}명 선택</span>
+            <div style="display:flex;gap:4px;">
+              <button type="button" class="asg-mini-btn" id="btn-wb-send-multi" style="background:#2b8be0;color:#fff;border-color:#2b8be0;">🖍️ 칠판으로</button>
+              <button type="button" class="asg-mini-btn" id="btn-wb-sel-clear">해제</button>
+            </div>
+          </div>
+        ` : ''}
         <div class="asg-sl-items">
           ${students.map((st) => {
             const sub = subMap[st.id];
             const stCls = !sub ? 'is-none' : sub.status === 'graded' ? 'is-graded' : sub.status === 'redo' ? 'is-redo' : 'is-sub';
             const stTxt = !sub ? '미제출' : sub.status === 'graded' ? '채점완료' : sub.status === 'redo' ? '다시제출' : '제출됨';
             const tot = sub ? recalcSubmissionTotal(sub) : null;
+            const checked = wbSendSelectedIds.has(st.id);
             return `
-              <button type="button" class="asg-sl-item ${selectedStudentId === st.id ? 'is-active' : ''}" data-pick-st="${st.id}">
+              <div class="asg-sl-item ${selectedStudentId === st.id ? 'is-active' : ''}" data-pick-st="${st.id}" role="button" tabindex="0">
+                ${sub ? `<input type="checkbox" data-wb-chk="${st.id}" ${checked ? 'checked' : ''} title="만능칠판 일괄 불러오기 선택" style="margin:0 2px 0 0;accent-color:#2b8be0;">` : ''}
                 <span class="asg-sl-num">${st.number}</span>
                 <span class="asg-sl-name">${escapeHtml(st.name)}</span>
                 ${tot && tot.count > 0 ? `<span class="asg-sl-score">${tot.total}/${tot.max}</span>` : ''}
                 <span class="asg-sl-badge ${stCls}">${stTxt}</span>
-              </button>
+              </div>
             `;
           }).join('')}
         </div>
@@ -708,8 +940,14 @@ function renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender) {
               <h3>${curStudent.number}번 ${escapeHtml(curStudent.name)}</h3>
               <span class="asg-hint">제출 시각: ${new Date(curSub.submittedAt || Date.now()).toLocaleString('ko-KR')}</span>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              ${asg.kind === 'worksheet' ? `<button type="button" class="asg-btn is-outline is-sm" id="btn-dl-composite">💾 합성 이미지 다운로드</button>` : ''}
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              ${asg.kind === 'worksheet' ? `
+                <button type="button" class="asg-btn is-outline is-sm" id="btn-region-from-student">✂️ 이 답지에서 채점영역 지정</button>
+                <button type="button" class="asg-btn is-outline is-sm" id="btn-send-one-wb">🖍️ 만능칠판으로</button>
+                <button type="button" class="asg-btn is-outline is-sm" id="btn-dl-composite">💾 다운로드</button>
+              ` : (Array.isArray(curSub.files) && curSub.files.some((f) => f.mimeType?.startsWith('image/')) ? `
+                <button type="button" class="asg-btn is-outline is-sm" id="btn-send-one-wb">🖍️ 사진 칠판으로</button>
+              ` : '')}
               <button type="button" class="asg-btn is-primary is-sm" id="btn-give-one-reward" ${curSub.rewardGiven ? 'disabled' : ''}>
                 ${curSub.rewardGiven ? '✓ 으쓱 지급완료' : `★ 으쓱 +${Math.max(1, Number(asg.rewardPoints) || 1)}점 주기`}
               </button>
@@ -718,6 +956,13 @@ function renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender) {
 
           <div class="asg-viewer-content">
             ${asg.kind === 'worksheet' ? `
+              ${pages.length > 1 ? `
+                <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">
+                  <button type="button" class="asg-mini-btn" id="btn-vpage-prev" ${viewerPageIndex <= 0 ? 'disabled' : ''}>◀ 이전 쪽</button>
+                  <strong style="font-size:13px;">${viewerPageIndex + 1} / ${pages.length}쪽</strong>
+                  <button type="button" class="asg-mini-btn" id="btn-vpage-next" ${viewerPageIndex >= pages.length - 1 ? 'disabled' : ''}>다음 쪽 ▶</button>
+                </div>
+              ` : ''}
               <div class="asg-composite-box">
                 <canvas id="asg-composite-canvas" class="asg-composite-canvas"></canvas>
               </div>
@@ -802,23 +1047,97 @@ function renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender) {
     }
   };
 
+  const wbSelAll = bodyEl.querySelector('#btn-wb-sel-all');
+  if (wbSelAll) {
+    wbSelAll.onclick = () => {
+      const subStudents = students.filter((s) => Boolean(subMap[s.id]));
+      const allSel = subStudents.length > 0 && subStudents.every((s) => wbSendSelectedIds.has(s.id));
+      if (allSel) wbSendSelectedIds.clear();
+      else subStudents.forEach((s) => wbSendSelectedIds.add(s.id));
+      renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender);
+    };
+  }
+  const wbSelClear = bodyEl.querySelector('#btn-wb-sel-clear');
+  if (wbSelClear) {
+    wbSelClear.onclick = () => {
+      wbSendSelectedIds.clear();
+      renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender);
+    };
+  }
+  const wbSendMulti = bodyEl.querySelector('#btn-wb-send-multi');
+  if (wbSendMulti) {
+    wbSendMulti.onclick = async () => {
+      const targets = students.filter((s) => wbSendSelectedIds.has(s.id) && subMap[s.id]);
+      if (targets.length === 0) return;
+      showToast({ title: `${targets.length}명 과제를 만능칠판으로 불러오는 중...` });
+      const imgs = await buildStudentWhiteboardItems(asg, targets, subMap, viewerPageIndex);
+      if (imgs.length === 0) {
+        showToast({ title: '만능칠판으로 보낼 이미지/워크시트가 없습니다.', tone: 'minus' });
+        return;
+      }
+      sendImagesToWhiteboard(imgs);
+      wbSendSelectedIds.clear();
+    };
+  }
+
+  bodyEl.querySelectorAll('[data-wb-chk]').forEach((chk) => {
+    chk.onclick = (e) => e.stopPropagation();
+    chk.onchange = () => {
+      if (chk.checked) wbSendSelectedIds.add(chk.dataset.wbChk);
+      else wbSendSelectedIds.delete(chk.dataset.wbChk);
+      renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender);
+    };
+  });
+
   bodyEl.querySelectorAll('[data-pick-st]').forEach((b) => {
-    b.onclick = () => { selectedStudentId = b.dataset.pickSt; renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender); };
+    b.onclick = (e) => {
+      if (e.target.closest('input[type="checkbox"]')) return;
+      selectedStudentId = b.dataset.pickSt;
+      renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender);
+    };
   });
 
   if (curStudent && curSub) {
     if (asg.kind === 'worksheet') {
       const cvs = bodyEl.querySelector('#asg-composite-canvas');
-      if (cvs) renderWorksheetComposite(cvs, asg.template, curSub.worksheetData);
+      if (cvs) renderWorksheetComposite(cvs, asg.template, curSub.worksheetData, viewerPageIndex);
+      const prevBtn = bodyEl.querySelector('#btn-vpage-prev');
+      const nextBtn = bodyEl.querySelector('#btn-vpage-next');
+      if (prevBtn) prevBtn.onclick = () => { viewerPageIndex = Math.max(0, viewerPageIndex - 1); renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender); };
+      if (nextBtn) nextBtn.onclick = () => { viewerPageIndex = Math.min(pages.length - 1, viewerPageIndex + 1); renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender); };
+
       const dlBtn = bodyEl.querySelector('#btn-dl-composite');
       if (dlBtn && cvs) {
         dlBtn.onclick = () => {
           const a = document.createElement('a');
           a.href = cvs.toDataURL('image/png');
-          a.download = `${asg.title}_${curStudent.number}_${curStudent.name}.png`;
+          a.download = `${asg.title}_${curStudent.number}_${curStudent.name}_${viewerPageIndex + 1}쪽.png`;
           a.click();
         };
       }
+
+      const regFromStBtn = bodyEl.querySelector('#btn-region-from-student');
+      if (regFromStBtn) {
+        regFromStBtn.onclick = () => {
+          detailTab = 'byQuestion';
+          editingRegions = true;
+          regionRefStudentId = curStudent.id;
+          regionPageIndex = viewerPageIndex;
+          rerender();
+        };
+      }
+    }
+
+    const sendOneWb = bodyEl.querySelector('#btn-send-one-wb');
+    if (sendOneWb) {
+      sendOneWb.onclick = async () => {
+        const imgs = await buildStudentWhiteboardItems(asg, [curStudent], subMap, viewerPageIndex);
+        if (imgs.length === 0) {
+          showToast({ title: '만능칠판으로 보낼 이미지가 없습니다.', tone: 'minus' });
+          return;
+        }
+        sendImagesToWhiteboard(imgs);
+      };
     }
 
     const saveFb = bodyEl.querySelector('#btn-save-st-fb');
@@ -861,7 +1180,285 @@ function renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender) {
 }
 
 /**
- * 탭 2: 문항별 영역 크롭 일괄 채점 (워크시트 박스 크롭 / 퀴즈 문항별 일괄 채점)
+ * 공통 영역 박스 인터랙티브 오버레이 (드래그 이동 · 우하단 모서리 리사이즈 · 새 영역 드래그 생성 · 배점/이름 수정 · 삭제)
+ */
+function mountRegionOverlayEditor(overlay, asg, pageIdx, getDefaultMaxScore, onChanged) {
+  const renderBoxes = () => {
+    const latestAsg = (store.getState().assignments || []).find((x) => x.id === asg.id) || asg;
+    const regions = Array.isArray(latestAsg.regions) ? latestAsg.regions : [];
+    overlay.innerHTML = regions
+      .map((r, idx) => ({ r, idx }))
+      .filter(({ r }) => (r.pageIndex ?? 0) === pageIdx)
+      .map(({ r, idx }) => `
+        <div class="asg-region-box" data-reg-idx="${idx}" style="left:${r.x * 100}%;top:${r.y * 100}%;width:${r.w * 100}%;height:${r.h * 100}%;cursor:move;">
+          <span>${escapeHtml(r.label)} (${r.maxScore}점)</span>
+          <div style="display:flex;gap:3px;align-items:center;">
+            <button type="button" data-edit-reg="${idx}" title="문항명/배점 수정" style="background:#2b8be0;">✎</button>
+            <button type="button" data-del-reg="${idx}" title="영역 삭제">&times;</button>
+          </div>
+          <div class="asg-reg-resize-handle" data-resize-reg="${idx}" title="드래그해 영역 크기 수정" style="position:absolute;right:-5px;bottom:-5px;width:14px;height:14px;border-radius:3px;background:#e53935;border:2px solid #fff;cursor:nwse-resize;"></div>
+        </div>
+      `).join('');
+
+    overlay.querySelectorAll('[data-del-reg]').forEach((b) => {
+      b.onclick = async (ev) => {
+        ev.stopPropagation();
+        await store.update((s) => {
+          const target = s.assignments.find((x) => x.id === asg.id);
+          if (target?.regions) target.regions.splice(Number(b.dataset.delReg), 1);
+        });
+        await syncIfConnected();
+        renderBoxes();
+        if (typeof onChanged === 'function') onChanged();
+      };
+    });
+
+    overlay.querySelectorAll('[data-edit-reg]').forEach((b) => {
+      b.onclick = async (ev) => {
+        ev.stopPropagation();
+        const idx = Number(b.dataset.editReg);
+        const target = (store.getState().assignments || []).find((x) => x.id === asg.id);
+        const reg = target?.regions?.[idx];
+        if (!reg) return;
+        const newLabel = prompt('문항 이름을 입력하세요:', reg.label);
+        if (newLabel === null) return;
+        const newScoreStr = prompt('배점을 입력하세요:', String(reg.maxScore));
+        if (newScoreStr === null) return;
+        const newScore = Math.max(1, Number(newScoreStr) || reg.maxScore);
+        await store.update((s) => {
+          const t = s.assignments.find((x) => x.id === asg.id);
+          if (t?.regions?.[idx]) {
+            t.regions[idx].label = newLabel.trim() || reg.label;
+            t.regions[idx].maxScore = newScore;
+          }
+        });
+        await syncIfConnected();
+        renderBoxes();
+        if (typeof onChanged === 'function') onChanged();
+      };
+    });
+  };
+
+  renderBoxes();
+
+  let mode = null; // 'create' | 'move' | 'resize'
+  let editIdx = -1;
+  let startPt = null;
+  let origBox = null;
+  let draftEl = null;
+
+  overlay.onpointerdown = (ev) => {
+    if (ev.target.closest('button')) return;
+    const rect = overlay.getBoundingClientRect();
+    const px = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+    const py = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
+    const latestAsg = (store.getState().assignments || []).find((x) => x.id === asg.id) || asg;
+
+    const resizeHandle = ev.target.closest('[data-resize-reg]');
+    if (resizeHandle) {
+      mode = 'resize';
+      editIdx = Number(resizeHandle.dataset.resizeReg);
+      origBox = { ...latestAsg.regions[editIdx] };
+      startPt = { x: px, y: py };
+      overlay.setPointerCapture(ev.pointerId);
+      return;
+    }
+
+    const boxEl = ev.target.closest('[data-reg-idx]');
+    if (boxEl) {
+      mode = 'move';
+      editIdx = Number(boxEl.dataset.regIdx);
+      origBox = { ...latestAsg.regions[editIdx] };
+      startPt = { x: px, y: py };
+      overlay.setPointerCapture(ev.pointerId);
+      return;
+    }
+
+    mode = 'create';
+    startPt = { x: px, y: py };
+    draftEl = document.createElement('div');
+    draftEl.className = 'asg-region-box is-draft';
+    overlay.appendChild(draftEl);
+    overlay.setPointerCapture(ev.pointerId);
+  };
+
+  overlay.onpointermove = (ev) => {
+    if (!mode || !startPt) return;
+    const rect = overlay.getBoundingClientRect();
+    const cx = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+    const cy = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
+
+    if (mode === 'create' && draftEl) {
+      const x = Math.min(startPt.x, cx);
+      const y = Math.min(startPt.y, cy);
+      draftEl.style.left = `${x * 100}%`;
+      draftEl.style.top = `${y * 100}%`;
+      draftEl.style.width = `${Math.abs(cx - startPt.x) * 100}%`;
+      draftEl.style.height = `${Math.abs(cy - startPt.y) * 100}%`;
+    } else if (mode === 'move' && origBox) {
+      const dx = cx - startPt.x;
+      const dy = cy - startPt.y;
+      const nx = Math.max(0, Math.min(1 - origBox.w, origBox.x + dx));
+      const ny = Math.max(0, Math.min(1 - origBox.h, origBox.y + dy));
+      const el = overlay.querySelector(`[data-reg-idx="${editIdx}"]`);
+      if (el) {
+        el.style.left = `${nx * 100}%`;
+        el.style.top = `${ny * 100}%`;
+      }
+    } else if (mode === 'resize' && origBox) {
+      const nw = Math.max(0.04, Math.min(1 - origBox.x, origBox.w + (cx - startPt.x)));
+      const nh = Math.max(0.04, Math.min(1 - origBox.y, origBox.h + (cy - startPt.y)));
+      const el = overlay.querySelector(`[data-reg-idx="${editIdx}"]`);
+      if (el) {
+        el.style.width = `${nw * 100}%`;
+        el.style.height = `${nh * 100}%`;
+      }
+    }
+  };
+
+  overlay.onpointerup = async (ev) => {
+    if (!mode || !startPt) return;
+    const rect = overlay.getBoundingClientRect();
+    const cx = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+    const cy = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
+    const curMode = mode;
+    mode = null;
+
+    if (curMode === 'create') {
+      const x = Math.min(startPt.x, cx);
+      const y = Math.min(startPt.y, cy);
+      const w = Math.abs(cx - startPt.x);
+      const h = Math.abs(cy - startPt.y);
+      if (draftEl) draftEl.remove();
+      draftEl = null;
+      startPt = null;
+      if (w < 0.03 || h < 0.03) return;
+      const maxScore = Math.max(1, Number(typeof getDefaultMaxScore === 'function' ? getDefaultMaxScore() : 10) || 10);
+      await store.update((s) => {
+        const target = s.assignments.find((x) => x.id === asg.id);
+        if (!target) return;
+        if (!Array.isArray(target.regions)) target.regions = [];
+        const num = target.regions.length + 1;
+        target.regions.push({
+          id: uid('reg'),
+          label: `${num}번 문항`,
+          maxScore,
+          pageIndex: pageIdx,
+          x: Number(x.toFixed(4)),
+          y: Number(y.toFixed(4)),
+          w: Number(w.toFixed(4)),
+          h: Number(h.toFixed(4)),
+        });
+      });
+      await syncIfConnected();
+      playSound('confirm');
+      renderBoxes();
+      if (typeof onChanged === 'function') onChanged();
+    } else if (curMode === 'move' && origBox) {
+      const nx = Math.max(0, Math.min(1 - origBox.w, origBox.x + (cx - startPt.x)));
+      const ny = Math.max(0, Math.min(1 - origBox.h, origBox.y + (cy - startPt.y)));
+      startPt = null;
+      await store.update((s) => {
+        const target = s.assignments.find((x) => x.id === asg.id);
+        if (target?.regions?.[editIdx]) {
+          target.regions[editIdx].x = Number(nx.toFixed(4));
+          target.regions[editIdx].y = Number(ny.toFixed(4));
+        }
+      });
+      await syncIfConnected();
+      renderBoxes();
+      if (typeof onChanged === 'function') onChanged();
+    } else if (curMode === 'resize' && origBox) {
+      const nw = Math.max(0.04, Math.min(1 - origBox.x, origBox.w + (cx - startPt.x)));
+      const nh = Math.max(0.04, Math.min(1 - origBox.y, origBox.h + (cy - startPt.y)));
+      startPt = null;
+      await store.update((s) => {
+        const target = s.assignments.find((x) => x.id === asg.id);
+        if (target?.regions?.[editIdx]) {
+          target.regions[editIdx].w = Number(nw.toFixed(4));
+          target.regions[editIdx].h = Number(nh.toFixed(4));
+        }
+      });
+      await syncIfConnected();
+      renderBoxes();
+      if (typeof onChanged === 'function') onChanged();
+    }
+  };
+}
+
+/** 문항별 채점에서 학생 클릭 시 전체 시험지 크게 보기 + 그 안에서 바로 채점영역 수정 모달 */
+function openFullSheetModal(asg, student, sub, activeItem, onUpdated) {
+  const modalRoot = document.getElementById('modal-root');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  const pages = getTemplatePages(asg.template);
+  let curPage = activeItem?.pageIndex ?? 0;
+  let dirty = false;
+
+  const close = () => {
+    backdrop.remove();
+    if (dirty && typeof onUpdated === 'function') onUpdated();
+  };
+
+  const renderInner = () => {
+    backdrop.innerHTML = `
+      <div class="dialog-card" style="width:min(96vw,1060px);max-height:92vh;display:flex;flex-direction:column;">
+        <div class="dialog-header">
+          <h2>🔍 ${student.number}번 ${escapeHtml(student.name)} — 전체 시험지 보기 (채점영역 수정 가능)</h2>
+          <button type="button" class="dialog-close">&times;</button>
+        </div>
+        <div class="dialog-body" style="overflow-y:auto;padding:12px 16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <span class="asg-hint" style="margin:0;">박스를 <strong>드래그해 이동</strong>하거나 <strong>우하단 빨간 핸들로 크기 수정</strong>, 빈 곳을 드래그해 새 채점영역을 바로 추가할 수 있습니다.</span>
+            <div style="display:flex;gap:6px;align-items:center;">
+              ${pages.length > 1 ? `
+                <button type="button" class="asg-mini-btn" id="fs-prev-p" ${curPage <= 0 ? 'disabled' : ''}>◀</button>
+                <strong style="font-size:12px;">${curPage + 1}/${pages.length}쪽</strong>
+                <button type="button" class="asg-mini-btn" id="fs-next-p" ${curPage >= pages.length - 1 ? 'disabled' : ''}>▶</button>
+              ` : ''}
+              <button type="button" class="asg-btn is-outline is-sm" id="fs-send-wb">🖍️ 이 시험지 칠판으로</button>
+            </div>
+          </div>
+          <div class="asg-region-stage" style="max-width:100%;">
+            <canvas id="fs-sheet-canvas"></canvas>
+            <div class="asg-region-overlay" id="fs-sheet-overlay"></div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button type="button" class="btn-yellow" data-close>확인 및 채점화면 돌아가기</button>
+        </div>
+      </div>
+    `;
+
+    backdrop.querySelector('.dialog-close').onclick = close;
+    backdrop.querySelector('[data-close]').onclick = close;
+    backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+
+    const cvs = backdrop.querySelector('#fs-sheet-canvas');
+    renderWorksheetComposite(cvs, asg.template, sub?.worksheetData, curPage);
+    const overlay = backdrop.querySelector('#fs-sheet-overlay');
+    mountRegionOverlayEditor(overlay, asg, curPage, () => 10, () => { dirty = true; });
+
+    const prevB = backdrop.querySelector('#fs-prev-p');
+    const nextB = backdrop.querySelector('#fs-next-p');
+    if (prevB) prevB.onclick = () => { curPage = Math.max(0, curPage - 1); renderInner(); };
+    if (nextB) nextB.onclick = () => { curPage = Math.min(pages.length - 1, curPage + 1); renderInner(); };
+
+    backdrop.querySelector('#fs-send-wb').onclick = () => {
+      sendImagesToWhiteboard([{
+        name: `${student.number}번_${student.name}_${asg.title}_${curPage + 1}쪽.png`,
+        dataUrl: cvs.toDataURL('image/png'),
+      }]);
+      close();
+    };
+  };
+
+  modalRoot.appendChild(backdrop);
+  renderInner();
+}
+
+/**
+ * 탭 2: 문항별 영역 크롭 일괄 채점 (학생 답지 위 바로 영역 지정/수정 · 전체 시험지 크게 보기 · 선택 답안 만능칠판 전송)
  */
 function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
   const isWorksheet = asg.kind === 'worksheet';
@@ -877,6 +1474,12 @@ function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
   }
 
   const submittedStudents = students.filter((s) => Boolean(subMap[s.id]));
+  const pages = isWorksheet ? getTemplatePages(asg.template) : [];
+  if (regionPageIndex >= pages.length) regionPageIndex = 0;
+
+  // 참고 학생 답지: 지정된 학생이 없으면 첫 제출 학생 자동 선택(학생 답지 위에서 바로 영역 지정 편리)
+  if (regionRefStudentId && !subMap[regionRefStudentId]) regionRefStudentId = '';
+
   const visibleStudents = submittedStudents.filter((s) => {
     if (!onlyUngraded || !activeQuestionId) return true;
     return !subMap[s.id]?.questionGrades?.[activeQuestionId];
@@ -889,12 +1492,12 @@ function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
         <div class="asg-q-pills">
           ${items.map((it) => `
             <button type="button" class="asg-chip ${activeQuestionId === it.id && !editingRegions ? 'is-active' : ''}" data-q-pick="${it.id}">
-              ${escapeHtml(it.label)} (${it.maxScore}점)
+              ${escapeHtml(it.label)} (${it.maxScore}점)${pages.length > 1 ? ` · ${(it.pageIndex ?? 0) + 1}쪽` : ''}
             </button>
           `).join('')}
           ${isWorksheet ? `
             <button type="button" class="asg-btn is-outline is-sm" id="btn-toggle-region-edit">
-              ${editingRegions ? '✓ 영역 지정 완료 (채점하기)' : '✂️ 문항 영역 박스 지정'}
+              ${editingRegions ? '✓ 영역 지정 완료 (채점하기)' : '✂️ 문항 영역 지정/수정'}
             </button>
           ` : ''}
         </div>
@@ -908,20 +1511,28 @@ function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
 
       ${editingRegions && isWorksheet ? `
         <div class="asg-region-editor">
-          <div class="asg-region-bar">
-            <span>배경지 위에서 마우스로 드래그해 채점할 문항 영역 박스를 그리세요.</span>
-            <label>배점: <input type="number" id="reg-max-score" min="1" max="100" value="10" style="width:64px;"></label>
+          <div class="asg-region-bar" style="flex-wrap:wrap;gap:8px;">
+            <span>드래그로 새 영역 생성 · 기존 박스 이동/우하단 리사이즈 · ✎ 배점수정</span>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <label style="font-size:12px;font-weight:700;">참고 답지:
+                <select id="reg-ref-student" style="padding:3px 6px;border-radius:6px;border:1px solid #d5cfc0;">
+                  <option value="">빈 배경지</option>
+                  ${submittedStudents.map((st) => `<option value="${st.id}" ${regionRefStudentId === st.id ? 'selected' : ''}>${st.number}번 ${escapeHtml(st.name)} 답지</option>`).join('')}
+                </select>
+              </label>
+              ${pages.length > 1 ? `
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <button type="button" class="asg-mini-btn" id="reg-page-prev" ${regionPageIndex <= 0 ? 'disabled' : ''}>◀</button>
+                  <strong style="font-size:12px;">${regionPageIndex + 1}/${pages.length}쪽</strong>
+                  <button type="button" class="asg-mini-btn" id="reg-page-next" ${regionPageIndex >= pages.length - 1 ? 'disabled' : ''}>▶</button>
+                </div>
+              ` : ''}
+              <label style="font-size:12px;font-weight:700;">배점: <input type="number" id="reg-max-score" min="1" max="100" value="10" style="width:56px;"></label>
+            </div>
           </div>
           <div class="asg-region-stage" id="asg-region-stage">
             <canvas id="asg-region-canvas"></canvas>
-            <div class="asg-region-overlay" id="asg-region-overlay">
-              ${items.map((r, i) => `
-                <div class="asg-region-box" style="left:${r.x * 100}%;top:${r.y * 100}%;width:${r.w * 100}%;height:${r.h * 100}%;">
-                  <span>${escapeHtml(r.label)} (${r.maxScore}점)</span>
-                  <button type="button" data-del-reg="${i}" title="영역 삭제">&times;</button>
-                </div>
-              `).join('')}
-            </div>
+            <div class="asg-region-overlay" id="asg-region-overlay"></div>
           </div>
         </div>
       ` : !activeItem ? `
@@ -932,6 +1543,7 @@ function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
             <button type="button" class="asg-mini-btn" id="btn-sel-all-q">전체 선택</button>
             <button type="button" class="asg-mini-btn" id="btn-sel-none-q">선택 해제</button>
             <span class="asg-batch-cnt"><strong>${selectedGradeStudentIds.size}명</strong> 선택됨</span>
+            ${isWorksheet ? `<button type="button" class="asg-mini-btn" id="btn-send-crops-wb" style="background:#eef5ff;color:#1b62ba;border-color:#9fc5f8;">🖍️ 선택 답안 칠판으로</button>` : ''}
           </div>
           <div class="asg-batch-actions">
             <button type="button" class="asg-grade-btn is-correct" id="btn-mark-correct">○ 정답 (${activeItem.maxScore}점)</button>
@@ -957,6 +1569,7 @@ function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
                 <div class="asg-crop-head">
                   <input type="checkbox" ${isSel ? 'checked' : ''} tabindex="-1">
                   <strong>${anonymousGrading ? `익명 #${st.number}` : `${st.number}번 ${escapeHtml(st.name)}`}</strong>
+                  ${isWorksheet ? `<button type="button" class="asg-mini-btn" data-full-sheet="${st.id}" title="전체 시험지 크게 보기 및 채점영역 수정" style="margin-left:auto;padding:2px 6px;">🔍 전체</button>` : ''}
                   <span class="asg-crop-badge ${badgeCls}">${badgeTxt}</span>
                 </div>
                 ${isWorksheet ? `
@@ -996,89 +1609,32 @@ function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
     };
   }
 
-  // 영역 박스 드래그 지정 에디터
+  // 영역 박스 드래그 지정/수정 에디터 (학생 답지 위에서 바로 지정 가능)
   if (editingRegions && isWorksheet) {
     const cvs = bodyEl.querySelector('#asg-region-canvas');
-    renderWorksheetComposite(cvs, asg.template, null);
+    const refData = regionRefStudentId ? subMap[regionRefStudentId]?.worksheetData || null : null;
+    renderWorksheetComposite(cvs, asg.template, refData, regionPageIndex);
+
+    const refSel = bodyEl.querySelector('#reg-ref-student');
+    if (refSel) {
+      refSel.onchange = () => {
+        regionRefStudentId = refSel.value;
+        renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender);
+      };
+    }
+    const pPrev = bodyEl.querySelector('#reg-page-prev');
+    const pNext = bodyEl.querySelector('#reg-page-next');
+    if (pPrev) pPrev.onclick = () => { regionPageIndex = Math.max(0, regionPageIndex - 1); renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender); };
+    if (pNext) pNext.onclick = () => { regionPageIndex = Math.min(pages.length - 1, regionPageIndex + 1); renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender); };
+
     const overlay = bodyEl.querySelector('#asg-region-overlay');
-
-    overlay.querySelectorAll('[data-del-reg]').forEach((b) => {
-      b.onclick = async (ev) => {
-        ev.stopPropagation();
-        await store.update((s) => {
-          const target = s.assignments.find((x) => x.id === asg.id);
-          if (target?.regions) target.regions.splice(Number(b.dataset.delReg), 1);
-        });
-        await syncIfConnected();
-        rerender();
-      };
-    });
-
-    let dragStart = null;
-    let draftEl = null;
-
-    overlay.onpointerdown = (ev) => {
-      if (ev.target.closest('button')) return;
-      const rect = overlay.getBoundingClientRect();
-      dragStart = {
-        x: Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width)),
-        y: Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height)),
-      };
-      draftEl = document.createElement('div');
-      draftEl.className = 'asg-region-box is-draft';
-      overlay.appendChild(draftEl);
-      overlay.setPointerCapture(ev.pointerId);
-    };
-
-    overlay.onpointermove = (ev) => {
-      if (!dragStart || !draftEl) return;
-      const rect = overlay.getBoundingClientRect();
-      const cx = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
-      const cy = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
-      const x = Math.min(dragStart.x, cx);
-      const y = Math.min(dragStart.y, cy);
-      const w = Math.abs(cx - dragStart.x);
-      const h = Math.abs(cy - dragStart.y);
-      draftEl.style.left = `${x * 100}%`;
-      draftEl.style.top = `${y * 100}%`;
-      draftEl.style.width = `${w * 100}%`;
-      draftEl.style.height = `${h * 100}%`;
-    };
-
-    overlay.onpointerup = async (ev) => {
-      if (!dragStart) return;
-      const rect = overlay.getBoundingClientRect();
-      const cx = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
-      const cy = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
-      const x = Math.min(dragStart.x, cx);
-      const y = Math.min(dragStart.y, cy);
-      const w = Math.abs(cx - dragStart.x);
-      const h = Math.abs(cy - dragStart.y);
-      dragStart = null;
-      if (draftEl) draftEl.remove();
-      draftEl = null;
-
-      if (w < 0.03 || h < 0.03) return;
-      const maxScore = Math.max(1, Number(bodyEl.querySelector('#reg-max-score')?.value) || 10);
-      await store.update((s) => {
-        const target = s.assignments.find((x) => x.id === asg.id);
-        if (!target) return;
-        if (!Array.isArray(target.regions)) target.regions = [];
-        const num = target.regions.length + 1;
-        target.regions.push({
-          id: uid('reg'),
-          label: `${num}번 문항`,
-          maxScore,
-          x: Number(x.toFixed(4)),
-          y: Number(y.toFixed(4)),
-          w: Number(w.toFixed(4)),
-          h: Number(h.toFixed(4)),
-        });
-      });
-      await syncIfConnected();
-      playSound('confirm');
-      rerender();
-    };
+    mountRegionOverlayEditor(
+      overlay,
+      asg,
+      regionPageIndex,
+      () => Number(bodyEl.querySelector('#reg-max-score')?.value) || 10,
+      () => rerender(),
+    );
     return;
   }
 
@@ -1106,9 +1662,45 @@ function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
     renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender);
   };
 
+  // 선택한 학생들의 문항 크롭 답안을 만능칠판으로 일괄 전송
+  const sendCropsWb = bodyEl.querySelector('#btn-send-crops-wb');
+  if (sendCropsWb) {
+    sendCropsWb.onclick = () => {
+      const ids = Array.from(selectedGradeStudentIds);
+      if (ids.length === 0) {
+        showToast({ title: '만능칠판으로 보낼 학생 답안을 먼저 선택해 주세요.', tone: 'minus' });
+        return;
+      }
+      const imgs = [];
+      for (const sid of ids) {
+        const st = students.find((x) => x.id === sid);
+        const cvs = bodyEl.querySelector(`[data-crop-st="${sid}"]`);
+        if (st && cvs && cvs.width > 0) {
+          imgs.push({
+            name: `${st.number}번_${st.name}_${activeItem.label}.png`,
+            dataUrl: cvs.toDataURL('image/png'),
+          });
+        }
+      }
+      if (imgs.length > 0) sendImagesToWhiteboard(imgs);
+    };
+  }
+
+  // 학생 전체 시험지 크게 보기 모달 (모달 안에서도 채점영역 수정 가능)
+  bodyEl.querySelectorAll('[data-full-sheet]').forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const sid = btn.dataset.fullSheet;
+      const st = students.find((x) => x.id === sid);
+      if (st && subMap[sid]) {
+        openFullSheetModal(asg, st, subMap[sid], activeItem, rerender);
+      }
+    };
+  });
+
   bodyEl.querySelectorAll('[data-grade-card]').forEach((card) => {
     card.onclick = (e) => {
-      if (e.target.closest('input[type="text"]')) return;
+      if (e.target.closest('input[type="text"]') || e.target.closest('button')) return;
       const sid = card.dataset.gradeCard;
       if (selectedGradeStudentIds.has(sid)) selectedGradeStudentIds.delete(sid);
       else selectedGradeStudentIds.add(sid);
