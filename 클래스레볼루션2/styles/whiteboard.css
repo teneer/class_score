@@ -51,8 +51,9 @@
 }
 .wb-panel-toggle:hover { background: #e8e4d7; }
 .wb-panel-toggle.is-active {
-  background: #f4d03f;
-  color: #3a2c04;
+  background: var(--yellow-tab, #ffe838);
+  color: #4b3808;
+  box-shadow: inset 0 -2px 0 #e2c515;
 }
 
 .wb-bar-sep {
@@ -96,9 +97,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 12px;
-  background: #f7f4eb;
-  border-bottom: 1px solid #e6e0d1;
+  padding: 9px 12px;
+  background: var(--yellow-tab, #ffe838);
+  border-bottom: 1.5px solid #e6cb20;
   cursor: move;
   user-select: none;
   touch-action: none;
@@ -106,7 +107,7 @@
 .wbf-title {
   font-size: 13.5px;
   font-weight: 900;
-  color: #3a3226;
+  color: #4a3d10;
 }
 .wbf-zoom-controls {
   display: inline-flex;

@@ -1,6 +1,7 @@
 // 학생용 별도 접속 페이지 (관리페이지 종속 자동 서버 접속 · ID/PW 로그인 · 워크시트 경량 답변 제출 · 구글드라이브 사진 제출/열람/다운로드 · AI 퀴즈 개인/실시간 풀이)
 
 import { store, getStillAvatarUrl, todayIso } from './store.js';
+import { playSound } from './audio.js';
 import { gradeQuizSubmission } from './quiz-csv.js';
 import { mountWorksheetEditor, renderWorksheetComposite } from './worksheet-renderer.js';
 import {
@@ -174,6 +175,7 @@ function renderLogin() {
     loginError = '';
     loggedStudentId = found.id;
     saveSession(found.id);
+    playSound('restoreDone');
     showStToast(`${found.name} 학생, 반가워요!`);
     render();
   };
@@ -235,8 +237,9 @@ function renderHome(me) {
 
       ${activeTab === 'quests' ? (
         myQuests.length === 0 ? `
-          <div class="st-work-card" style="text-align:center;color:#7d7465;padding:38px 20px;">
-            🎯 현재 진행 중인 내 퀘스트가 없습니다.
+          <div class="st-work-card" style="text-align:center;color:#7d7465;padding:38px 20px;align-items:center;">
+            <img src="assets/visuals/student-mascot-empty.svg" alt="" width="96" height="76" style="margin-bottom:6px;">
+            <strong>현재 진행 중인 내 퀘스트가 없습니다.</strong>
           </div>
         ` : `
           <div class="st-card-grid">
@@ -248,15 +251,15 @@ function renderHome(me) {
               const done = isCount ? cnt >= targetCnt : Boolean(raw);
               const pct = isCount ? Math.min(100, Math.round((cnt / targetCnt) * 100)) : (done ? 100 : 0);
               return `
-                <article class="st-card" style="border-color:${done ? '#2ca978' : '#e0dacb'};background:${done ? '#f0fbf5' : '#fff'};cursor:default;">
+                <article class="st-card" style="border-color:${done ? '#78c832' : '#dedad0'};background:${done ? '#edf9e2' : '#fff'};cursor:default;">
                   <div class="st-card-meta">
-                    <span>${isCount ? `🎯 목표 ${targetCnt}회 퀘스트` : '☑️ 셀프 체크 퀘스트'}</span>
+                    <span style="display:inline-flex;align-items:center;gap:5px;"><img src="assets/visuals/icon-quest.svg" alt="" width="18" height="18">${isCount ? `목표 ${targetCnt}회 퀘스트` : '셀프 체크 퀘스트'}</span>
                     <span class="st-badge ${done ? 'is-graded' : 'is-todo'}">${done ? '✓ 완료!' : isCount ? `${cnt} / ${targetCnt}회` : '미완료'}</span>
                   </div>
                   <h3 style="margin:6px 0 10px;font-size:18px;">${esc(sc.title)}</h3>
                   ${isCount ? `
                     <div style="height:10px;border-radius:999px;background:#e6dfd0;overflow:hidden;margin-bottom:12px;">
-                      <div style="width:${pct}%;height:100%;background:${done ? '#2ca978' : '#2b8be0'};transition:width 0.2s;"></div>
+                      <div style="width:${pct}%;height:100%;background:${done ? '#599c18' : '#ffd633'};transition:width 0.2s;"></div>
                     </div>
                     <div style="display:flex;gap:8px;">
                       <button type="button" class="st-btn is-outline is-sm" data-q-dec="${sc.id}" ${cnt <= 0 ? 'disabled' : ''}>-1</button>
@@ -275,8 +278,9 @@ function renderHome(me) {
           </div>
         `
       ) : list.length === 0 ? `
-        <div class="st-work-card" style="text-align:center;color:#7d7465;padding:38px 20px;">
-          ${activeTab === 'todo' ? '🎉 밀린 과제가 없습니다!' : activeTab === 'done' ? '아직 제출한 과제가 없습니다.' : '공유된 친구 작품 과제가 없습니다.'}
+        <div class="st-work-card" style="text-align:center;color:#7d7465;padding:38px 20px;align-items:center;">
+          <img src="assets/visuals/student-mascot-empty.svg" alt="" width="96" height="76" style="margin-bottom:6px;">
+          <strong>${activeTab === 'todo' ? '밀린 과제가 없습니다! 아주 훌륭해요!' : activeTab === 'done' ? '아직 제출한 과제가 없습니다.' : '공유된 친구 작품 과제가 없습니다.'}</strong>
         </div>
       ` : `
         <div class="st-card-grid">
@@ -320,6 +324,7 @@ function renderHome(me) {
       if (!sc) return;
       const next = !Boolean(sc.entries?.[me.id]);
       await persistSelfCheck(sc.id, me.id, next);
+      playSound(next ? 'pickResult' : 'cardFlip');
       showStToast(next ? `✓ '${sc.title}' 완료 체크!` : `'${sc.title}' 체크를 취소했습니다.`);
       renderHome(me);
     };
@@ -332,6 +337,7 @@ function renderHome(me) {
       const cur = Number(sc.entries?.[me.id] || 0);
       const next = cur >= targetCnt ? targetCnt : cur + 1;
       await persistSelfCheck(sc.id, me.id, next);
+      playSound(next >= targetCnt ? 'fanfare' : 'tick');
       showStToast(next >= targetCnt ? `🎉 '${sc.title}' 목표 달성!` : `'${sc.title}' ${next}/${targetCnt}회 체크!`);
       renderHome(me);
     };
@@ -343,6 +349,7 @@ function renderHome(me) {
       const cur = Number(sc.entries?.[me.id] || 0);
       const next = Math.max(0, cur - 1);
       await persistSelfCheck(sc.id, me.id, next);
+      playSound('cardFlip');
       renderHome(me);
     };
   });
@@ -567,6 +574,7 @@ function renderAssignmentWork(me, asg) {
         }
 
         await persistSubmission(asg.id, me.id, payload);
+        playSound('slotDone');
         showStToast('제출 완료! 홈 화면으로 이동합니다.');
         if (!(asg.kind === 'quiz' && asg.quizMode === 'live' && asg.liveQuiz?.active)) {
           activeAssignmentId = null;

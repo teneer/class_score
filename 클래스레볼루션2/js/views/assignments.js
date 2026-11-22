@@ -1733,8 +1733,8 @@ function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
       const sub = store.getState().submissions[asg.id]?.[sid];
       if (sub) await pushSubmissionToCloud(asg.id, sid, sub);
     }
-    playSound('confirm');
-    showToast({ title: `${ids.length}명 문항 채점이 반영되었습니다!`, tone: 'plus' });
+    playSound(status === 'correct' ? 'plus' : status === 'wrong' ? 'minus' : 'confirm');
+    showToast({ title: `${ids.length}명 문항 채점이 반영되었습니다!`, tone: status === 'wrong' ? 'minus' : 'plus' });
     selectedGradeStudentIds.clear();
     rerender();
   };
@@ -1850,13 +1850,13 @@ function renderLiveQuizTab(bodyEl, asg, students, subMap, rerender) {
   `;
 
   const startBtn = bodyEl.querySelector('#btn-live-start');
-  if (startBtn) startBtn.onclick = () => updateLive({ active: true, currentIndex: 0, revealAnswer: false });
+  if (startBtn) startBtn.onclick = () => { playSound('pickResult'); updateLive({ active: true, currentIndex: 0, revealAnswer: false }); };
   const prevBtn = bodyEl.querySelector('#btn-live-prev');
-  if (prevBtn) prevBtn.onclick = () => updateLive({ currentIndex: Math.max(0, live.currentIndex - 1), revealAnswer: false });
+  if (prevBtn) prevBtn.onclick = () => { playSound('cardFlip'); updateLive({ currentIndex: Math.max(0, live.currentIndex - 1), revealAnswer: false }); };
   const nextBtn = bodyEl.querySelector('#btn-live-next');
-  if (nextBtn) nextBtn.onclick = () => updateLive({ currentIndex: Math.min(questions.length - 1, live.currentIndex + 1), revealAnswer: false });
+  if (nextBtn) nextBtn.onclick = () => { playSound('cardFlip'); updateLive({ currentIndex: Math.min(questions.length - 1, live.currentIndex + 1), revealAnswer: false }); };
   const revBtn = bodyEl.querySelector('#btn-live-reveal');
-  if (revBtn) revBtn.onclick = () => updateLive({ revealAnswer: !live.revealAnswer });
+  if (revBtn) revBtn.onclick = () => { playSound(!live.revealAnswer ? 'ladderReveal' : 'cardFlip'); updateLive({ revealAnswer: !live.revealAnswer }); };
   const stopBtn = bodyEl.querySelector('#btn-live-stop');
   if (stopBtn) stopBtn.onclick = () => updateLive({ active: false });
 

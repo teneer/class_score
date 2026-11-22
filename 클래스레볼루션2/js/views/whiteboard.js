@@ -59,7 +59,7 @@ export function sendImagesToWhiteboard(items) {
 
 /** 셀프 체크 변경 시 기존 체크표(checklist) 항목에도 양방향 동기화 */
 export async function toggleSelfCheckValue(checkId, studentId) {
-  let completedNow = false;
+  let soundKey = 'tick';
   await store.update((s) => {
     const sc = (s.selfChecks || []).find((x) => x.id === checkId);
     if (!sc) return;
@@ -69,27 +69,28 @@ export async function toggleSelfCheckValue(checkId, studentId) {
       const cur = Number(sc.entries[studentId]) || 0;
       const next = cur >= target ? 0 : cur + 1;
       sc.entries[studentId] = next;
-      completedNow = next >= target;
+      soundKey = next >= target ? 'pickResult' : next === 0 ? 'cardFlip' : 'tick';
     } else {
       const next = !Boolean(sc.entries[studentId]);
       sc.entries[studentId] = next;
-      completedNow = next;
+      soundKey = next ? 'confirm' : 'cardFlip';
     }
 
-    // 기존 체크표 모듈과 실시간 동기화
-    if (sc.linkedChecklistId) {
+    // 기존 체크표 모듈과 실시간 양방향 동기화
+    const linkedId = sc.linkedChecklistItemId || sc.linkedChecklistId;
+    if (linkedId) {
       const today = todayIso();
       if (!s.checklist.entriesByDate[today]) s.checklist.entriesByDate[today] = {};
-      const key = `${studentId}::${sc.linkedChecklistId}`;
+      const key = `${studentId}::${linkedId}`;
       if (sc.mode === 'count') {
         const val = Number(sc.entries[studentId]) || 0;
-        s.checklist.entriesByDate[today][key] = val > 0 ? `${val}/${sc.targetCount || 5}` : '';
+        s.checklist.entriesByDate[today][key] = val > 0 ? String(val) : '';
       } else {
         s.checklist.entriesByDate[today][key] = Boolean(sc.entries[studentId]);
       }
     }
   });
-  playSound(completedNow ? 'confirm' : 'tick');
+  playSound(soundKey);
 }
 
 /** 만능칠판 뷰 마운트 (재방문 시 판서 상태 유지) */
