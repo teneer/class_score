@@ -295,7 +295,7 @@ export function renderWhiteboardView(container) {
         <iframe
           id="cr2-whiteboard-frame"
           class="wb-iframe"
-          src="modules/whiteboard/index.html?v=cr2-7"
+          src="modules/whiteboard/index.html?v=cr2-8"
           title="클래스레볼루션2 만능칠판"
           allow="clipboard-read; clipboard-write; fullscreen"
         ></iframe>

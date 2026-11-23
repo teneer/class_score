@@ -1464,13 +1464,32 @@ boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'
       }, '*');
     } catch {}
   };
-  window.addEventListener('resize', reportToolbarRect);
+
+  // 해상도·디스플레이 배율(125%/150% 등)에 따라 하단바 버튼이 바를 넘지 않도록 자동 비율 스케일링
+  const fitBottomToolbar = () => {
+    const scaleWrap = document.getElementById('toolbarScaleWrap');
+    const bar = document.getElementById('toolbar');
+    if (!scaleWrap || !bar) return;
+    scaleWrap.style.transform = 'translateX(-50%) scale(1)';
+    const naturalW = Math.ceil(bar.scrollWidth || bar.getBoundingClientRect().width || 0);
+    const availW = Math.max(320, window.innerWidth - 16);
+    const scale = naturalW > availW ? Math.max(0.5, availW / naturalW) : 1;
+    scaleWrap.style.transform = `translateX(-50%) scale(${scale.toFixed(4)})`;
+    updateFeedbackPosition();
+    reportToolbarRect();
+  };
+
+  window.addEventListener('resize', fitBottomToolbar);
   const hideBtn = document.getElementById('toolbarHideBtn');
-  if (hideBtn) hideBtn.addEventListener('click', () => setTimeout(reportToolbarRect, 260));
+  if (hideBtn) hideBtn.addEventListener('click', () => setTimeout(fitBottomToolbar, 260));
   if (typeof ResizeObserver !== 'undefined') {
     const bar = document.getElementById('toolbar');
-    if (bar) new ResizeObserver(reportToolbarRect).observe(bar);
+    if (bar) new ResizeObserver(() => requestAnimationFrame(fitBottomToolbar)).observe(bar);
   }
-  setTimeout(reportToolbarRect, 120);
-  setTimeout(reportToolbarRect, 600);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(fitBottomToolbar).catch(() => {});
+  }
+  requestAnimationFrame(fitBottomToolbar);
+  setTimeout(fitBottomToolbar, 150);
+  setTimeout(fitBottomToolbar, 600);
 })();
