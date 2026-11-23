@@ -569,22 +569,25 @@ async function startCyberSession(me, site) {
     return;
   }
 
-  // 제어 팝업 창 모드: 브라우저 팝업 차단 방지를 위해 클릭 콜스택 내에서 동기적으로 즉시 open
+  // 제어 팝업 창 모드: 브라우저 팝업 차단 방지를 위해 클릭 콜스택 내에서 동기적으로 최대 크기 open
   let popupWin = null;
   if (openMode === 'popup') {
-    const w = Math.min(1160, Math.max(820, window.screen.availWidth - 120));
-    const h = Math.min(780, Math.max(580, window.screen.availHeight - 120));
-    const left = Math.max(0, Math.round((window.screen.availWidth - w) / 2));
-    const top = Math.max(0, Math.round((window.screen.availHeight - h) / 2));
+    const w = window.screen.availWidth || window.innerWidth || 1280;
+    const h = window.screen.availHeight || window.innerHeight || 800;
     popupWin = window.open(
       site.url,
       'cr2_cyber_popup',
-      `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`
+      `width=${w},height=${h},left=0,top=0,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`
     );
     if (!popupWin) {
       showStToast('팝업이 차단되었습니다! 주소창 우측에서 팝업을 허용한 뒤 다시 눌러주세요.');
       return;
     }
+    try {
+      popupWin.moveTo(0, 0);
+      popupWin.resizeTo(w, h);
+      popupWin.focus();
+    } catch {}
   }
 
   cyberTerminateMsg = '';
