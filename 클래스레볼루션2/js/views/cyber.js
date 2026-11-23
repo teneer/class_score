@@ -504,6 +504,16 @@ function openSiteEditorModal(existing, onSaved) {
   backdrop.querySelector('#btn-cy-test-iframe').onclick = () => {
     const url = backdrop.querySelector('#cy-site-url').value.trim();
     if (!url) return;
+    const mode = backdrop.querySelector('#cy-open-mode')?.value || 'iframe';
+    if (mode === 'popup') {
+      const w = window.open(url, 'cr2_cyber_test_popup', 'width=1020,height=700,menubar=no,toolbar=no,location=no,resizable=yes,scrollbars=yes');
+      if (!w) {
+        showToast({ title: '팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.', tone: 'minus' });
+      } else {
+        showToast({ title: '🪟 제어 팝업 창으로 정상 열렸습니다!', tone: 'plus' });
+      }
+      return;
+    }
     const wrap = backdrop.querySelector('#cy-iframe-test-wrap');
     const frame = backdrop.querySelector('#cy-test-frame');
     wrap.hidden = false;
