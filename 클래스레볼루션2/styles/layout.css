@@ -184,14 +184,14 @@
   flex-shrink: 0;
 }
 
-@media (max-width: 1240px) {
+@media (max-width: 1380px) {
   .app-header {
     gap: 6px;
     padding: 0 8px;
   }
   .header-tab {
-    padding: 0 9px;
-    font-size: 12.5px;
+    padding: 0 10px;
+    font-size: 13px;
     gap: 5px;
   }
   .header-view-controls {
