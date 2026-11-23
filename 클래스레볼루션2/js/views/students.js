@@ -184,7 +184,17 @@ function measureGroupBox(group, members) {
 /** 모둠 좌표가 비어있으면 내부공간 기준 가운데 정렬 기본 배치 계산 */
 function ensureGroupLayout(groups, activeStudents, stageWidth = 1496) {
   const sorted = [...groups].sort((a, b) => a.order - b.order);
-  const needsInit = sorted.some((g) => !Number.isFinite(g.x) || !Number.isFinite(g.y));
+  // 좌표가 비어있거나 2개 이상의 모둠이 동일 좌표로 포개진 비정상 상태면 자동 격자 복구
+  let hasCollapsedOverlap = false;
+  for (let i = 0; i < sorted.length && !hasCollapsedOverlap; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (Math.abs((sorted[i].x ?? 0) - (sorted[j].x ?? 0)) < 12 && Math.abs((sorted[i].y ?? 0) - (sorted[j].y ?? 0)) < 12) {
+        hasCollapsedOverlap = true;
+        break;
+      }
+    }
+  }
+  const needsInit = sorted.some((g) => !Number.isFinite(g.x) || !Number.isFinite(g.y)) || hasCollapsedOverlap;
   const boxes = [];
 
   if (needsInit) {
@@ -416,23 +426,13 @@ function applySeatingFit(root) {
     shiftY = CANVAS_PAD - minTop;
   }
 
+  // 화면 표시용 위치만 평행 보정 (원본 state.groups 좌표는 절대 변조하지 않음!)
   if (shiftX !== 0 || shiftY !== 0) {
-    const state = store.getState();
     items.forEach((el) => {
       const nextX = Math.max(CANVAS_PAD, Math.round(el.offsetLeft + shiftX));
       const nextY = Math.max(CANVAS_PAD, Math.round(el.offsetTop + shiftY));
       el.style.left = `${nextX}px`;
       el.style.top = `${nextY}px`;
-      const gid = el.dataset.groupBox;
-      if (gid) {
-        const g = state.groups.find((x) => x.id === gid);
-        if (g) {
-          g.x = nextX;
-          g.y = nextY;
-        }
-      } else if (el.id === 'group-ghost-add' && ghostAddPos) {
-        ghostAddPos = { x: nextX, y: nextY };
-      }
     });
   }
 

@@ -299,7 +299,7 @@ function renderFloatingPanel(container) {
   const bodyEl = panelEl.querySelector('#wbf-native-body');
   if (bodyEl) {
     if (openPanelKind === 'students' || openPanelKind === 'seats') {
-      bodyEl.innerHTML = `<div class="wbf-scaled-stage"></div>`;
+      bodyEl.innerHTML = `<div class="wbf-scaled-stage" style="width:1280px;height:740px;"></div>`;
       const stageEl = bodyEl.querySelector('.wbf-scaled-stage');
       setStudentsSubView(openPanelKind === 'seats' ? 'seats' : 'list');
       renderStudentsView(stageEl);
