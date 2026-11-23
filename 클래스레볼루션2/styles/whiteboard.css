@@ -327,7 +327,7 @@
 
 
 /* ============================================================
-   만능칠판 위 학급점수 투명 나무·목표 오버레이 (별길/하늘 배경 숨김, 판서 투과)
+   만능칠판 위 학급점수 투명 나무·목표 오버레이 (별길/하늘 배경 숨김, 하단바 뒤에 놓이도록 하단 64px 클리핑)
    ============================================================ */
 .wb-tree-overlay {
   position: absolute;
@@ -335,6 +335,7 @@
   z-index: 32;
   pointer-events: none;
   overflow: hidden;
+  clip-path: inset(0 0 64px 0);
 }
 
 .wb-tree-overlay .growth-world {
@@ -356,14 +357,28 @@
 
 /* 플로팅 패널 내부 원본 뷰(학생목록 · 자리배치 · 타이머 · 셀프체크) 풀핏 호스트 */
 .wbf-body.is-native-host {
+  position: relative;
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  background: var(--bg-cream);
 }
 
+.wbf-scaled-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-cream);
+}
+
+.wbf-scaled-stage > .students-shell,
 .wbf-body.is-native-host > .students-shell,
 .wbf-body.is-native-host > .timer-stage {
   flex: 1;

@@ -191,7 +191,7 @@ export function renderWhiteboardView(container) {
         <iframe
           id="cr2-whiteboard-frame"
           class="wb-iframe"
-          src="modules/whiteboard/index.html?v=cr2-3"
+          src="modules/whiteboard/index.html?v=cr2-4"
           title="클래스레볼루션2 만능칠판"
           allow="clipboard-read; clipboard-write; fullscreen"
         ></iframe>
@@ -208,6 +208,25 @@ export function renderWhiteboardView(container) {
   renderTreeOverlay(container);
   renderFloatingPanel(container);
   notifyToolbarState();
+}
+
+/** 학생목록·자리배치 플로팅 패널 전체(카드+하단바)를 원본 비율 그대로 패널 크기에 맞춰 스케일링 */
+function applyPanelStageScale(bodyEl) {
+  if (!bodyEl) return;
+  const stage = bodyEl.querySelector('.wbf-scaled-stage');
+  if (!stage) return;
+  const baseW = 1280;
+  const baseH = 740;
+  const availW = Math.max(200, bodyEl.clientWidth);
+  const availH = Math.max(160, bodyEl.clientHeight);
+  const scale = Math.min(availW / baseW, availH / baseH);
+  const scaledW = baseW * scale;
+  const scaledH = baseH * scale;
+  const offsetX = Math.max(0, (availW - scaledW) / 2);
+  const offsetY = Math.max(0, (availH - scaledH) / 2);
+  stage.style.width = `${baseW}px`;
+  stage.style.height = `${baseH}px`;
+  stage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
 }
 
 /** 만능칠판 우측 투명 나무·목표 오버레이 렌더링 (원본 growth.js 애니메이션 100% 동일) */
@@ -276,17 +295,19 @@ function renderFloatingPanel(container) {
     renderFloatingPanel(container);
   };
 
-  // 본문 마운트: 학생목록 / 자리배치 / 타이머는 원본 뷰 100% 그대로 마운트!
+  // 본문 마운트: 학생목록 / 자리배치는 가상 1280x740 스테이지에 담아 카드+하단바 전체를 동일 비율로 축소/확대!
   const bodyEl = panelEl.querySelector('#wbf-native-body');
   if (bodyEl) {
-    if (openPanelKind === 'students') {
-      setStudentsSubView('list');
-      renderStudentsView(bodyEl);
-      requestAnimationFrame(() => refitStudentsView(bodyEl));
-    } else if (openPanelKind === 'seats') {
-      setStudentsSubView('seats');
-      renderStudentsView(bodyEl);
-      requestAnimationFrame(() => refitStudentsView(bodyEl));
+    if (openPanelKind === 'students' || openPanelKind === 'seats') {
+      bodyEl.innerHTML = `<div class="wbf-scaled-stage"></div>`;
+      const stageEl = bodyEl.querySelector('.wbf-scaled-stage');
+      setStudentsSubView(openPanelKind === 'seats' ? 'seats' : 'list');
+      renderStudentsView(stageEl);
+      applyPanelStageScale(bodyEl);
+      requestAnimationFrame(() => {
+        refitStudentsView(stageEl);
+        applyPanelStageScale(bodyEl);
+      });
     } else if (openPanelKind === 'timer') {
       renderTimerView(bodyEl);
     } else if (openPanelKind === 'selfcheck') {
@@ -337,14 +358,14 @@ function renderFloatingPanel(container) {
         panelEl.style.width = `${panelState.width}px`;
         panelEl.style.height = `${panelState.height}px`;
         if (bodyEl && (openPanelKind === 'students' || openPanelKind === 'seats')) {
-          refitStudentsView(bodyEl);
+          applyPanelStageScale(bodyEl);
         }
       };
       const onUp = () => {
         resizeHandle.removeEventListener('pointermove', onMove);
         resizeHandle.removeEventListener('pointerup', onUp);
         if (bodyEl && (openPanelKind === 'students' || openPanelKind === 'seats')) {
-          refitStudentsView(bodyEl);
+          applyPanelStageScale(bodyEl);
         }
       };
       resizeHandle.addEventListener('pointermove', onMove);
