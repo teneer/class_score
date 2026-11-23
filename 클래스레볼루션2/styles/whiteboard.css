@@ -77,52 +77,67 @@
 .wb-quick-btn.is-plus { background: #198bd2; }
 .wb-quick-btn.is-minus { background: #df3357; }
 
-/* 자유 이동 · 리사이즈 · 확대/축소 플로팅 패널 */
+/* 다중 자유 이동 · 리사이즈 플로팅 패널 레이어 */
+.wb-float-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+}
+
 .wb-float-panel {
   position: absolute;
   z-index: 45;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.96);
   border: 2px solid #d5cebe;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.24);
   overflow: hidden;
-  min-width: 280px;
+  min-width: 220px;
 }
 
+/* 패널 제목줄: 기존 대비 약 2/3 수준 슬림 높이 */
 .wbf-header {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 9px 12px;
+  gap: 6px;
+  padding: 4px 9px;
+  min-height: 28px;
   background: var(--yellow-tab, #ffe838);
-  border-bottom: 1.5px solid #e6cb20;
+  border-bottom: 1px solid #e6cb20;
   cursor: move;
   user-select: none;
   touch-action: none;
 }
 .wbf-title {
-  font-size: 13.5px;
+  font-size: 12px;
   font-weight: 900;
+  line-height: 1.2;
   color: #4a3d10;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .wbf-zoom-controls {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 .wbf-icon-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
   background: #fff;
   border: 1px solid #d8d2c3;
   color: #4f4638;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 900;
+  line-height: 1;
   display: grid;
   place-items: center;
 }
@@ -372,379 +387,576 @@
 }
 
 /* ============================================================
-   만능칠판 6.0 기존 점수판 우측 도킹 디자인 (스플리터 폭 조절 가능)
+   만능칠판 6.0 원본 점수판(학급온도계.html + style.css) 디자인 그대로 이식
    ============================================================ */
+.wb6-splitter-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 360px;
+  width: 10px;
+  z-index: 41;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  touch-action: none;
+  background: #c6d2e2;
+  transition: background 0.15s;
+}
+.wb6-splitter-bar[hidden] {
+  display: none !important;
+}
+.wb6-splitter-bar:hover,
+.wb6-splitter-bar.dragging {
+  background: #4982b7;
+}
+.wb6-split-grip {
+  height: 42px;
+  width: 4px;
+  background: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 0 2px #63748b;
+}
+
 .wb-board6-dock {
+  --text-color: #142e3d;
+  --muted-text: #45616d;
+  --light-bg: #f7fbfb;
+  --card-bg: #ffffff;
+  --summary-bg: #e6f2f5;
+  --control-bg: #edf4f6;
+  --panel-line: #cadce0;
+  --primary-color: #125771;
+  --primary-dark: #0e455a;
+  --score-gold: #f3c13e;
+  --score-gold-edge: #b77e13;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --class-score-size: 64px;
+
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 320px;
-  z-index: 38;
+  width: 360px;
+  z-index: 40;
   display: flex;
-  background: #f5f8fc;
-  box-shadow: inset 1px 0 #b6c8e8, -8px 0 24px rgba(24, 46, 78, 0.14);
+  flex-direction: column;
+  background: var(--light-bg);
+  box-shadow: inset 1px 0 #b6c8e8;
   overflow: hidden;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  color: var(--text-color);
+  user-select: none;
 }
 .wb-board6-dock[hidden] {
   display: none !important;
 }
+.wb-board6-dock.is-full {
+  left: 0;
+  right: 0;
+  width: 100% !important;
+  z-index: 60;
+}
 
-.wb6-splitter {
-  width: 8px;
-  flex: none;
-  cursor: col-resize;
-  background: transparent;
-  border-right: 1px solid #d5e2f5;
+.wb6-v7-container {
   position: relative;
-  touch-action: none;
-}
-.wb6-splitter:hover {
-  background: rgba(25, 139, 210, 0.18);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--light-bg);
 }
 
-.wb6-dock-inner {
-  flex: 1;
-  min-width: 0;
+.wb6-v7-display-area {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding-bottom: 6px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 
-.wb6-orig-header {
+.wb6-v7-top-row {
   flex: none;
-  height: 46px;
-  padding: 0 12px;
-  background: #ffffff;
-  border-bottom: 1px solid #d5e2f5;
+  width: 100%;
+}
+
+.wb6-v7-class-area {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.wb6-v7-main-scoreboard {
+  box-sizing: border-box;
+  container-type: inline-size;
+  width: 100%;
+  padding: clamp(6px, 1.4dvh, 14px) clamp(8px, 4cqw, 24px) clamp(8px, 1.8dvh, 16px);
+  border-bottom: 1px solid var(--panel-line);
+  background: var(--summary-bg);
+  text-align: center;
+}
+
+.wb6-v7-class-heading,
+.wb6-v7-team-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
-.wb6-orig-title {
+.wb6-v7-class-heading h1,
+.wb6-v7-team-heading h2 {
+  margin: 0;
+  color: var(--text-color);
+  font-size: clamp(13px, 5cqw, 17px);
+  font-weight: 700;
+  text-align: left;
+}
+.wb6-v7-header-actions {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.wb6-orig-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #2b8be0;
   flex: none;
+  gap: min(6px, 2cqw);
 }
-.wb6-orig-title strong {
-  font-size: 14.5px;
-  font-weight: 900;
-  color: #1e3a5f;
+.wb6-v7-icon-btn,
+.wb6-v7-main-btn {
+  min-width: 0;
+  width: min(44px, 24cqw);
+  min-height: 36px;
+  padding: 0;
+  color: var(--text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s, transform 0.08s;
 }
-.wb6-orig-mode-tag {
-  font-size: 11px;
-  font-weight: 800;
-  padding: 2px 7px;
-  border-radius: 99px;
-  background: #e6f2ff;
-  color: #1968b3;
+.wb6-v7-icon-btn {
+  font-size: clamp(14px, 10cqw, 21px);
+  line-height: 1;
+}
+.wb6-v7-icon-btn:hover,
+.wb6-v7-icon-btn.is-open {
+  background: #dcecf1;
+}
+.wb6-v7-main-btn {
+  flex: 0 0 auto;
+  font-size: clamp(15px, 8cqw, 23px);
+  font-weight: 700;
+}
+.wb6-v7-main-btn:hover {
+  background: #dcecf1;
+}
+.wb6-v7-main-btn:active {
+  transform: scale(0.95);
+}
+
+.wb6-v7-screen-icon {
+  display: block;
+  width: 1em;
+  height: 1em;
+  font-size: clamp(11px, 7cqw, 19px);
+  background:
+    linear-gradient(currentColor, currentColor) left top / .38em 2px,
+    linear-gradient(currentColor, currentColor) left top / 2px .38em,
+    linear-gradient(currentColor, currentColor) right top / .38em 2px,
+    linear-gradient(currentColor, currentColor) right top / 2px .38em,
+    linear-gradient(currentColor, currentColor) left bottom / .38em 2px,
+    linear-gradient(currentColor, currentColor) left bottom / 2px .38em,
+    linear-gradient(currentColor, currentColor) right bottom / .38em 2px,
+    linear-gradient(currentColor, currentColor) right bottom / 2px .38em;
+  background-repeat: no-repeat;
+}
+#wb6-maximize[aria-pressed="true"] .wb6-v7-screen-icon {
+  background-position: 28% 28%, 28% 28%, 72% 28%, 72% 28%, 28% 72%, 28% 72%, 72% 72%, 72% 72%;
+  background-size: .28em 2px, 2px .28em, .28em 2px, 2px .28em, .28em 2px, 2px .28em, .28em 2px, 2px .28em;
+}
+
+.wb6-v7-main-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: min(14px, 4cqw);
+  margin: clamp(4px, 1dvh, 10px) 0 0;
+}
+.wb6-v7-number {
+  min-width: 0;
+  color: var(--text-color);
+  font-size: var(--class-score-size, 64px);
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb6-v7-progress-group {
+  width: min(100%, 360px);
+  margin: clamp(8px, 2dvh, 16px) auto 0;
+}
+.wb6-v7-progress {
+  position: relative;
+  overflow: hidden;
+  height: clamp(6px, 4cqw, 10px);
+  border-radius: 6px;
+  background: #dce7ed;
+}
+.wb6-v7-progress-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #e9a822, var(--score-gold) 76%, #ffdc6a);
+  transform: scaleX(var(--filled, 0));
+  transform-origin: left;
+  transition: transform 0.2s ease;
+}
+.wb6-v7-progress:not([data-continuous])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, #fff 2px 4px);
+  mask-image: repeating-linear-gradient(to right, transparent 0 max(0%, calc(var(--division, 33.333%) - 1px)), #000 max(0%, calc(var(--division, 33.333%) - 1px)) var(--division, 33.333%));
+}
+.wb6-v7-conversion-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 3px 8px;
+  margin-top: 5px;
+  color: var(--muted-text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb6-v7-bottom-row {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px clamp(6px, 3vw, 18px) 14px;
+}
+.wb6-v7-selected-count {
+  color: var(--muted-text);
+  font-size: 12px;
+  text-align: right;
+}
+.wb6-v7-team-viewport {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+.wb6-v7-scoreboard {
+  width: max-content;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(var(--team-columns, 2), var(--team-card-width, 110px));
+  gap: var(--team-gap, 8px);
+}
+
+/* 만능칠판 6.0 원본 10색 모둠 카드 팔레트 */
+.wb6-v7-team-card {
+  container-type: size;
+  display: block;
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--score-card-ratio, 4 / 3);
+  border-radius: 12px;
+  background-color: color-mix(in srgb, var(--card-accent, var(--primary-color)) 12%, var(--card-bg));
+  box-shadow: inset 0 3px color-mix(in srgb, var(--card-accent, var(--primary-color)) 65%, var(--card-bg)), inset 0 0 0 1px var(--panel-line);
+  transition: box-shadow 0.15s;
+}
+.wb6-v7-team-card:nth-child(10n+1) { --card-accent: #1561ad; }
+.wb6-v7-team-card:nth-child(10n+2) { --card-accent: #2ecc71; }
+.wb6-v7-team-card:nth-child(10n+3) { --card-accent: #e74c3c; }
+.wb6-v7-team-card:nth-child(10n+4) { --card-accent: #f39c12; }
+.wb6-v7-team-card:nth-child(10n+5) { --card-accent: #9b59b6; }
+.wb6-v7-team-card:nth-child(10n+6) { --card-accent: #12343b; }
+.wb6-v7-team-card:nth-child(10n+7) { --card-accent: #c7af6b; }
+.wb6-v7-team-card:nth-child(10n+8) { --card-accent: #3d7c47; }
+.wb6-v7-team-card:nth-child(10n+9) { --card-accent: #431c5d; }
+.wb6-v7-team-card:nth-child(10n+10) { --card-accent: #eb1736; }
+
+.wb6-v7-team-card:hover {
+  box-shadow: inset 0 3px var(--card-accent, var(--primary-color)), inset 0 0 0 1px var(--panel-line);
+}
+.wb6-v7-team-card.team-selected {
+  background-image: linear-gradient(color-mix(in srgb, var(--score-gold) 28%, transparent), color-mix(in srgb, var(--score-gold) 28%, transparent));
+  box-shadow: inset 0 0 0 3px var(--score-gold-edge);
+}
+
+.wb6-v7-team-select-btn {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wb6-v7-team-name {
+  position: absolute;
+  top: min(10px, 8cqh);
+  left: min(8px, 10cqw);
+  right: min(10px, 10cqw);
+  font-size: clamp(9px, 15cqh, 15px);
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.wb6-orig-actions {
+.wb6-v7-team-controls {
+  position: absolute;
+  inset: 0;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.wb6-v7-team-number {
+  font-size: min(40px, 34cqh, 25cqw);
+  font-weight: 700;
+  line-height: 1.05;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-color);
+}
+.wb6-v7-team-number[data-long-score] {
+  font-size: min(40px, 34cqh, 22cqw);
+}
+
+.wb6-v7-team-steps {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.wb6-v7-team-steps button {
+  display: grid;
+  place-items: center;
+  width: min(46px, 34cqw);
+  height: min(42px, 27cqh);
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-color);
+  font-size: min(22px, 22cqh, 25cqw);
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.wb6-v7-team-steps .wb6-v7-team-plus {
+  color: var(--primary-dark);
+}
+.wb6-v7-team-steps button:hover {
+  background: color-mix(in srgb, var(--card-bg) 56%, transparent);
+}
+
+/* 하단 일괄 반영 바 (원본 #batch-score) */
+.wb6-v7-batch-score {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr) 60px 89px 56px;
+  grid-template-areas: "select . undo amount apply";
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 8px clamp(6px, 3vw, 14px);
+  border-top: 1px solid var(--panel-line);
+  background: var(--card-bg);
+}
+#wb6-select-all { grid-area: select; }
+#wb6-undo { grid-area: undo; }
+.wb6-v7-batch-amount { grid-area: amount; }
+#wb6-apply-batch { grid-area: apply; }
+.wb6-v7-batch-score button {
+  min-height: 38px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--control-bg);
+  color: var(--text-color);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#wb6-apply-batch {
+  background: var(--primary-color);
+  color: #fff;
+}
+.wb6-v7-batch-score button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.wb6-v7-batch-amount {
+  display: flex;
+  min-width: 0;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+#wb6-batch-delta {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  padding: 2px;
+  border: 0;
+  text-align: center;
+  font: inherit;
+  font-weight: 700;
+  color: var(--text-color);
+  user-select: text;
+}
+.wb6-v7-batch-stepper {
+  display: grid;
+  border-left: 1px solid var(--panel-line);
+}
+.wb6-v7-batch-score .wb6-v7-batch-stepper button {
+  min-height: 19px;
+  width: 24px;
+  padding: 0;
+  border-radius: 0;
+  font-size: 13px;
+}
+.wb6-v7-batch-score .wb6-v7-batch-stepper button + button {
+  border-top: 1px solid var(--panel-line);
+}
+
+/* 원본 설정 팝오버 (.settings-panel) */
+.wb6-v7-settings-panel {
+  display: none;
+  position: absolute;
+  top: 52px;
+  right: 8px;
+  z-index: 20;
+  width: min(290px, calc(100% - 16px));
+  max-height: calc(100% - 64px);
+  padding: 12px;
+  gap: 9px;
+  overflow: auto;
+  background: var(--card-bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 14px;
+  box-shadow: 0 8px 22px var(--shadow-color);
+}
+.wb6-v7-settings-panel.open {
+  display: grid;
+}
+.wb6-v7-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wb6-v7-settings-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-color);
+}
+.wb6-v7-settings-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #cbdce3;
+  background: #fff;
+  color: #123447;
+  font-size: 18px;
+  display: grid;
+  place-items: center;
+}
+.wb6-v7-settings-section {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-line);
+}
+.wb6-v7-settings-section h4 {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted-text);
+}
+.wb6-v7-setting-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  font-size: 13px;
+  color: var(--text-color);
+}
+.wb6-v7-setting-row select,
+.wb6-v7-setting-row input[type="number"] {
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  background: var(--light-bg);
+  color: var(--text-color);
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 12.5px;
+}
+.wb6-v7-setting-row input[type="number"] {
+  width: 64px;
+}
+.wb6-v7-size-controls,
+.wb6-v7-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }
-.wb6-orig-icon-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  background: #f0f5fc;
-  border: 1px solid #cad9ef;
-  color: #264872;
-  font-size: 14px;
-  font-weight: 900;
-  display: grid;
-  place-items: center;
-}
-.wb6-orig-icon-btn:hover,
-.wb6-orig-icon-btn.is-active {
-  background: #d1edff;
-  border-color: #5093c6;
-}
-
-.wb6-settings-drawer {
-  flex: none;
-  padding: 10px 12px;
-  background: #eef4fc;
-  border-bottom: 1px solid #cddcf2;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.wb6-orig-class-box {
-  flex: none;
-  margin: 10px 12px 8px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: #ffffff;
-  border: 1.5px solid #c6daf5;
-  box-shadow: 0 3px 10px rgba(32, 74, 135, 0.07);
-}
-.wb6-orig-class-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  font-weight: 800;
-  color: #365780;
-  margin-bottom: 6px;
-}
-.wb6-orig-carry {
-  padding: 2px 7px;
-  border-radius: 99px;
-  background: #edf5ff;
-  color: #1968b3;
-  font-size: 11px;
-}
-.wb6-orig-class-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.wb6-orig-class-score {
-  font-size: 36px;
-  font-weight: 900;
-  color: #173a64;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.wb6-orig-progress {
-  margin-top: 8px;
-  height: 6px;
-  border-radius: 99px;
-  background: #e2ecf9;
-  overflow: hidden;
-}
-.wb6-orig-progress > div {
-  height: 100%;
-  background: linear-gradient(90deg, #2b8be0, #48b8f0);
-  transition: width 0.2s ease;
-}
-
-.wb6-orig-round-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  font-size: 20px;
-  font-weight: 900;
-  color: #fff;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
-  transition: transform 0.08s;
-}
-.wb6-orig-round-btn:active { transform: scale(0.92); }
-.wb6-orig-round-btn.is-sm {
-  width: 30px;
-  height: 30px;
-  font-size: 17px;
-}
-.wb6-orig-round-btn.is-plus { background: #2b8be0; }
-.wb6-orig-round-btn.is-minus { background: #e8536d; }
-
-.wb6-orig-group-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 2px 12px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.wb6-orig-group-card {
-  padding: 10px 12px;
-  border-radius: 11px;
-  background: #ffffff;
-  border: 1px solid #d5e2f5;
-  border-left: 5px solid var(--g-accent, #2b8be0);
-  box-shadow: 0 2px 6px rgba(32, 74, 135, 0.06);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.wb6-og-top {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.wb6-og-badge { display: none; }
-.wb6-og-name {
-  font-size: 14px;
-  font-weight: 900;
-  color: #1f334d;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.wb6-og-sub {
-  font-size: 11px;
-  font-weight: 700;
-  color: #6c819c;
-}
-.wb6-og-ctrl {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex: none;
-}
-.wb6-og-score {
-  min-width: 32px;
+.wb6-v7-size-controls output {
+  min-width: 4ch;
   text-align: center;
-  font-size: 20px;
-  font-weight: 900;
-  color: #173a64;
+  font-size: 13px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.wb6-cfg-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 800;
-  color: #5b5244;
-}
-.wb6-cfg-row small { color: #887f70; font-weight: 700; }
-.wb6-seg {
-  display: inline-flex;
-  border: 1px solid #d5cfc1;
-  border-radius: 7px;
-  overflow: hidden;
-  background: #fff;
-}
-.wb6-seg button {
+.wb6-v7-size-controls button,
+.wb6-v7-settings-actions button {
+  min-height: 30px;
   padding: 3px 8px;
-  font-size: 11px;
-  font-weight: 800;
-  color: #6b6152;
-}
-.wb6-seg button.is-active {
-  background: #ffe838;
-  color: #4b3808;
-}
-.wb6-rate-ctrl {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.wb6-rate-ctrl button {
-  width: 22px;
-  height: 22px;
+  background: var(--control-bg);
+  color: var(--text-color);
+  border: 1px solid var(--panel-line);
   border-radius: 6px;
-  background: #fff;
-  border: 1px solid #d5cfc1;
-  font-weight: 900;
-  color: #4a4235;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
 }
-.wb6-rate-ctrl strong {
-  font-size: 11.5px;
-  color: #4b3808;
-  min-width: 56px;
-  text-align: center;
+.wb6-v7-settings-actions button {
+  flex: 1;
+}
+.wb6-v7-size-controls button:hover,
+.wb6-v7-settings-actions button:hover {
+  background: var(--summary-bg);
 }
 
-.wb6-group-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0 10px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.wb6-group-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #fff;
-  border: 1.5px solid #e6dfd0;
-}
-.wb6-g-info { min-width: 0; flex: 1; }
-.wb6-g-name {
-  font-size: 13.5px;
-  font-weight: 900;
-  color: #4a4235;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.wb6-g-name small { font-size: 11px; font-weight: 700; color: #887f70; }
-.wb6-g-detail {
-  font-size: 11px;
-  font-weight: 700;
-  color: #7d7364;
-  margin-top: 2px;
-}
-.wb6-g-ctrl {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: none;
-}
-.wb6-g-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  font-size: 15px;
-  font-weight: 900;
-  color: #fff;
-  display: grid;
-  place-items: center;
-}
-.wb6-g-btn.is-plus { background: #198bd2; }
-.wb6-g-btn.is-minus { background: #e73b59; }
-.wb6-g-total {
-  min-width: 30px;
-  text-align: center;
-  font-size: 17px;
-  font-weight: 900;
-  color: #352e23;
-  font-variant-numeric: tabular-nums;
-}
 .wb6-empty {
   text-align: center;
   padding: 24px 10px;
   font-size: 12.5px;
-  color: #887f70;
+  color: var(--muted-text);
 }
-.wb6-footer {
-  flex: none;
-  padding: 7px 10px;
-  border-top: 1px solid #ece7da;
-  background: #faf8f2;
-  display: flex;
-  justify-content: center;
-}
-.wb6-reset-btn {
-  width: 100%;
-  padding: 6px;
-  border-radius: 7px;
-  background: #fff;
-  border: 1px solid #d5cfc1;
-  font-size: 11.5px;
-  font-weight: 800;
-  color: #6b6152;
-}
-.wb6-reset-btn:hover { background: #fff0f2; color: #c92646; border-color: #f0a4b2; }
 
 .wb-tree-overlay .growth-world {
   background: transparent !important;
@@ -774,6 +986,9 @@
   min-height: 0;
   background: var(--bg-cream);
 }
+.wbf-body.is-native-host.is-timer-host {
+  background: #1b2230;
+}
 
 .wbf-scaled-stage {
   position: absolute;
@@ -785,9 +1000,13 @@
   overflow: hidden;
   background: var(--bg-cream);
 }
+.wbf-scaled-stage.is-timer-stage {
+  background: #1b2230;
+}
 
 .wbf-scaled-stage > .students-shell,
 .wbf-body.is-native-host > .students-shell,
+.wbf-scaled-stage > .timer-stage,
 .wbf-body.is-native-host > .timer-stage {
   flex: 1;
   min-height: 0;
@@ -795,30 +1014,30 @@
   width: 100%;
 }
 
-/* 플로팅 패널 안 타이머: 상단 탭 · 원형 시계 · 프리셋 · 하단 시작/초기화 버튼이 잘림 없이 한눈에 들어오도록 컴팩트 피팅 */
-.wbf-body.is-native-host > .timer-stage {
-  padding: 12px 14px;
-  gap: 10px;
+/* 타이머 가상 스테이지(520x460): 어떤 크기로 축소해도 상단 탭 · 원형 시계 · 프리셋 · 시작/초기화 버튼 전체가 비율 그대로 표시 */
+.wbf-scaled-stage.is-timer-stage > .timer-stage {
+  padding: 14px 18px;
+  gap: 12px;
   justify-content: space-between;
 }
-.wbf-body.is-native-host .timer-ring-box {
-  width: 172px;
-  height: 172px;
+.wbf-scaled-stage.is-timer-stage .timer-ring-box {
+  width: 210px;
+  height: 210px;
 }
-.wbf-body.is-native-host .timer-digits {
-  font-size: 42px;
+.wbf-scaled-stage.is-timer-stage .timer-digits {
+  font-size: 50px;
 }
-.wbf-body.is-native-host .timer-presets {
-  gap: 5px;
+.wbf-scaled-stage.is-timer-stage .timer-presets {
+  gap: 6px;
 }
-.wbf-body.is-native-host .timer-preset-btn {
-  padding: 5px 10px;
-  font-size: 12px;
+.wbf-scaled-stage.is-timer-stage .timer-preset-btn {
+  padding: 6px 11px;
+  font-size: 13px;
 }
-.wbf-body.is-native-host .timer-controls {
-  gap: 8px;
+.wbf-scaled-stage.is-timer-stage .timer-controls {
+  gap: 10px;
 }
-.wbf-body.is-native-host .timer-ctrl-btn {
-  padding: 8px 20px;
-  font-size: 14px;
+.wbf-scaled-stage.is-timer-stage .timer-ctrl-btn {
+  padding: 9px 22px;
+  font-size: 15px;
 }

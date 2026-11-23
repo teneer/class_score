@@ -4,6 +4,15 @@ body.score-open #scorePanel, body.score-full #scorePanel { display: none !import
 #canvas-container { left: 0 !important; right: 0 !important; width: 100% !important; }
 body.score-full #canvas-container { visibility: visible !important; }
 body.score-full #toolbarScaleWrap { display: block !important; }
+/* 하단 툴바가 콘텐츠 폭만큼만 중앙에 배치되어 우측 황금알 나무 바닥이 불필요하게 가려지지 않도록 처리 */
+#toolbar {
+  width: fit-content !important;
+  max-width: calc(100% - 16px) !important;
+  margin: 0 auto !important;
+  padding: 8px 14px !important;
+}
+#toolbar > .toolbar-group:first-child { margin-inline-start: 0 !important; }
+#toolbar > .toolbar-group:last-child { margin-inline-end: 0 !important; }
 
 
 /* 클래스레볼루션2 하단바 통합: 좌측 끝내기 버튼 + 도구 버튼 & 하단 펼침 트레이 */
