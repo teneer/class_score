@@ -327,7 +327,7 @@
 
 
 /* ============================================================
-   만능칠판 위 학급점수 투명 나무·목표 오버레이 (별길/하늘 배경 숨김, 하단바 뒤에 놓이도록 하단 64px 클리핑)
+   만능칠판 위 학급점수 투명 나무·목표 오버레이 (원래 사이즈 그대로, 하단바 사각형만 동적 cutout)
    ============================================================ */
 .wb-tree-overlay {
   position: absolute;
@@ -335,8 +335,288 @@
   z-index: 32;
   pointer-events: none;
   overflow: hidden;
-  clip-path: inset(0 0 64px 0);
 }
+
+.wb-mode-switch-pill {
+  position: absolute;
+  top: 12px;
+  right: 170px;
+  z-index: 40;
+  pointer-events: auto;
+  padding: 6px 12px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1.5px solid #d8b511;
+  color: #4b3808;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 4px 12px rgba(45, 36, 22, 0.18);
+  cursor: pointer;
+}
+.wb-mode-switch-pill:hover {
+  background: #ffe838;
+}
+
+/* ============================================================
+   만능칠판 6.0 점수판 우측 오버레이 (황금알 나무와 원클릭 전환)
+   ============================================================ */
+.wb-board6-overlay {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 76px;
+  width: 300px;
+  z-index: 38;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 2px solid #dedad0;
+  box-shadow: 0 12px 32px rgba(45, 36, 22, 0.22);
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+}
+.wb-board6-overlay[hidden] {
+  display: none !important;
+}
+
+.wb6-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: var(--yellow-tab, #ffe838);
+  border-bottom: 1.5px solid #e2c515;
+}
+.wb6-header strong {
+  font-size: 13.5px;
+  font-weight: 900;
+  color: #4a3d10;
+}
+.wb6-head-btns {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.wb6-switch-btn {
+  padding: 4px 9px;
+  border-radius: 99px;
+  background: #fff;
+  border: 1px solid #d8b511;
+  color: #4b3808;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.wb6-switch-btn:hover { background: #fffbe0; }
+.wb6-close-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #d8b511;
+  color: #4b3808;
+  font-size: 15px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+}
+
+.wb6-class-card {
+  flex: none;
+  margin: 10px 10px 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fffbe0 0%, #fff3b0 100%);
+  border: 1.5px solid #ebd054;
+}
+.wb6-class-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.wb6-class-label {
+  font-size: 12.5px;
+  font-weight: 900;
+  color: #5c4306;
+}
+.wb6-carry-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #7a5700;
+}
+.wb6-class-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wb6-class-val {
+  font-size: 32px;
+  font-weight: 900;
+  color: #4b3808;
+  font-variant-numeric: tabular-nums;
+}
+.wb6-step-btn {
+  width: 44px;
+  height: 34px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 900;
+  color: #fff;
+}
+.wb6-step-btn.is-plus { background: #198bd2; }
+.wb6-step-btn.is-minus { background: #e73b59; }
+
+.wb6-config-bar {
+  flex: none;
+  margin: 0 10px 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #faf8f2;
+  border: 1px solid #e6dfd0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wb6-cfg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #5b5244;
+}
+.wb6-cfg-row small { color: #887f70; font-weight: 700; }
+.wb6-seg {
+  display: inline-flex;
+  border: 1px solid #d5cfc1;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #fff;
+}
+.wb6-seg button {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #6b6152;
+}
+.wb6-seg button.is-active {
+  background: #ffe838;
+  color: #4b3808;
+}
+.wb6-rate-ctrl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.wb6-rate-ctrl button {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #d5cfc1;
+  font-weight: 900;
+  color: #4a4235;
+}
+.wb6-rate-ctrl strong {
+  font-size: 11.5px;
+  color: #4b3808;
+  min-width: 56px;
+  text-align: center;
+}
+
+.wb6-group-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.wb6-group-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1.5px solid #e6dfd0;
+}
+.wb6-g-info { min-width: 0; flex: 1; }
+.wb6-g-name {
+  font-size: 13.5px;
+  font-weight: 900;
+  color: #4a4235;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb6-g-name small { font-size: 11px; font-weight: 700; color: #887f70; }
+.wb6-g-detail {
+  font-size: 11px;
+  font-weight: 700;
+  color: #7d7364;
+  margin-top: 2px;
+}
+.wb6-g-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+.wb6-g-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  font-size: 15px;
+  font-weight: 900;
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+.wb6-g-btn.is-plus { background: #198bd2; }
+.wb6-g-btn.is-minus { background: #e73b59; }
+.wb6-g-total {
+  min-width: 30px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 900;
+  color: #352e23;
+  font-variant-numeric: tabular-nums;
+}
+.wb6-empty {
+  text-align: center;
+  padding: 24px 10px;
+  font-size: 12.5px;
+  color: #887f70;
+}
+.wb6-footer {
+  flex: none;
+  padding: 7px 10px;
+  border-top: 1px solid #ece7da;
+  background: #faf8f2;
+  display: flex;
+  justify-content: center;
+}
+.wb6-reset-btn {
+  width: 100%;
+  padding: 6px;
+  border-radius: 7px;
+  background: #fff;
+  border: 1px solid #d5cfc1;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #6b6152;
+}
+.wb6-reset-btn:hover { background: #fff0f2; color: #c92646; border-color: #f0a4b2; }
 
 .wb-tree-overlay .growth-world {
   background: transparent !important;

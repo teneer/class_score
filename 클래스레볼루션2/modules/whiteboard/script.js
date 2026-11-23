@@ -1439,4 +1439,26 @@ boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'
       });
     });
   }
+
+  // 하단바 사각형 좌표를 부모창에 전달해 황금알 나무가 원본 크기 그대로 하단바 뒤 레이어에 놓이도록 처리
+  const reportToolbarRect = () => {
+    const wrap = document.getElementById('toolbarWrapper');
+    if (!wrap) return;
+    const r = wrap.getBoundingClientRect();
+    try {
+      window.parent.postMessage({
+        type: 'cr2-wb-toolbar-rect',
+        rect: { left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) },
+      }, '*');
+    } catch {}
+  };
+  window.addEventListener('resize', reportToolbarRect);
+  const hideBtn = document.getElementById('toolbarHideBtn');
+  if (hideBtn) hideBtn.addEventListener('click', () => setTimeout(reportToolbarRect, 260));
+  if (typeof ResizeObserver !== 'undefined') {
+    const wrap = document.getElementById('toolbarWrapper');
+    if (wrap) new ResizeObserver(reportToolbarRect).observe(wrap);
+  }
+  setTimeout(reportToolbarRect, 120);
+  setTimeout(reportToolbarRect, 600);
 })();

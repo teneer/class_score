@@ -186,6 +186,13 @@ export function createDefaultState() {
       sites: [], // { id, title, category, url, entryCost, coinPerMin, timeLimitMin, strictSinglePage, enabled, createdAt }
       activeSessions: {}, // { [studentId]: { siteId, siteTitle, startedAt, lastPingAt } }
     },
+    wbScoreboard: {
+      displayMode: 'tree', // 'tree' (황금알 나무) | 'board6' (만능칠판 6.0 점수판)
+      baseGroupMode: 'sum', // 'sum' (모둠원 합) | 'avg' (모둠원 평균, 소수점 이하 버림)
+      specialGroupScores: {}, // { [groupId]: number } 교사 특별 모둠점수
+      classLinkRate: null, // 모둠점수 -> 학급점수(황금알) 연계율 (null이면 현재 모둠 개수)
+      specialPendingCarry: 0, // 특별 모둠점수 누적 잔여분
+    },
     cloudConfig: {
       firebaseConfig: null,
       classId: '',
@@ -267,6 +274,13 @@ class AppStore {
         defaultPolicy: { ...def.cyberRoom.defaultPolicy, ...(data.cyberRoom?.defaultPolicy || {}) },
         sites: Array.isArray(data.cyberRoom?.sites) ? data.cyberRoom.sites : [],
         activeSessions: data.cyberRoom?.activeSessions && typeof data.cyberRoom.activeSessions === 'object' ? data.cyberRoom.activeSessions : {},
+      },
+      wbScoreboard: {
+        ...def.wbScoreboard,
+        ...(data.wbScoreboard || {}),
+        specialGroupScores: data.wbScoreboard?.specialGroupScores && typeof data.wbScoreboard.specialGroupScores === 'object'
+          ? data.wbScoreboard.specialGroupScores
+          : {},
       },
       cloudConfig: {
         ...def.cloudConfig,

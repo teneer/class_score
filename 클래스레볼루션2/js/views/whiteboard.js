@@ -2,7 +2,8 @@
 
 import { store, todayIso } from '../store.js';
 import { playSound } from '../audio.js';
-import { openScoreComposer, showToast, escapeHtml } from '../effects.js';
+import { adjustSpecialEggs } from '../score-engine.js';
+import { openScoreComposer, presentOutcome, showToast, escapeHtml } from '../effects.js';
 import {
   renderStudentsView,
   setStudentsSubView,
@@ -18,6 +19,7 @@ let pendingImportItems = null;
 let navigateFn = null;
 let exitHandler = null;
 let lastWbContainer = null;
+let lastToolbarRect = null;
 
 // 플로팅 패널 상태 (자유 이동 · 리사이즈 · 접기)
 let openPanelKind = null; // null | 'students' | 'seats' | 'selfcheck' | 'timer'
@@ -53,11 +55,28 @@ function notifyToolbarState() {
   }
 }
 
+function applyTreeToolbarCutout() {
+  const overlayEl = lastWbContainer?.querySelector('#wb-tree-overlay');
+  if (!overlayEl) return;
+  if (!lastToolbarRect || lastToolbarRect.right <= lastToolbarRect.left || lastToolbarRect.bottom <= lastToolbarRect.top) {
+    overlayEl.style.clipPath = 'none';
+    return;
+  }
+  const { left: l, top: t, right: r, bottom: b } = lastToolbarRect;
+  // 원래 나무 크기(height: 100%)는 그대로 유지하고, 오직 하단바가 차지하는 사각형만 뒤로 들어가게 클리핑
+  overlayEl.style.clipPath = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px ${t}px)`;
+}
+
 window.addEventListener('message', (ev) => {
   if (ev.data?.type === 'cr2-wb-ready') {
     wbIframeReady = true;
     flushPendingImports();
     notifyToolbarState();
+    return;
+  }
+  if (ev.data?.type === 'cr2-wb-toolbar-rect' && ev.data.rect) {
+    lastToolbarRect = ev.data.rect;
+    applyTreeToolbarCutout();
     return;
   }
   if (ev.data?.type === 'cr2-wb-action') {
@@ -188,13 +207,16 @@ export function renderWhiteboardView(container) {
         <iframe
           id="cr2-whiteboard-frame"
           class="wb-iframe"
-          src="modules/whiteboard/index.html?v=cr2-4"
+          src="modules/whiteboard/index.html?v=cr2-5"
           title="클래스레볼루션2 만능칠판"
           allow="clipboard-read; clipboard-write; fullscreen"
         ></iframe>
 
-        <!-- 만능칠판 우측 투명 학급점수 나무·목표 오버레이 (별길/하늘 없음, 판서 투과) -->
+        <!-- 만능칠판 우측 투명 학급점수 나무·목표 오버레이 (원래 사이즈 그대로, 하단바 아래쪽 레이어) -->
         <div class="wb-tree-overlay" id="wb-tree-overlay" hidden></div>
+
+        <!-- 만능칠판 우측 6.0 점수판 오버레이 (황금알 나무와 원클릭 전환, 학급점수=황금알 불변) -->
+        <aside class="wb-board6-overlay" id="wb-board6-overlay" hidden></aside>
 
         <!-- 자유 이동 · 리사이즈 플로팅 패널 (학생목록·자리배치·체크표·타이머) -->
         <div class="wb-float-panel" id="wb-float-panel" hidden></div>
@@ -226,16 +248,220 @@ function applyPanelStageScale(bodyEl) {
   stage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
 }
 
-/** 만능칠판 우측 투명 나무·목표 오버레이 렌더링 (원본 growth.js 애니메이션 100% 동일) */
+/** 만능칠판 우측 학급점수 오버레이 (황금알 나무 ↔ 만능칠판 6.0 점수판 전환, 학급점수=황금알 불변) */
 function renderTreeOverlay(container) {
   const overlayEl = container.querySelector('#wb-tree-overlay');
-  if (!overlayEl) return;
+  const board6El = container.querySelector('#wb-board6-overlay');
+  if (!overlayEl || !board6El) return;
+
   if (!treeOverlayOpen) {
     overlayEl.hidden = true;
+    board6El.hidden = true;
     return;
   }
+
+  const state = store.getState();
+  const wbCfg = state.wbScoreboard || { displayMode: 'tree', baseGroupMode: 'sum', specialGroupScores: {}, classLinkRate: null, specialPendingCarry: 0 };
+
+  if (wbCfg.displayMode === 'board6') {
+    overlayEl.hidden = true;
+    board6El.hidden = false;
+    renderBoard6Overlay(board6El, container);
+    return;
+  }
+
+  // 기본 모드: 황금알 나무 원본 크기 + 하단바 뒤 레이어
+  board6El.hidden = true;
   overlayEl.hidden = false;
   renderGrowthView(overlayEl);
+  applyTreeToolbarCutout();
+
+  // 나무 위 우측 상단에 '6.0 점수판 전환' 미니 버튼 부착
+  let switchBtn = overlayEl.querySelector('#wb-switch-to-board6');
+  if (!switchBtn) {
+    switchBtn = document.createElement('button');
+    switchBtn.type = 'button';
+    switchBtn.id = 'wb-switch-to-board6';
+    switchBtn.className = 'wb-mode-switch-pill';
+    switchBtn.textContent = '📊 6.0 점수판';
+    switchBtn.title = '만능칠판 6.0 점수판으로 전환 (황금알=학급점수 유지)';
+    overlayEl.appendChild(switchBtn);
+  }
+  switchBtn.onclick = async () => {
+    await store.update((s) => { s.wbScoreboard.displayMode = 'board6'; });
+    renderTreeOverlay(container);
+  };
+}
+
+/** 만능칠판 6.0 점수판 오버레이 (기본 모둠점수 합/평균(버림) + 교사 특별 모둠점수 + 연계율 가감 + 학급점수=황금알 연동) */
+function renderBoard6Overlay(board6El, container) {
+  const state = store.getState();
+  const wbCfg = state.wbScoreboard || {};
+  const students = (state.students || []).filter((s) => !s.trashed);
+  const groups = [...(state.groups || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const baseMode = wbCfg.baseGroupMode === 'avg' ? 'avg' : 'sum';
+  const defaultRate = Math.max(1, groups.length || 1);
+  const linkRate = Math.max(1, Number(wbCfg.classLinkRate) || defaultRate);
+  const carry = Number(wbCfg.specialPendingCarry) || 0;
+  const eggs = state.growth?.eggs ?? 0;
+
+  const groupRows = groups.map((g) => {
+    const members = students.filter((s) => s.groupId === g.id);
+    const sum = members.reduce((acc, m) => acc + (Number(m.score) || 0), 0);
+    const baseScore = baseMode === 'avg'
+      ? (members.length > 0 ? Math.floor(sum / members.length) : 0)
+      : sum;
+    const special = Number(wbCfg.specialGroupScores?.[g.id] || 0);
+    return {
+      group: g,
+      memberCount: members.length,
+      baseScore,
+      special,
+      total: baseScore + special,
+    };
+  });
+
+  board6El.innerHTML = `
+    <div class="wb6-header">
+      <strong>📊 만능칠판 6.0 점수판</strong>
+      <div class="wb6-head-btns">
+        <button type="button" class="wb6-switch-btn" id="wb6-to-tree" title="황금알 나무로 전환 (학급점수 유지)">🥚 나무로</button>
+        <button type="button" class="wb6-close-btn" id="wb6-close" title="점수판 닫기">&times;</button>
+      </div>
+    </div>
+
+    <div class="wb6-class-card">
+      <div class="wb6-class-top">
+        <span class="wb6-class-label">🥚 학급점수 (황금알)</span>
+        <span class="wb6-carry-badge" title="특별 모둠점수 누적 → 연계율 도달 시 황금알 자동 반영">누적 ${carry}/${linkRate}</span>
+      </div>
+      <div class="wb6-class-main">
+        <button type="button" class="wb6-step-btn is-minus" id="wb6-egg-dec">−1</button>
+        <strong class="wb6-class-val">${eggs}</strong>
+        <button type="button" class="wb6-step-btn is-plus" id="wb6-egg-inc">+1</button>
+      </div>
+    </div>
+
+    <div class="wb6-config-bar">
+      <div class="wb6-cfg-row">
+        <span>기본 모둠점수</span>
+        <div class="wb6-seg">
+          <button type="button" class="${baseMode === 'sum' ? 'is-active' : ''}" data-wb6-basemode="sum">모둠원 합</button>
+          <button type="button" class="${baseMode === 'avg' ? 'is-active' : ''}" data-wb6-basemode="avg">평균(버림)</button>
+        </div>
+      </div>
+      <div class="wb6-cfg-row">
+        <span>황금알 연계율 <small>(기본 ${defaultRate})</small></span>
+        <div class="wb6-rate-ctrl">
+          <button type="button" id="wb6-rate-dec">−</button>
+          <strong>${linkRate}점당 1알</strong>
+          <button type="button" id="wb6-rate-inc">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="wb6-group-list">
+      ${groupRows.length === 0 ? `<div class="wb6-empty">등록된 모둠이 없습니다.</div>` : groupRows.map((r) => `
+        <div class="wb6-group-card">
+          <div class="wb6-g-info">
+            <div class="wb6-g-name">${escapeHtml(r.group.name)} <small>(${r.memberCount}명)</small></div>
+            <div class="wb6-g-detail">기본 ${r.baseScore} ${r.special >= 0 ? `+ 특별 ${r.special}` : `− 특별 ${Math.abs(r.special)}`}</div>
+          </div>
+          <div class="wb6-g-ctrl">
+            <button type="button" class="wb6-g-btn is-minus" data-wb6-gdelta="${r.group.id}" data-delta="-1">−</button>
+            <strong class="wb6-g-total">${r.total}</strong>
+            <button type="button" class="wb6-g-btn is-plus" data-wb6-gdelta="${r.group.id}" data-delta="1">+</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="wb6-footer">
+      <button type="button" class="wb6-reset-btn" id="wb6-reset-special">교사 특별 모둠점수 초기화</button>
+    </div>
+  `;
+
+  board6El.querySelector('#wb6-to-tree').onclick = async () => {
+    await store.update((s) => { s.wbScoreboard.displayMode = 'tree'; });
+    renderTreeOverlay(container);
+  };
+  board6El.querySelector('#wb6-close').onclick = () => {
+    treeOverlayOpen = false;
+    renderTreeOverlay(container);
+    notifyToolbarState();
+  };
+  board6El.querySelector('#wb6-egg-inc').onclick = async () => {
+    const out = await adjustSpecialEggs(1, '만능칠판 6.0 점수판 학급점수 +1');
+    presentOutcome(out);
+    renderBoard6Overlay(board6El, container);
+  };
+  board6El.querySelector('#wb6-egg-dec').onclick = async () => {
+    const out = await adjustSpecialEggs(-1, '만능칠판 6.0 점수판 학급점수 -1');
+    presentOutcome(out);
+    renderBoard6Overlay(board6El, container);
+  };
+
+  board6El.querySelectorAll('[data-wb6-basemode]').forEach((b) => {
+    b.onclick = async () => {
+      const m = b.dataset.wb6Basemode === 'avg' ? 'avg' : 'sum';
+      await store.update((s) => { s.wbScoreboard.baseGroupMode = m; });
+      renderBoard6Overlay(board6El, container);
+    };
+  });
+
+  board6El.querySelector('#wb6-rate-dec').onclick = async () => {
+    const next = Math.max(1, linkRate - 1);
+    await store.update((s) => { s.wbScoreboard.classLinkRate = next; });
+    renderBoard6Overlay(board6El, container);
+  };
+  board6El.querySelector('#wb6-rate-inc').onclick = async () => {
+    const next = Math.min(99, linkRate + 1);
+    await store.update((s) => { s.wbScoreboard.classLinkRate = next; });
+    renderBoard6Overlay(board6El, container);
+  };
+
+  // 교사 특별 모둠점수 가감 + 모둠점수 연계율에 따른 황금알(학급점수) 자동 연동
+  board6El.querySelectorAll('[data-wb6-gdelta]').forEach((b) => {
+    b.onclick = async () => {
+      const gid = b.dataset.wb6Gdelta;
+      const delta = Number(b.dataset.delta) || 0;
+      if (!delta) return;
+      let eggDelta = 0;
+
+      await store.update((s) => {
+        if (!s.wbScoreboard.specialGroupScores) s.wbScoreboard.specialGroupScores = {};
+        s.wbScoreboard.specialGroupScores[gid] = (Number(s.wbScoreboard.specialGroupScores[gid]) || 0) + delta;
+
+        const curRate = Math.max(1, Number(s.wbScoreboard.classLinkRate) || Math.max(1, (s.groups || []).length));
+        let nextCarry = (Number(s.wbScoreboard.specialPendingCarry) || 0) + delta;
+        if (nextCarry >= curRate) {
+          eggDelta = Math.floor(nextCarry / curRate);
+          nextCarry = nextCarry % curRate;
+        } else if (nextCarry <= -curRate) {
+          eggDelta = -Math.floor(Math.abs(nextCarry) / curRate);
+          nextCarry = -(Math.abs(nextCarry) % curRate);
+        }
+        s.wbScoreboard.specialPendingCarry = nextCarry;
+      });
+
+      if (eggDelta !== 0) {
+        const gName = groups.find((x) => x.id === gid)?.name || '모둠';
+        const out = await adjustSpecialEggs(eggDelta, `${gName} 특별점수 연계 (${linkRate}점당 1알)`);
+        presentOutcome(out);
+      }
+      renderBoard6Overlay(board6El, container);
+    };
+  });
+
+  board6El.querySelector('#wb6-reset-special').onclick = async () => {
+    if (!confirm('교사 특별 모둠점수만 0으로 초기화할까요? (학급 황금알과 학생 개인점수는 유지됩니다)')) return;
+    await store.update((s) => {
+      s.wbScoreboard.specialGroupScores = {};
+      s.wbScoreboard.specialPendingCarry = 0;
+    });
+    showToast({ title: '교사 특별 모둠점수를 초기화했습니다.' });
+    renderBoard6Overlay(board6El, container);
+  };
 }
 
 function renderFloatingPanel(container) {

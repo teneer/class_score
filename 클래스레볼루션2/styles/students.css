@@ -109,14 +109,14 @@
   height: 100%;
   object-fit: contain;
   object-position: center center;
-  transform: scale(1.05);
+  transform: scale(1.26);
 }
 .card-avatar-wrap .avatar-fx-sprite {
   width: 100%;
   height: auto;
   aspect-ratio: 4 / 5;
   max-height: 100%;
-  transform: scale(1.05);
+  transform: scale(1.26);
 }
 
 /* 우측 상단 점수: 3자리 숫자(예: 100, 999, -12) 공간 충분히 확보 & 자릿수가 바뀌어도 오른쪽 끝 고정 정렬 */
@@ -132,20 +132,23 @@
   z-index: 2;
   min-width: 0;
 }
+.card-score-cell:has(.score-dual) {
+  top: 6px;
+}
 
 /* 우측 하단 출석번호 + 이름: 아바타와 겹치지 않는 우측 공간에 선명한 번호 배지와 함께 오른쪽 정렬 */
 .card-name-row {
   position: absolute;
-  bottom: 14px;
-  right: 11px;
+  bottom: 10px;
+  right: 10px;
   left: 72px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
   text-align: right;
-  font-size: 16.5px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 900;
   color: #363129;
   letter-spacing: -0.04em;
   white-space: nowrap;
@@ -222,19 +225,21 @@
   align-items: flex-end;
   justify-content: center;
   text-align: right;
-  line-height: 1.05;
+  line-height: 0.94;
   gap: 1px;
   font-variant-numeric: tabular-nums;
 }
 .score-dual-pos {
-  font-size: 15.5px;
+  font-size: 28px;
   font-weight: 900;
   color: #56b828;
+  letter-spacing: -0.04em;
 }
 .score-dual-neg {
-  font-size: 15.5px;
+  font-size: 28px;
   font-weight: 900;
   color: var(--red-penalty);
+  letter-spacing: -0.04em;
 }
 
 .card-edit-gear {
@@ -568,6 +573,7 @@
   margin-left: 4px;
   flex: none;
   pointer-events: none;
+  transform: scale(1.26);
 }
 .seat-avatar-fx {
   width: 48px;
@@ -575,6 +581,7 @@
   flex: none;
   align-self: center;
   margin-left: 4px;
+  transform: scale(1.26);
 }
 
 .seat-info {
@@ -583,24 +590,30 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 7px 8px 6px 8px;
+  padding: 6px 7px 5px 6px;
 }
 .seat-slot.has-avatar .seat-info {
   justify-content: center;
   align-items: flex-end;
   gap: 2px;
-  padding: 4px 8px 4px 4px;
+  padding: 4px 7px 4px 2px;
+}
+.seat-slot:has(.score-dual) .seat-info {
+  justify-content: space-between;
+  padding: 3px 7px 2px 2px;
+  gap: 0;
 }
 .seat-name {
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.05;
   color: #2f2a22;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .seat-slot.has-avatar .seat-name {
-  font-size: 14px;
+  font-size: 17px;
 }
 .seat-score {
   align-self: flex-end;
@@ -613,12 +626,14 @@
 }
 .seat-score .score-dual {
   align-items: flex-end;
+  line-height: 0.9;
   gap: 0;
 }
 .seat-score .score-dual-pos,
 .seat-score .score-dual-neg {
-  font-size: 13px;
-  line-height: 1.05;
+  font-size: 22px;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
 }
 
 /* 편집 모드 학생 빼기(미배치) 버튼 */
