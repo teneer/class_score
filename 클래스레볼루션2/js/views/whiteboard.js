@@ -1,4 +1,4 @@
-// 만능칠판 6.0 풀스크린 뷰 — 하단바 통합 도구(끝내기·학생목록·자리배치·학급점수 투명 나무 오버레이·체크표·타이머·으쓱/머쓱) + 학생 과제 이미지 수신 브리지
+// 만능칠판 6.0 풀스크린 뷰 — 하단바 통합 도구(끝내기·학생목록·자리배치·학급점수 3단 순환[나무/6.0점수판/끄기]·체크표·타이머) + 패널별 직전 위치/크기 기억 + 학생 과제 이미지 수신 브리지
 
 import { store, todayIso } from '../store.js';
 import { playSound } from '../audio.js';
@@ -13,6 +13,9 @@ import {
 import { renderGrowthView } from './growth.js';
 import { renderTimerView } from './tools.js';
 
+const PANEL_LAYOUTS_LS_KEY = 'cr2_wb_panel_layouts_v1';
+const BOARD6_WIDTH_LS_KEY = 'cr2_wb_board6_width_v1';
+
 let mounted = false;
 let wbIframeReady = false;
 let pendingImportItems = null;
@@ -21,17 +24,57 @@ let exitHandler = null;
 let lastWbContainer = null;
 let lastToolbarRect = null;
 
-// 플로팅 패널 상태 (자유 이동 · 리사이즈 · 접기)
+// 플로팅 패널 상태 (종류별 직전 크기·위치 개별 기억)
 let openPanelKind = null; // null | 'students' | 'seats' | 'selfcheck' | 'timer'
-let treeOverlayOpen = false; // 만능칠판 우측 투명 나무·목표 오버레이 ON/OFF
-let panelState = {
-  left: 28,
-  top: 24,
-  width: 720,
-  height: 480,
-  collapsed: false,
-};
+let scoreOverlayMode = 'off'; // 'off' | 'tree' | 'board6' (도구 버튼 순차 클릭 전환)
+let wb6SettingsOpen = false;
+let board6Width = loadSavedBoard6Width();
+let panelLayouts = loadSavedPanelLayouts();
+let panelCollapsed = false;
 let activeSelfCheckId = null;
+
+function loadSavedPanelLayouts() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PANEL_LAYOUTS_LS_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePanelLayouts() {
+  try {
+    localStorage.setItem(PANEL_LAYOUTS_LS_KEY, JSON.stringify(panelLayouts));
+  } catch {}
+}
+
+function loadSavedBoard6Width() {
+  try {
+    const n = Number(localStorage.getItem(BOARD6_WIDTH_LS_KEY));
+    if (Number.isFinite(n) && n >= 260 && n <= 540) return n;
+  } catch {}
+  return 320;
+}
+
+function saveBoard6Width(w) {
+  try { localStorage.setItem(BOARD6_WIDTH_LS_KEY, String(Math.round(w))); } catch {}
+}
+
+function getPanelLayout(kind) {
+  const saved = panelLayouts[kind];
+  if (saved && Number.isFinite(saved.width) && Number.isFinite(saved.height)) {
+    return saved;
+  }
+  const vw = window.innerWidth || 1280;
+  const vh = window.innerHeight || 800;
+  if (kind === 'timer') {
+    return { left: 28, top: 24, width: Math.min(520, Math.max(380, vw - 60)), height: Math.min(440, Math.max(340, vh - 130)) };
+  }
+  if (kind === 'selfcheck') {
+    return { left: 28, top: 24, width: Math.min(640, Math.max(420, vw - 200)), height: Math.min(480, Math.max(340, vh - 150)) };
+  }
+  return { left: 28, top: 24, width: Math.min(860, Math.max(520, vw - 220)), height: Math.min(540, Math.max(380, vh - 140)) };
+}
 
 export function setWhiteboardNavigator(fn) {
   navigateFn = fn;
@@ -48,7 +91,7 @@ function notifyToolbarState() {
     iframe.contentWindow.postMessage({
       type: 'cr2-wb-state',
       openPanelKind,
-      treeOverlayOpen,
+      scoreOverlayMode,
     }, '*');
   } catch {
     // 무시
@@ -96,15 +139,21 @@ function handleToolbarAction(action) {
       initialType: action === 'score-plus' ? 'positive' : 'negative',
       onApplied: () => {
         if (lastWbContainer) {
-          if (treeOverlayOpen) renderTreeOverlay(lastWbContainer);
+          if (scoreOverlayMode !== 'off') renderTreeOverlay(lastWbContainer);
           if (openPanelKind === 'students' || openPanelKind === 'seats') renderFloatingPanel(lastWbContainer);
         }
       },
     });
     return;
   }
+  // 도구 황금알 버튼 순차 클릭: 끄기 -> 황금알 나무 -> 6.0 점수판 -> 끄기
   if (action === 'toggle-tree') {
-    treeOverlayOpen = !treeOverlayOpen;
+    scoreOverlayMode = scoreOverlayMode === 'off'
+      ? 'tree'
+      : scoreOverlayMode === 'tree'
+        ? 'board6'
+        : 'off';
+    wb6SettingsOpen = false;
     if (lastWbContainer) renderTreeOverlay(lastWbContainer);
     notifyToolbarState();
     return;
@@ -118,18 +167,7 @@ function handleToolbarAction(action) {
   const nextKind = panelMap[action];
   if (nextKind) {
     openPanelKind = openPanelKind === nextKind ? null : nextKind;
-    panelState.collapsed = false;
-    // 패널 종류별 최적 초기 크기
-    if (openPanelKind === 'timer') {
-      panelState.width = Math.min(520, Math.max(380, window.innerWidth - 60));
-      panelState.height = Math.min(440, Math.max(340, window.innerHeight - 130));
-    } else if (openPanelKind === 'students' || openPanelKind === 'seats') {
-      panelState.width = Math.min(860, Math.max(520, window.innerWidth - 220));
-      panelState.height = Math.min(540, Math.max(380, window.innerHeight - 140));
-    } else if (openPanelKind === 'selfcheck') {
-      panelState.width = Math.min(640, Math.max(420, window.innerWidth - 200));
-      panelState.height = Math.min(480, Math.max(340, window.innerHeight - 150));
-    }
+    panelCollapsed = false;
     if (lastWbContainer) renderFloatingPanel(lastWbContainer);
     notifyToolbarState();
   }
@@ -207,18 +245,18 @@ export function renderWhiteboardView(container) {
         <iframe
           id="cr2-whiteboard-frame"
           class="wb-iframe"
-          src="modules/whiteboard/index.html?v=cr2-5"
+          src="modules/whiteboard/index.html?v=cr2-6"
           title="클래스레볼루션2 만능칠판"
           allow="clipboard-read; clipboard-write; fullscreen"
         ></iframe>
 
-        <!-- 만능칠판 우측 투명 학급점수 나무·목표 오버레이 (원래 사이즈 그대로, 하단바 아래쪽 레이어) -->
+        <!-- 만능칠판 우측 투명 학급점수 나무·목표 오버레이 (원래 사이즈 그대로, 하단바 뒤 레이어, 나무 호버 시 큰 황금알 표시) -->
         <div class="wb-tree-overlay" id="wb-tree-overlay" hidden></div>
 
-        <!-- 만능칠판 우측 6.0 점수판 오버레이 (황금알 나무와 원클릭 전환, 학급점수=황금알 불변) -->
-        <aside class="wb-board6-overlay" id="wb-board6-overlay" hidden></aside>
+        <!-- 만능칠판 6.0 원본 디자인 우측 도킹 점수판 (스플리터 폭 조절 가능, 황금알=학급점수 불변) -->
+        <aside class="wb-board6-dock" id="wb-board6-overlay" hidden></aside>
 
-        <!-- 자유 이동 · 리사이즈 플로팅 패널 (학생목록·자리배치·체크표·타이머) -->
+        <!-- 자유 이동 · 리사이즈 플로팅 패널 (종류별 직전 크기·위치 기억) -->
         <div class="wb-float-panel" id="wb-float-panel" hidden></div>
       </div>
     `;
@@ -248,52 +286,35 @@ function applyPanelStageScale(bodyEl) {
   stage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
 }
 
-/** 만능칠판 우측 학급점수 오버레이 (황금알 나무 ↔ 만능칠판 6.0 점수판 전환, 학급점수=황금알 불변) */
+/** 만능칠판 우측 학급점수 오버레이 (도구 버튼 3단 순환: off -> tree -> board6) */
 function renderTreeOverlay(container) {
   const overlayEl = container.querySelector('#wb-tree-overlay');
   const board6El = container.querySelector('#wb-board6-overlay');
   if (!overlayEl || !board6El) return;
 
-  if (!treeOverlayOpen) {
+  if (scoreOverlayMode === 'off') {
     overlayEl.hidden = true;
     board6El.hidden = true;
     return;
   }
 
-  const state = store.getState();
-  const wbCfg = state.wbScoreboard || { displayMode: 'tree', baseGroupMode: 'sum', specialGroupScores: {}, classLinkRate: null, specialPendingCarry: 0 };
-
-  if (wbCfg.displayMode === 'board6') {
+  if (scoreOverlayMode === 'board6') {
     overlayEl.hidden = true;
     board6El.hidden = false;
     renderBoard6Overlay(board6El, container);
     return;
   }
 
-  // 기본 모드: 황금알 나무 원본 크기 + 하단바 뒤 레이어
+  // 황금알 나무 원본 크기 + 하단바 뒤 레이어 + 나무 호버 시 큰 황금알 부여 버튼
   board6El.hidden = true;
   overlayEl.hidden = false;
   renderGrowthView(overlayEl);
   applyTreeToolbarCutout();
-
-  // 나무 위 우측 상단에 '6.0 점수판 전환' 미니 버튼 부착
-  let switchBtn = overlayEl.querySelector('#wb-switch-to-board6');
-  if (!switchBtn) {
-    switchBtn = document.createElement('button');
-    switchBtn.type = 'button';
-    switchBtn.id = 'wb-switch-to-board6';
-    switchBtn.className = 'wb-mode-switch-pill';
-    switchBtn.textContent = '📊 6.0 점수판';
-    switchBtn.title = '만능칠판 6.0 점수판으로 전환 (황금알=학급점수 유지)';
-    overlayEl.appendChild(switchBtn);
-  }
-  switchBtn.onclick = async () => {
-    await store.update((s) => { s.wbScoreboard.displayMode = 'board6'; });
-    renderTreeOverlay(container);
-  };
 }
 
-/** 만능칠판 6.0 점수판 오버레이 (기본 모둠점수 합/평균(버림) + 교사 특별 모둠점수 + 연계율 가감 + 학급점수=황금알 연동) */
+const WB6_GROUP_COLORS = ['#2b8be0', '#39b3a2', '#f29038', '#e86f86', '#8dc228', '#9975d6', '#3ea6d8', '#d97706'];
+
+/** 만능칠판 6.0 기존 점수판 디자인 복원 (우측 전체 높이 도킹 + 좌측 스플리터 폭 조절 + 설정 팝오버 + 연계율 연동) */
 function renderBoard6Overlay(board6El, container) {
   const state = store.getState();
   const wbCfg = state.wbScoreboard || {};
@@ -304,8 +325,11 @@ function renderBoard6Overlay(board6El, container) {
   const linkRate = Math.max(1, Number(wbCfg.classLinkRate) || defaultRate);
   const carry = Number(wbCfg.specialPendingCarry) || 0;
   const eggs = state.growth?.eggs ?? 0;
+  const carryPct = Math.min(100, Math.round((Math.abs(carry) / linkRate) * 100));
 
-  const groupRows = groups.map((g) => {
+  board6El.style.width = `${board6Width}px`;
+
+  const groupRows = groups.map((g, idx) => {
     const members = students.filter((s) => s.groupId === g.id);
     const sum = members.reduce((acc, m) => acc + (Number(m.score) || 0), 0);
     const baseScore = baseMode === 'avg'
@@ -314,6 +338,7 @@ function renderBoard6Overlay(board6El, container) {
     const special = Number(wbCfg.specialGroupScores?.[g.id] || 0);
     return {
       group: g,
+      color: WB6_GROUP_COLORS[idx % WB6_GROUP_COLORS.length],
       memberCount: members.length,
       baseScore,
       special,
@@ -322,71 +347,104 @@ function renderBoard6Overlay(board6El, container) {
   });
 
   board6El.innerHTML = `
-    <div class="wb6-header">
-      <strong>📊 만능칠판 6.0 점수판</strong>
-      <div class="wb6-head-btns">
-        <button type="button" class="wb6-switch-btn" id="wb6-to-tree" title="황금알 나무로 전환 (학급점수 유지)">🥚 나무로</button>
-        <button type="button" class="wb6-close-btn" id="wb6-close" title="점수판 닫기">&times;</button>
-      </div>
-    </div>
-
-    <div class="wb6-class-card">
-      <div class="wb6-class-top">
-        <span class="wb6-class-label">🥚 학급점수 (황금알)</span>
-        <span class="wb6-carry-badge" title="특별 모둠점수 누적 → 연계율 도달 시 황금알 자동 반영">누적 ${carry}/${linkRate}</span>
-      </div>
-      <div class="wb6-class-main">
-        <button type="button" class="wb6-step-btn is-minus" id="wb6-egg-dec">−1</button>
-        <strong class="wb6-class-val">${eggs}</strong>
-        <button type="button" class="wb6-step-btn is-plus" id="wb6-egg-inc">+1</button>
-      </div>
-    </div>
-
-    <div class="wb6-config-bar">
-      <div class="wb6-cfg-row">
-        <span>기본 모둠점수</span>
-        <div class="wb6-seg">
-          <button type="button" class="${baseMode === 'sum' ? 'is-active' : ''}" data-wb6-basemode="sum">모둠원 합</button>
-          <button type="button" class="${baseMode === 'avg' ? 'is-active' : ''}" data-wb6-basemode="avg">평균(버림)</button>
+    <div class="wb6-splitter" id="wb6-splitter" title="드래그하여 점수판 너비 조절"></div>
+    <div class="wb6-dock-inner">
+      <header class="wb6-orig-header">
+        <div class="wb6-orig-title">
+          <span class="wb6-orig-dot"></span>
+          <strong>점수판</strong>
+          <span class="wb6-orig-mode-tag">${baseMode === 'avg' ? '평균(버림)' : '합계'} · ${linkRate}점/알</span>
         </div>
-      </div>
-      <div class="wb6-cfg-row">
-        <span>황금알 연계율 <small>(기본 ${defaultRate})</small></span>
-        <div class="wb6-rate-ctrl">
-          <button type="button" id="wb6-rate-dec">−</button>
-          <strong>${linkRate}점당 1알</strong>
-          <button type="button" id="wb6-rate-inc">+</button>
+        <div class="wb6-orig-actions">
+          <button type="button" class="wb6-orig-icon-btn ${wb6SettingsOpen ? 'is-active' : ''}" id="wb6-toggle-cfg" title="점수판 설정">⚙️</button>
+          <button type="button" class="wb6-orig-icon-btn" id="wb6-close" title="점수판 닫기">&times;</button>
         </div>
-      </div>
-    </div>
+      </header>
 
-    <div class="wb6-group-list">
-      ${groupRows.length === 0 ? `<div class="wb6-empty">등록된 모둠이 없습니다.</div>` : groupRows.map((r) => `
-        <div class="wb6-group-card">
-          <div class="wb6-g-info">
-            <div class="wb6-g-name">${escapeHtml(r.group.name)} <small>(${r.memberCount}명)</small></div>
-            <div class="wb6-g-detail">기본 ${r.baseScore} ${r.special >= 0 ? `+ 특별 ${r.special}` : `− 특별 ${Math.abs(r.special)}`}</div>
+      ${wb6SettingsOpen ? `
+        <div class="wb6-settings-drawer">
+          <div class="wb6-cfg-row">
+            <span>기본 모둠점수</span>
+            <div class="wb6-seg">
+              <button type="button" class="${baseMode === 'sum' ? 'is-active' : ''}" data-wb6-basemode="sum">모둠원 합</button>
+              <button type="button" class="${baseMode === 'avg' ? 'is-active' : ''}" data-wb6-basemode="avg">평균(버림)</button>
+            </div>
           </div>
-          <div class="wb6-g-ctrl">
-            <button type="button" class="wb6-g-btn is-minus" data-wb6-gdelta="${r.group.id}" data-delta="-1">−</button>
-            <strong class="wb6-g-total">${r.total}</strong>
-            <button type="button" class="wb6-g-btn is-plus" data-wb6-gdelta="${r.group.id}" data-delta="1">+</button>
+          <div class="wb6-cfg-row">
+            <span>황금알 연계율 <small>(기본 ${defaultRate})</small></span>
+            <div class="wb6-rate-ctrl">
+              <button type="button" id="wb6-rate-dec">−</button>
+              <strong>${linkRate}점당 1알</strong>
+              <button type="button" id="wb6-rate-inc">+</button>
+            </div>
           </div>
+          <button type="button" class="wb6-reset-btn" id="wb6-reset-special">교사 특별 모둠점수만 초기화</button>
         </div>
-      `).join('')}
-    </div>
+      ` : ''}
 
-    <div class="wb6-footer">
-      <button type="button" class="wb6-reset-btn" id="wb6-reset-special">교사 특별 모둠점수 초기화</button>
+      <!-- 만능칠판 6.0 상단 학급점수(황금알) 카드 -->
+      <section class="wb6-orig-class-box">
+        <div class="wb6-orig-class-head">
+          <span>🏆 학급점수 (황금알)</span>
+          <span class="wb6-orig-carry">연계 ${carry >= 0 ? `+${carry}` : carry} / ${linkRate}</span>
+        </div>
+        <div class="wb6-orig-class-row">
+          <button type="button" class="wb6-orig-round-btn is-minus" id="wb6-egg-dec">−</button>
+          <strong class="wb6-orig-class-score">${eggs}</strong>
+          <button type="button" class="wb6-orig-round-btn is-plus" id="wb6-egg-inc">+</button>
+        </div>
+        <div class="wb6-orig-progress"><div style="width:${carryPct}%;"></div></div>
+      </section>
+
+      <!-- 모둠별 점수 카드 목록 (만능칠판 6.0 스타일) -->
+      <div class="wb6-orig-group-list">
+        ${groupRows.length === 0 ? `<div class="wb6-empty">등록된 모둠이 없습니다.</div>` : groupRows.map((r) => `
+          <div class="wb6-orig-group-card" style="--g-accent:${r.color};">
+            <div class="wb6-og-top">
+              <span class="wb6-og-badge" style="background:${r.color};"></span>
+              <strong class="wb6-og-name">${escapeHtml(r.group.name)}</strong>
+              <span class="wb6-og-sub">${r.memberCount}명 · 기본 ${r.baseScore}${r.special !== 0 ? ` ${r.special > 0 ? `+ 특별 ${r.special}` : `− 특별 ${Math.abs(r.special)}`}` : ''}</span>
+            </div>
+            <div class="wb6-og-ctrl">
+              <button type="button" class="wb6-orig-round-btn is-minus is-sm" data-wb6-gdelta="${r.group.id}" data-delta="-1">−</button>
+              <strong class="wb6-og-score">${r.total}</strong>
+              <button type="button" class="wb6-orig-round-btn is-plus is-sm" data-wb6-gdelta="${r.group.id}" data-delta="1">+</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
     </div>
   `;
 
-  board6El.querySelector('#wb6-to-tree').onclick = async () => {
-    await store.update((s) => { s.wbScoreboard.displayMode = 'tree'; });
-    renderTreeOverlay(container);
+  // 좌측 경계 스플리터 드래그로 점수판 너비 자유 조절
+  const splitter = board6El.querySelector('#wb6-splitter');
+  if (splitter) {
+    splitter.onpointerdown = (ev) => {
+      ev.preventDefault();
+      const startX = ev.clientX;
+      const origW = board6Width;
+      splitter.setPointerCapture(ev.pointerId);
+      const onMove = (me) => {
+        board6Width = Math.max(260, Math.min(540, origW + (startX - me.clientX)));
+        board6El.style.width = `${board6Width}px`;
+      };
+      const onUp = () => {
+        saveBoard6Width(board6Width);
+        splitter.removeEventListener('pointermove', onMove);
+        splitter.removeEventListener('pointerup', onUp);
+      };
+      splitter.addEventListener('pointermove', onMove);
+      splitter.addEventListener('pointerup', onUp);
+    };
+  }
+
+  board6El.querySelector('#wb6-toggle-cfg').onclick = () => {
+    wb6SettingsOpen = !wb6SettingsOpen;
+    renderBoard6Overlay(board6El, container);
   };
   board6El.querySelector('#wb6-close').onclick = () => {
-    treeOverlayOpen = false;
+    scoreOverlayMode = 'off';
+    wb6SettingsOpen = false;
     renderTreeOverlay(container);
     notifyToolbarState();
   };
@@ -409,18 +467,24 @@ function renderBoard6Overlay(board6El, container) {
     };
   });
 
-  board6El.querySelector('#wb6-rate-dec').onclick = async () => {
-    const next = Math.max(1, linkRate - 1);
-    await store.update((s) => { s.wbScoreboard.classLinkRate = next; });
-    renderBoard6Overlay(board6El, container);
-  };
-  board6El.querySelector('#wb6-rate-inc').onclick = async () => {
-    const next = Math.min(99, linkRate + 1);
-    await store.update((s) => { s.wbScoreboard.classLinkRate = next; });
-    renderBoard6Overlay(board6El, container);
-  };
+  const rateDec = board6El.querySelector('#wb6-rate-dec');
+  if (rateDec) {
+    rateDec.onclick = async () => {
+      const next = Math.max(1, linkRate - 1);
+      await store.update((s) => { s.wbScoreboard.classLinkRate = next; });
+      renderBoard6Overlay(board6El, container);
+    };
+  }
+  const rateInc = board6El.querySelector('#wb6-rate-inc');
+  if (rateInc) {
+    rateInc.onclick = async () => {
+      const next = Math.min(99, linkRate + 1);
+      await store.update((s) => { s.wbScoreboard.classLinkRate = next; });
+      renderBoard6Overlay(board6El, container);
+    };
+  }
 
-  // 교사 특별 모둠점수 가감 + 모둠점수 연계율에 따른 황금알(학급점수) 자동 연동
+  // 교사 특별 모둠점수 가감 + 연계율 도달 시 황금알(학급점수) 자동 연동
   board6El.querySelectorAll('[data-wb6-gdelta]').forEach((b) => {
     b.onclick = async () => {
       const gid = b.dataset.wb6Gdelta;
@@ -453,15 +517,18 @@ function renderBoard6Overlay(board6El, container) {
     };
   });
 
-  board6El.querySelector('#wb6-reset-special').onclick = async () => {
-    if (!confirm('교사 특별 모둠점수만 0으로 초기화할까요? (학급 황금알과 학생 개인점수는 유지됩니다)')) return;
-    await store.update((s) => {
-      s.wbScoreboard.specialGroupScores = {};
-      s.wbScoreboard.specialPendingCarry = 0;
-    });
-    showToast({ title: '교사 특별 모둠점수를 초기화했습니다.' });
-    renderBoard6Overlay(board6El, container);
-  };
+  const resetSpecialBtn = board6El.querySelector('#wb6-reset-special');
+  if (resetSpecialBtn) {
+    resetSpecialBtn.onclick = async () => {
+      if (!confirm('교사 특별 모둠점수만 0으로 초기화할까요? (학급 황금알과 학생 개인점수는 유지됩니다)')) return;
+      await store.update((s) => {
+        s.wbScoreboard.specialGroupScores = {};
+        s.wbScoreboard.specialPendingCarry = 0;
+      });
+      showToast({ title: '교사 특별 모둠점수를 초기화했습니다.' });
+      renderBoard6Overlay(board6El, container);
+    };
+  }
 }
 
 function renderFloatingPanel(container) {
@@ -473,19 +540,22 @@ function renderFloatingPanel(container) {
     return;
   }
 
+  const kind = openPanelKind;
   panelEl.hidden = false;
   const host = container.querySelector('#wb-host');
   const maxW = Math.max(320, (host?.clientWidth || 1280) - 24);
   const maxH = Math.max(240, (host?.clientHeight || 800) - 90);
-  panelState.width = Math.max(320, Math.min(panelState.width, maxW));
-  panelState.height = Math.max(240, Math.min(panelState.height, maxH));
-  panelState.left = Math.max(8, Math.min(panelState.left, Math.max(8, (host?.clientWidth || 1280) - panelState.width - 8)));
-  panelState.top = Math.max(8, Math.min(panelState.top, Math.max(8, (host?.clientHeight || 800) - 80)));
+  const curLayout = { ...getPanelLayout(kind) };
+  curLayout.width = Math.max(320, Math.min(curLayout.width, maxW));
+  curLayout.height = Math.max(240, Math.min(curLayout.height, maxH));
+  curLayout.left = Math.max(8, Math.min(curLayout.left, Math.max(8, (host?.clientWidth || 1280) - curLayout.width - 8)));
+  curLayout.top = Math.max(8, Math.min(curLayout.top, Math.max(8, (host?.clientHeight || 800) - 80)));
+  panelLayouts[kind] = curLayout;
 
-  panelEl.style.left = `${panelState.left}px`;
-  panelEl.style.top = `${panelState.top}px`;
-  panelEl.style.width = `${panelState.width}px`;
-  panelEl.style.height = panelState.collapsed ? 'auto' : `${panelState.height}px`;
+  panelEl.style.left = `${curLayout.left}px`;
+  panelEl.style.top = `${curLayout.top}px`;
+  panelEl.style.width = `${curLayout.width}px`;
+  panelEl.style.height = panelCollapsed ? 'auto' : `${curLayout.height}px`;
 
   const titleMap = {
     students: '👥 학생목록 (원본 비율)',
@@ -496,49 +566,50 @@ function renderFloatingPanel(container) {
 
   panelEl.innerHTML = `
     <div class="wbf-header" id="wbf-drag-handle">
-      <strong class="wbf-title">${titleMap[openPanelKind] || '도구'}</strong>
+      <strong class="wbf-title">${titleMap[kind] || '도구'}</strong>
       <div class="wbf-zoom-controls">
-        <button type="button" class="wbf-icon-btn" id="wbf-collapse" title="접기/펼치기">${panelState.collapsed ? '▾' : '▴'}</button>
+        <button type="button" class="wbf-icon-btn" id="wbf-collapse" title="접기/펼치기">${panelCollapsed ? '▾' : '▴'}</button>
         <button type="button" class="wbf-icon-btn" id="wbf-close" title="닫기">&times;</button>
       </div>
     </div>
-    ${panelState.collapsed ? '' : `
+    ${panelCollapsed ? '' : `
       <div class="wbf-body is-native-host" id="wbf-native-body"></div>
       <div class="wbf-resize-handle" id="wbf-resize-handle" title="드래그하여 창 크기 조절"></div>
     `}
   `;
 
   panelEl.querySelector('#wbf-close').onclick = () => {
+    savePanelLayouts();
     openPanelKind = null;
     renderFloatingPanel(container);
     notifyToolbarState();
   };
   panelEl.querySelector('#wbf-collapse').onclick = () => {
-    panelState.collapsed = !panelState.collapsed;
+    panelCollapsed = !panelCollapsed;
     renderFloatingPanel(container);
   };
 
-  // 본문 마운트: 학생목록 / 자리배치는 가상 1280x740 스테이지에 담아 카드+하단바 전체를 동일 비율로 축소/확대!
+  // 본문 마운트
   const bodyEl = panelEl.querySelector('#wbf-native-body');
   if (bodyEl) {
-    if (openPanelKind === 'students' || openPanelKind === 'seats') {
+    if (kind === 'students' || kind === 'seats') {
       bodyEl.innerHTML = `<div class="wbf-scaled-stage" style="width:1280px;height:740px;"></div>`;
       const stageEl = bodyEl.querySelector('.wbf-scaled-stage');
-      setStudentsSubView(openPanelKind === 'seats' ? 'seats' : 'list');
+      setStudentsSubView(kind === 'seats' ? 'seats' : 'list');
       renderStudentsView(stageEl);
       applyPanelStageScale(bodyEl);
       requestAnimationFrame(() => {
         refitStudentsView(stageEl);
         applyPanelStageScale(bodyEl);
       });
-    } else if (openPanelKind === 'timer') {
+    } else if (kind === 'timer') {
       renderTimerView(bodyEl);
-    } else if (openPanelKind === 'selfcheck') {
+    } else if (kind === 'selfcheck') {
       renderSelfCheckInPanel(bodyEl, container);
     }
   }
 
-  // 드래그 이동 (헤더 바)
+  // 드래그 이동 (종류별 위치 자동 기억)
   const dragHandle = panelEl.querySelector('#wbf-drag-handle');
   if (dragHandle) {
     dragHandle.onpointerdown = (ev) => {
@@ -546,16 +617,17 @@ function renderFloatingPanel(container) {
       ev.preventDefault();
       const startX = ev.clientX;
       const startY = ev.clientY;
-      const origLeft = panelState.left;
-      const origTop = panelState.top;
+      const origLeft = panelLayouts[kind].left;
+      const origTop = panelLayouts[kind].top;
       dragHandle.setPointerCapture(ev.pointerId);
       const onMove = (me) => {
-        panelState.left = Math.max(0, origLeft + (me.clientX - startX));
-        panelState.top = Math.max(0, origTop + (me.clientY - startY));
-        panelEl.style.left = `${panelState.left}px`;
-        panelEl.style.top = `${panelState.top}px`;
+        panelLayouts[kind].left = Math.max(0, origLeft + (me.clientX - startX));
+        panelLayouts[kind].top = Math.max(0, origTop + (me.clientY - startY));
+        panelEl.style.left = `${panelLayouts[kind].left}px`;
+        panelEl.style.top = `${panelLayouts[kind].top}px`;
       };
       const onUp = () => {
+        savePanelLayouts();
         dragHandle.removeEventListener('pointermove', onMove);
         dragHandle.removeEventListener('pointerup', onUp);
       };
@@ -564,7 +636,7 @@ function renderFloatingPanel(container) {
     };
   }
 
-  // 우하단 모서리 드래그 리사이즈 (학생목록·자리배치는 비율 유지 실시간 리핏!)
+  // 우하단 모서리 드래그 리사이즈 (종류별 크기 자동 기억 + 학생/자리배치 실시간 비율 스케일링)
   const resizeHandle = panelEl.querySelector('#wbf-resize-handle');
   if (resizeHandle) {
     resizeHandle.onpointerdown = (ev) => {
@@ -572,22 +644,23 @@ function renderFloatingPanel(container) {
       ev.stopPropagation();
       const startX = ev.clientX;
       const startY = ev.clientY;
-      const origW = panelState.width;
-      const origH = panelState.height;
+      const origW = panelLayouts[kind].width;
+      const origH = panelLayouts[kind].height;
       resizeHandle.setPointerCapture(ev.pointerId);
       const onMove = (me) => {
-        panelState.width = Math.max(320, Math.min(maxW, origW + (me.clientX - startX)));
-        panelState.height = Math.max(240, Math.min(maxH, origH + (me.clientY - startY)));
-        panelEl.style.width = `${panelState.width}px`;
-        panelEl.style.height = `${panelState.height}px`;
-        if (bodyEl && (openPanelKind === 'students' || openPanelKind === 'seats')) {
+        panelLayouts[kind].width = Math.max(320, Math.min(maxW, origW + (me.clientX - startX)));
+        panelLayouts[kind].height = Math.max(240, Math.min(maxH, origH + (me.clientY - startY)));
+        panelEl.style.width = `${panelLayouts[kind].width}px`;
+        panelEl.style.height = `${panelLayouts[kind].height}px`;
+        if (bodyEl && (kind === 'students' || kind === 'seats')) {
           applyPanelStageScale(bodyEl);
         }
       };
       const onUp = () => {
+        savePanelLayouts();
         resizeHandle.removeEventListener('pointermove', onMove);
         resizeHandle.removeEventListener('pointerup', onUp);
-        if (bodyEl && (openPanelKind === 'students' || openPanelKind === 'seats')) {
+        if (bodyEl && (kind === 'students' || kind === 'seats')) {
           applyPanelStageScale(bodyEl);
         }
       };

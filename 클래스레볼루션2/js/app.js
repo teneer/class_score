@@ -40,6 +40,7 @@ function switchMode(mode, options = {}) {
   if (shellEl) {
     shellEl.classList.toggle('is-whiteboard-fullscreen', mode === 'whiteboard');
   }
+  document.body.classList.toggle('is-whiteboard-fullscreen', mode === 'whiteboard');
 
   if (mode === 'students') {
     setStudentsSubView('list');

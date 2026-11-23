@@ -1426,15 +1426,24 @@ boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'
     });
     window.addEventListener('message', (ev) => {
       if (ev.data?.type !== 'cr2-wb-state') return;
-      const { openPanelKind, treeOverlayOpen } = ev.data;
+      const { openPanelKind, scoreOverlayMode } = ev.data;
       toolsMenu.querySelectorAll('[data-cr2-tool]').forEach((btn) => {
         const act = btn.dataset.cr2Tool;
+        if (act === 'toggle-tree') {
+          const isOn = scoreOverlayMode === 'tree' || scoreOverlayMode === 'board6';
+          btn.classList.toggle('is-active', isOn);
+          btn.textContent = scoreOverlayMode === 'tree'
+            ? '🥚 나무 ON'
+            : scoreOverlayMode === 'board6'
+              ? '📊 점수판 ON'
+              : '🥚 학급점수';
+          return;
+        }
         const on =
           (act === 'panel-students' && openPanelKind === 'students') ||
           (act === 'panel-seats' && openPanelKind === 'seats') ||
           (act === 'panel-selfcheck' && openPanelKind === 'selfcheck') ||
-          (act === 'panel-timer' && openPanelKind === 'timer') ||
-          (act === 'toggle-tree' && Boolean(treeOverlayOpen));
+          (act === 'panel-timer' && openPanelKind === 'timer');
         btn.classList.toggle('is-active', on);
       });
     });

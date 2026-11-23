@@ -25,10 +25,15 @@
   background: #fff;
 }
 
-/* 만능칠판 전용 풀스크린 모드 — 상단 바 및 좌측 사이드바 완전 숨김 */
+/* 만능칠판 전용 풀스크린 모드 — 상단 바 및 좌측 사이드바 완전 숨김 + 점수 부여창/연출 100% 전체화면 */
 .app-shell.is-whiteboard-fullscreen .app-header,
 .app-shell.is-whiteboard-fullscreen .side-rail {
   display: none !important;
+}
+body.is-whiteboard-fullscreen .composer-overlay,
+body.is-whiteboard-fullscreen .fx-stage {
+  top: 0 !important;
+  left: 0 !important;
 }
 
 .app-header {

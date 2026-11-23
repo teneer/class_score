@@ -302,8 +302,14 @@ function paintGrowthDom(root) {
         <div class="growth-village-ground ${cameraDecade !== 0 ? 'is-below-view' : ''}" style="--village-shift:${villageShift};"></div>
       </div>
 
-      <!-- 2. 우측 나무 기둥 배경 (#915f3c, z-index: 3) -->
+      <!-- 2. 우측 나무 기둥 배경 (#915f3c, z-index: 3) + 만능칠판 나무 호버용 큰 황금알 부여 버튼 -->
       <div class="growth-tree-trunk" aria-hidden="true"></div>
+      <div class="wb-tree-hover-dock">
+        <button type="button" class="big-egg-btn wb-tree-hover-egg" id="btn-wb-tree-big-egg" title="클릭하여 황금알 직접 부여/차감">
+          <span class="big-egg-num">${eggs}</span>
+          <span class="big-egg-plus" aria-hidden="true"></span>
+        </button>
+      </div>
 
       <!-- 3. 원본 370x1080 나뭇가지 오버레이 (296px 폭으로 기둥 좌측 경계에 0px 오차 밀착, z-index: 4) -->
       <div class="tree-branch-overlay" aria-hidden="true">
@@ -495,12 +501,16 @@ function bindGrowthEvents(root, eggs, specialEggs) {
     };
   }
 
-  root.querySelector('#btn-toggle-egg-popup').onclick = () => {
+  const openEggPopup = () => {
     goalMenuOpen = false;
     eggPopupOpen = true;
     eggPendingDelta = 0;
     paintGrowthDom(root);
   };
+  const bigEggBtn = root.querySelector('#btn-toggle-egg-popup');
+  if (bigEggBtn) bigEggBtn.onclick = openEggPopup;
+  const wbBigEggBtn = root.querySelector('#btn-wb-tree-big-egg');
+  if (wbBigEggBtn) wbBigEggBtn.onclick = openEggPopup;
 
   if (eggPopupOpen) {
     const closePopup = () => {
