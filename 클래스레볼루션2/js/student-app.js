@@ -155,12 +155,16 @@ async function persistCyberState(studentId, { active, siteId = '', siteTitle = '
   }
 }
 
-/** 사이버지식정보방 즉시 접속 종료 (사유 메시지 출력) */
+/** 사이버지식정보방 즉시 접속 종료 (팝업 자동 닫기 + 사유 메시지 출력) */
 async function terminateCyberSession(reasonMessage = '', silent = false) {
   const prev = activeCyberSession;
   if (!prev) return;
   if (prev.timerId) clearInterval(prev.timerId);
   activeCyberSession = null;
+
+  if (prev.popupWin && !prev.popupWin.closed) {
+    try { prev.popupWin.close(); } catch {}
+  }
 
   const frame = document.getElementById('st-cyber-frame');
   if (frame) {
@@ -392,7 +396,7 @@ function renderHome(me) {
                   <h3 style="margin:4px 0;">${esc(site.title)}</h3>
                   <div class="st-card-meta" style="margin-bottom:6px;">
                     <span>${limitMin > 0 ? `⏱ 최대 ${limitMin}분 이용` : '⏱ 시간 제한 없음'}</span>
-                    ${site.strictSinglePage ? `<span>🔒 이탈 시 종료</span>` : ''}
+                    ${site.openMode === 'popup' ? `<span>🪟 제어 팝업 창</span>` : (site.strictSinglePage ? `<span>🔒 이탈 시 종료</span>` : '')}
                   </div>
                   <button type="button" class="st-btn ${canEnter ? 'is-primary' : 'is-outline'}" data-enter-cyber="${site.id}" ${canEnter ? '' : 'disabled'} style="width:100%;">
                     ${canEnter ? '🚀 입장하기' : '🪙 코인이 부족합니다'}
@@ -544,7 +548,7 @@ function renderHome(me) {
   });
 }
 
-/** 사이버지식정보방 입장 및 앱 내부 풀스크린 뷰어 시작 (URL 비공개 · 분당 코인 차감 · 시간 제한 · 이탈 감지) */
+/** 사이버지식정보방 입장 및 실행 (앱 내부 풀스크린 뷰어 또는 제어 팝업 창) */
 async function startCyberSession(me, site) {
   const cr = classData.cyberRoom || {};
   if (!isStudentCyberAllowed(cr, me)) {
@@ -554,6 +558,7 @@ async function startCyberSession(me, site) {
   const entryCost = Math.max(0, Number(site.entryCost) || 0);
   const coinPerMin = Math.max(0, Number(site.coinPerMin) ?? 1);
   const timeLimitSec = Math.max(0, Number(site.timeLimitMin) || 0) * 60;
+  const openMode = site.openMode === 'popup' ? 'popup' : 'iframe';
   let coins = getStudentCyberCoins(cr, me.id);
 
   if (coins < entryCost || (coinPerMin > 0 && coins <= entryCost)) {
@@ -561,11 +566,30 @@ async function startCyberSession(me, site) {
     return;
   }
 
+  // 제어 팝업 창 모드: 브라우저 팝업 차단 방지를 위해 클릭 콜스택 내에서 동기적으로 즉시 open
+  let popupWin = null;
+  if (openMode === 'popup') {
+    const w = Math.min(1160, Math.max(820, window.screen.availWidth - 120));
+    const h = Math.min(780, Math.max(580, window.screen.availHeight - 120));
+    const left = Math.max(0, Math.round((window.screen.availWidth - w) / 2));
+    const top = Math.max(0, Math.round((window.screen.availHeight - h) / 2));
+    popupWin = window.open(
+      site.url,
+      'cr2_cyber_popup',
+      `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`
+    );
+    if (!popupWin) {
+      showStToast('팝업이 차단되었습니다! 주소창 우측에서 팝업을 허용한 뒤 다시 눌러주세요.');
+      return;
+    }
+  }
+
   cyberTerminateMsg = '';
   coins = Math.max(0, coins - entryCost);
 
   activeCyberSession = {
-    site: { ...site, entryCost, coinPerMin, timeLimitSec },
+    site: { ...site, openMode, entryCost, coinPerMin, timeLimitSec },
+    popupWin,
     startedAt: Date.now(),
     elapsedSec: 0,
     loadCount: 0,
@@ -581,16 +605,28 @@ async function startCyberSession(me, site) {
     coinsAfter: coins,
   }).catch(() => {});
 
-  renderCyberViewer(me);
+  if (openMode === 'popup') {
+    renderCyberPopupController(me);
+  } else {
+    renderCyberViewer(me);
+  }
 
-  // 1초마다 이용 시간 갱신, 시간 제한 및 분당 코인 차감 처리
+  // 1초마다 이용 시간 갱신, 팝업 닫힘 감지, 시간 제한 및 분당 코인 차감 처리
   activeCyberSession.timerId = setInterval(async () => {
     if (!activeCyberSession) return;
+
+    // 제어 팝업 창을 학생이 직접 닫았으면 즉시 이용 종료 및 과금 중단
+    if (activeCyberSession.site.openMode === 'popup' && activeCyberSession.popupWin && activeCyberSession.popupWin.closed) {
+      await terminateCyberSession('', false);
+      showStToast('팝업 창이 닫혀 사이버지식정보방 이용을 종료했습니다.');
+      return;
+    }
+
     activeCyberSession.elapsedSec += 1;
     const elapsed = activeCyberSession.elapsedSec;
     const sInfo = activeCyberSession.site;
 
-    // 상단 상태바 DOM만 갱신 (iframe 리로드 없음)
+    // 상단 상태바 DOM만 갱신 (iframe/팝업 리로드 없음)
     const timeEl = document.getElementById('st-cyber-time-live');
     if (timeEl) {
       if (sInfo.timeLimitSec > 0) {
@@ -601,7 +637,7 @@ async function startCyberSession(me, site) {
       }
     }
 
-    // 1) 코인 관계없이 시간 제한 도달 시 접속종료
+    // 1) 코인 관계없이 시간 제한 도달 시 접속종료 (팝업 자동 닫기 포함)
     if (sInfo.timeLimitSec > 0 && elapsed >= sInfo.timeLimitSec) {
       await terminateCyberSession('지정된 이용 시간이 모두 종료되어 접속을 종료합니다.');
       return;
@@ -631,6 +667,52 @@ async function startCyberSession(me, site) {
       }
     }
   }, 1000);
+}
+
+/** 제어 팝업 창 이용 중 학생 앱 상태 대시보드 */
+function renderCyberPopupController(me) {
+  if (!activeCyberSession) return;
+  const { site, coins } = activeCyberSession;
+
+  appEl.innerHTML = `
+    ${renderHeader(me)}
+    <main class="st-main">
+      <div class="st-work-card" style="text-align:center;align-items:center;padding:40px 24px;gap:16px;">
+        <img src="assets/visuals/icon-cyber.svg" alt="" width="72" height="72">
+        <h2 style="margin:0;font-size:22px;">🪟 ${esc(site.title)} 이용 중</h2>
+        <p style="margin:0;font-size:14px;color:#6f675a;line-height:1.6;">
+          별도의 제어 팝업 창에서 사이트가 열려 있습니다.<br>
+          코인이나 이용 시간이 종료되거나 선생님이 접속을 차단하면 팝업 창이 자동으로 닫힙니다.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:4px 0;">
+          <span class="st-pill is-coin" id="st-cyber-coin-live" style="font-size:15px;padding:7px 14px;">🪙 ${coins}코인</span>
+          <span class="st-cyber-timer-pill" id="st-cyber-time-live" style="font-size:15px;padding:7px 14px;">${site.timeLimitSec > 0 ? `⏱ 남은 시간 ${formatMmSs(site.timeLimitSec)}` : '⏱ 이용 중 00:00'}</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px;">
+          <button type="button" class="st-btn is-primary" id="btn-focus-cyber-popup">🪟 팝업 창 앞으로 가져오기</button>
+          <button type="button" class="st-btn is-outline" id="btn-exit-cyber">🚪 이용 종료 및 팝업 닫기</button>
+        </div>
+      </div>
+    </main>
+  `;
+
+  document.getElementById('st-btn-logout').onclick = () => {
+    terminateCyberSession('', true);
+    loggedStudentId = null;
+    activeAssignmentId = null;
+    saveSession(null);
+    render();
+  };
+  document.getElementById('btn-focus-cyber-popup').onclick = () => {
+    if (activeCyberSession?.popupWin && !activeCyberSession.popupWin.closed) {
+      activeCyberSession.popupWin.focus();
+    } else {
+      terminateCyberSession('', false);
+    }
+  };
+  document.getElementById('btn-exit-cyber').onclick = () => {
+    terminateCyberSession('', false);
+  };
 }
 
 /** 학생용 앱 내부 사이버지식정보방 풀스크린 뷰어 (URL 주소 완전 비공개) */

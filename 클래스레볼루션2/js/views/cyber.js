@@ -131,10 +131,11 @@ export function renderCyberView(container) {
                       </label>
                     </div>
                     <div class="cyber-site-badges">
+                      <span class="cyber-rule-pill">${site.openMode === 'popup' ? '🪟 제어 팝업' : '🖼️ 앱 내부'}</span>
                       <span class="cyber-rule-pill">입장 ${Number(site.entryCost) || 0}코인</span>
                       <span class="cyber-rule-pill is-coin">분당 ${Number(site.coinPerMin) ?? 1}코인</span>
                       <span class="cyber-rule-pill">${Number(site.timeLimitMin) > 0 ? `⏱ 최대 ${site.timeLimitMin}분` : '⏱ 시간무제한'}</span>
-                      ${site.strictSinglePage ? `<span class="cyber-rule-pill is-strict">🔒 단일페이지 고정</span>` : ''}
+                      ${site.openMode !== 'popup' && site.strictSinglePage ? `<span class="cyber-rule-pill is-strict">🔒 단일페이지 고정</span>` : ''}
                     </div>
                     <div class="cyber-site-foot">
                       <span class="cyber-url-preview" title="${escapeAttr(site.url)}">${escapeHtml(site.url)}</span>
@@ -446,13 +447,23 @@ function openSiteEditorModal(existing, onSaved) {
 
         <div id="cy-iframe-test-wrap" hidden style="margin-top:8px;border:1.5px solid #dedad0;border-radius:10px;overflow:hidden;background:#f5f3ea;">
           <div style="padding:6px 10px;background:#fffbe0;font-size:12px;font-weight:700;color:#4b3808;display:flex;justify-content:space-between;">
-            <span>🔍 앱 내부 열림 미리보기 (빈 화면·거부 메시지가 뜨면 해당 사이트가 내부 내장을 차단한 것입니다)</span>
+            <span>🔍 앱 내부 열림 미리보기 (연결 거부가 뜨면 아래 실행 방식을 <b>🪟 제어 팝업 창</b>으로 선택하세요)</span>
             <button type="button" id="btn-cy-close-test" style="font-weight:900;">닫기</button>
           </div>
           <iframe id="cy-test-frame" style="width:100%;height:200px;border:0;background:#fff;" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
         </div>
 
         <div class="field-row" style="margin-top:12px;">
+          <label class="field-label" style="flex:1;">
+            <span>실행 방식</span>
+            <select name="openMode" id="cy-open-mode">
+              <option value="iframe" ${existing?.openMode !== 'popup' ? 'selected' : ''}>🖼️ 앱 내부 열기 (URL 비공개 · 이탈 시 종료)</option>
+              <option value="popup" ${existing?.openMode === 'popup' ? 'selected' : ''}>🪟 제어 팝업 창 (연결 거부 사이트용 · 만료/차단 시 자동 닫기)</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="field-row" style="margin-top:10px;">
           <label class="field-label">
             <span>입장 코인 (0 가능)</span>
             <input type="number" name="entryCost" min="0" max="999" value="${Number(existing?.entryCost ?? def.entryCost ?? 0)}">
@@ -518,6 +529,7 @@ function openSiteEditorModal(existing, onSaved) {
       entryCost: Math.max(0, Math.trunc(Number(fd.get('entryCost') || 0))),
       coinPerMin: Math.max(0, Math.trunc(Number(fd.get('coinPerMin') || 0))),
       timeLimitMin: Math.max(0, Math.trunc(Number(fd.get('timeLimitMin') || 0))),
+      openMode: String(fd.get('openMode') || 'iframe') === 'popup' ? 'popup' : 'iframe',
       strictSinglePage: fd.get('strictSinglePage') === 'on',
       enabled: existing?.enabled !== false,
       createdAt: existing?.createdAt || Date.now(),
