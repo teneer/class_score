@@ -155,11 +155,14 @@ async function persistCyberState(studentId, { active, siteId = '', siteTitle = '
   }
 }
 
-/** 사이버지식정보방 즉시 접속 종료 (팝업 자동 닫기 + 사유 메시지 출력) */
+/** 사이버지식정보방 즉시 접속 종료 (팝업 자동 닫기 + 워커/타이머 정리 + 사유 메시지 출력) */
 async function terminateCyberSession(reasonMessage = '', silent = false) {
   const prev = activeCyberSession;
   if (!prev) return;
   if (prev.timerId) clearInterval(prev.timerId);
+  if (prev.worker) {
+    try { prev.worker.terminate(); } catch {}
+  }
   activeCyberSession = null;
 
   if (prev.popupWin && !prev.popupWin.closed) {
@@ -592,9 +595,12 @@ async function startCyberSession(me, site) {
     popupWin,
     startedAt: Date.now(),
     elapsedSec: 0,
+    chargedMinutes: 0,
     loadCount: 0,
     coins,
     timerId: null,
+    worker: null,
+    ticking: false,
   };
 
   playSound('restoreDone');
@@ -611,62 +617,81 @@ async function startCyberSession(me, site) {
     renderCyberViewer(me);
   }
 
-  // 1초마다 이용 시간 갱신, 팝업 닫힘 감지, 시간 제한 및 분당 코인 차감 처리
-  activeCyberSession.timerId = setInterval(async () => {
-    if (!activeCyberSession) return;
-
-    // 제어 팝업 창을 학생이 직접 닫았으면 즉시 이용 종료 및 과금 중단
-    if (activeCyberSession.site.openMode === 'popup' && activeCyberSession.popupWin && activeCyberSession.popupWin.closed) {
-      await terminateCyberSession('', false);
-      showStToast('팝업 창이 닫혀 사이버지식정보방 이용을 종료했습니다.');
-      return;
-    }
-
-    activeCyberSession.elapsedSec += 1;
-    const elapsed = activeCyberSession.elapsedSec;
-    const sInfo = activeCyberSession.site;
-
-    // 상단 상태바 DOM만 갱신 (iframe/팝업 리로드 없음)
-    const timeEl = document.getElementById('st-cyber-time-live');
-    if (timeEl) {
-      if (sInfo.timeLimitSec > 0) {
-        const remain = Math.max(0, sInfo.timeLimitSec - elapsed);
-        timeEl.textContent = `⏱ 남은 시간 ${formatMmSs(remain)}`;
-      } else {
-        timeEl.textContent = `⏱ 이용 중 ${formatMmSs(elapsed)}`;
-      }
-    }
-
-    // 1) 코인 관계없이 시간 제한 도달 시 접속종료 (팝업 자동 닫기 포함)
-    if (sInfo.timeLimitSec > 0 && elapsed >= sInfo.timeLimitSec) {
-      await terminateCyberSession('지정된 이용 시간이 모두 종료되어 접속을 종료합니다.');
-      return;
-    }
-
-    // 2) 분당 코인 차감 (60초마다)
-    if (sInfo.coinPerMin > 0 && elapsed > 0 && elapsed % 60 === 0) {
-      const nextCoins = Math.max(0, activeCyberSession.coins - sInfo.coinPerMin);
-      activeCyberSession.coins = nextCoins;
-      const coinEl = document.getElementById('st-cyber-coin-live');
-      if (coinEl) coinEl.textContent = `🪙 ${nextCoins}코인`;
-
-      await persistCyberState(me.id, {
-        active: nextCoins > 0,
-        siteId: sInfo.id,
-        siteTitle: sInfo.title,
-        coinsAfter: nextCoins,
-      }).catch(() => {});
-
-      if (nextCoins <= 0) {
-        await terminateCyberSession('보유 코인이 모두 차감되어 접속을 종료합니다.');
+  // 실제 경과 시각(Date.now) 기반 1초 틱 처리 (백그라운드 탭 스로틀링에도 정확한 시점에 차감 및 팝업 자동 닫기)
+  const onTick = async () => {
+    if (!activeCyberSession || activeCyberSession.ticking) return;
+    activeCyberSession.ticking = true;
+    try {
+      // 제어 팝업 창을 학생이 직접 닫았으면 즉시 이용 종료 및 과금 중단
+      if (activeCyberSession.site.openMode === 'popup' && activeCyberSession.popupWin && activeCyberSession.popupWin.closed) {
+        await terminateCyberSession('', false);
+        showStToast('팝업 창이 닫혀 사이버지식정보방 이용을 종료했습니다.');
         return;
       }
-      if (nextCoins <= sInfo.coinPerMin) {
-        playSound('tick');
-        showStToast(`⚠️ 남은 코인이 ${nextCoins}코인(약 1분 분량)입니다!`);
+
+      const elapsed = Math.max(0, Math.floor((Date.now() - activeCyberSession.startedAt) / 1000));
+      activeCyberSession.elapsedSec = elapsed;
+      const sInfo = activeCyberSession.site;
+
+      // 상단 상태바 DOM만 갱신 (iframe/팝업 리로드 없음)
+      const timeEl = document.getElementById('st-cyber-time-live');
+      if (timeEl) {
+        if (sInfo.timeLimitSec > 0) {
+          const remain = Math.max(0, sInfo.timeLimitSec - elapsed);
+          timeEl.textContent = `⏱ 남은 시간 ${formatMmSs(remain)}`;
+        } else {
+          timeEl.textContent = `⏱ 이용 중 ${formatMmSs(elapsed)}`;
+        }
       }
+
+      // 1) 코인 관계없이 시간 제한 도달 시 즉시 접속종료 (팝업 자동 닫기 포함)
+      if (sInfo.timeLimitSec > 0 && elapsed >= sInfo.timeLimitSec) {
+        await terminateCyberSession('지정된 이용 시간이 모두 종료되어 접속을 종료합니다.');
+        return;
+      }
+
+      // 2) 분당 코인 차감 (실제 경과 분 수 기준 — 백그라운드 지연이 있어도 누락 없이 차감)
+      const passedMinutes = Math.floor(elapsed / 60);
+      if (sInfo.coinPerMin > 0 && passedMinutes > activeCyberSession.chargedMinutes) {
+        const deltaMin = passedMinutes - activeCyberSession.chargedMinutes;
+        activeCyberSession.chargedMinutes = passedMinutes;
+        const nextCoins = Math.max(0, activeCyberSession.coins - sInfo.coinPerMin * deltaMin);
+        activeCyberSession.coins = nextCoins;
+        const coinEl = document.getElementById('st-cyber-coin-live');
+        if (coinEl) coinEl.textContent = `🪙 ${nextCoins}코인`;
+
+        await persistCyberState(me.id, {
+          active: nextCoins > 0,
+          siteId: sInfo.id,
+          siteTitle: sInfo.title,
+          coinsAfter: nextCoins,
+        }).catch(() => {});
+
+        if (nextCoins <= 0) {
+          await terminateCyberSession('보유 코인이 모두 차감되어 접속을 종료합니다.');
+          return;
+        }
+        if (nextCoins <= sInfo.coinPerMin) {
+          playSound('tick');
+          showStToast(`⚠️ 남은 코인이 ${nextCoins}코인(약 1분 분량)입니다!`);
+        }
+      }
+    } finally {
+      if (activeCyberSession) activeCyberSession.ticking = false;
     }
-  }, 1000);
+  };
+
+  // 백그라운드 탭에서도 정확한 1초 틱을 유지하기 위해 경량 Blob Web Worker 사용 (미지원 시 setInterval 폴백)
+  try {
+    const blob = new Blob(['setInterval(() => postMessage(1), 1000);'], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(blob);
+    const worker = new Worker(workerUrl);
+    URL.revokeObjectURL(workerUrl);
+    worker.onmessage = () => { onTick(); };
+    activeCyberSession.worker = worker;
+  } catch {
+    activeCyberSession.timerId = setInterval(() => { onTick(); }, 1000);
+  }
 }
 
 /** 제어 팝업 창 이용 중 학생 앱 상태 대시보드 */
