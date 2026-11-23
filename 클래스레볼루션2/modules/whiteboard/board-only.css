@@ -4,3 +4,97 @@ body.score-open #scorePanel, body.score-full #scorePanel { display: none !import
 #canvas-container { left: 0 !important; right: 0 !important; width: 100% !important; }
 body.score-full #canvas-container { visibility: visible !important; }
 body.score-full #toolbarScaleWrap { display: block !important; }
+
+
+/* 클래스레볼루션2 하단바 통합: 좌측 끝내기 버튼 + 도구 버튼 & 하단 펼침 트레이 */
+.cr2-exit-btn {
+  background: #fff0f2 !important;
+  border: 1.5px solid #e73b59 !important;
+  color: #b81d3a !important;
+  font-weight: 800 !important;
+  padding: 0 11px !important;
+  white-space: nowrap;
+}
+.cr2-exit-btn:hover {
+  background: #e73b59 !important;
+  color: #fff !important;
+}
+
+.cr2-tools-btn {
+  background: #ffe838 !important;
+  border: 1.5px solid #d8b511 !important;
+  color: #4b3808 !important;
+  font-weight: 900 !important;
+  padding: 0 12px !important;
+  white-space: nowrap;
+}
+.cr2-tools-btn.is-open,
+.cr2-tools-btn:hover {
+  background: #ffd633 !important;
+}
+
+.cr2-tools-tray {
+  position: fixed;
+  left: 50%;
+  bottom: 72px;
+  transform: translateX(-50%);
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 2px solid #e2c515;
+  box-shadow: 0 10px 28px rgba(45, 36, 22, 0.24);
+  backdrop-filter: blur(8px);
+  flex-wrap: nowrap;
+  max-width: calc(100vw - 24px);
+  overflow-x: auto;
+}
+.cr2-tools-tray[hidden] {
+  display: none !important;
+}
+
+.cr2-tray-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 13px;
+  border-radius: 99px;
+  border: 1.5px solid #dedad0;
+  background: #faf8f2;
+  color: #4a4235;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.08s, background 0.12s, border-color 0.12s;
+}
+.cr2-tray-btn:hover {
+  background: #fff8cf;
+  border-color: #e2c515;
+  transform: translateY(-1px);
+}
+.cr2-tray-btn.is-active {
+  background: #ffe838;
+  border-color: #d8b511;
+  color: #4b3808;
+}
+.cr2-tray-btn.is-plus {
+  background: #198bd2;
+  border-color: #1474b0;
+  color: #fff;
+}
+.cr2-tray-btn.is-minus {
+  background: #e73b59;
+  border-color: #c72845;
+  color: #fff;
+}
+.cr2-tray-sep {
+  width: 1px;
+  height: 22px;
+  background: #dedad0;
+  margin: 0 2px;
+}

@@ -1388,3 +1388,55 @@ async function boot() {
   try { window.parent?.postMessage({ type: 'cr2-wb-ready' }, '*'); } catch {}
 }
 boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'?' 파일을 직접 열지 말고 HTTPS 배포 주소 또는 localhost에서 실행해주세요.':'';const fatal=$('fatalError');if(fatal){fatal.textContent=`앱을 시작하지 못했습니다. ${error.message}${hint}`;fatal.hidden=false;}status('시작 실패','error');});
+
+/* 클래스레볼루션2 하단바 끝내기 · 도구 메뉴 브리지 */
+(function initCr2ToolbarBridge() {
+  const exitBtn = document.getElementById('cr2ExitBoardBtn');
+  const toolsBtn = document.getElementById('cr2ToolsBtn');
+  const toolsMenu = document.getElementById('cr2ToolsMenu');
+  if (exitBtn) {
+    exitBtn.addEventListener('click', () => {
+      try { window.parent.postMessage({ type: 'cr2-wb-action', action: 'exit' }, '*'); } catch {}
+    });
+  }
+  if (toolsBtn && toolsMenu) {
+    const setMenuOpen = (open) => {
+      toolsMenu.hidden = !open;
+      toolsBtn.classList.toggle('is-open', open);
+      toolsBtn.setAttribute('aria-expanded', String(open));
+    };
+    toolsBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      setMenuOpen(toolsMenu.hidden);
+    });
+    toolsMenu.querySelectorAll('[data-cr2-tool]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const action = btn.dataset.cr2Tool;
+        try { window.parent.postMessage({ type: 'cr2-wb-action', action }, '*'); } catch {}
+        if (action === 'score-plus' || action === 'score-minus') {
+          setMenuOpen(false);
+        }
+      });
+    });
+    document.addEventListener('pointerdown', (ev) => {
+      if (!toolsMenu.hidden && !toolsMenu.contains(ev.target) && ev.target !== toolsBtn) {
+        setMenuOpen(false);
+      }
+    });
+    window.addEventListener('message', (ev) => {
+      if (ev.data?.type !== 'cr2-wb-state') return;
+      const { openPanelKind, treeOverlayOpen } = ev.data;
+      toolsMenu.querySelectorAll('[data-cr2-tool]').forEach((btn) => {
+        const act = btn.dataset.cr2Tool;
+        const on =
+          (act === 'panel-students' && openPanelKind === 'students') ||
+          (act === 'panel-seats' && openPanelKind === 'seats') ||
+          (act === 'panel-selfcheck' && openPanelKind === 'selfcheck') ||
+          (act === 'panel-timer' && openPanelKind === 'timer') ||
+          (act === 'toggle-tree' && Boolean(treeOverlayOpen));
+        btn.classList.toggle('is-active', on);
+      });
+    });
+  }
+})();

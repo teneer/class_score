@@ -90,6 +90,13 @@ export function clearSelectedStudents() {
   selectedIds.clear();
 }
 
+/** 플로팅 패널 리사이즈 시 원본 학생목록/자리배치 비율 피팅 재계산 */
+export function refitStudentsView(root) {
+  if (!root) return;
+  if (subView === 'seats') applySeatingFit(root);
+  else applyListFit(root);
+}
+
 /** 풀-뷰포트 스테이지 스케일 반환 (CSS scale 제거로 1:1 좌표 사용) */
 function getStageScale() {
   return 1;

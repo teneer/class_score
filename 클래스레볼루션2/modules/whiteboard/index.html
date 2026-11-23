@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1.0" name="viewport"/><meta content="light" name="color-scheme"/><title>클래스레볼루션2 · 만능칠판</title><link href="style.css?v=device-guide-1" rel="stylesheet"/><link href="board-only.css?v=1" rel="stylesheet"/><link href="dialog.css?v=goal-status-1" rel="stylesheet"/></head>
+<html lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1.0" name="viewport"/><meta content="light" name="color-scheme"/><title>클래스레볼루션2 · 만능칠판</title><link href="style.css?v=device-guide-1" rel="stylesheet"/><link href="board-only.css?v=cr2-3" rel="stylesheet"/><link href="dialog.css?v=goal-status-1" rel="stylesheet"/></head>
 <body>
 <div id="canvas-container"><canvas aria-label="만능칠판 작업 영역" id="whiteboardCanvas"></canvas></div>
 
@@ -8,6 +8,7 @@
 <div class="tip-up-settings" id="viewSyncMenu" aria-label="화면 동기화 대상"><div class="cloud-buttons"><button type="button" data-view-all>전체선택</button><button type="button" data-view-none>전체해제</button></div><div data-view-tabs></div></div>
 <div id="feedbackStack"><div aria-live="polite" id="saveStatus" role="status">불러오는 중입니다.</div><div aria-live="polite" hidden="" id="toast" role="status"></div></div>
 <div id="toolbarScaleWrap"><div id="toolbarWrapper"><div id="toolbarToggle"><button aria-expanded="true" id="toolbarHideBtn" aria-label="툴바 접기" title="툴바 숨기기/보이기" data-board-icon="down"></button></div><div aria-label="칠판 도구" id="toolbar">
+<div class="toolbar-group"><button class="action-btn cr2-exit-btn" id="cr2ExitBoardBtn" type="button" title="만능칠판 끝내기 (직전 화면으로 돌아가기)">← 끝내기</button></div>
 <div class="toolbar-group history-group"><button aria-label="실행 취소" class="action-btn icon-only" id="undoBtn" title="실행 취소 (Ctrl+Z)" data-board-icon="undo"></button><button aria-label="다시 실행" class="action-btn icon-only" id="redoBtn" title="다시 실행 (Ctrl+Shift+Z)" data-board-icon="redo"></button></div>
 <div class="toolbar-group"><button class="mode-btn toggle-btn" id="selectMoveToggleBtn" data-board-icon="select"><span id="selectMoveLabel">선택</span></button></div>
 <div class="toolbar-group">
@@ -26,6 +27,7 @@
 <div class="toolbar-group"><button class="mode-btn" id="homeBtn" data-board-icon="home">홈</button></div>
 <div class="toolbar-group"><button class="action-btn" id="pageListBtn" data-popup="pageList" aria-controls="pageList" aria-expanded="false" data-board-icon="pages"><span id="pageListLabel">1쪽</span></button></div>
 <div class="toolbar-group"><button aria-label="축소" class="action-btn" id="zoomOutBtn">−</button><span id="zoomLabel">100%</span><button aria-label="확대" class="action-btn" id="zoomInBtn">＋</button></div>
+<div class="toolbar-group"><button aria-expanded="false" class="action-btn cr2-tools-btn" id="cr2ToolsBtn" type="button" title="학생목록 · 자리배치 · 학급점수 · 체크표 · 타이머 · 으쓱/머쓱">🧰 도구 ▲</button></div>
 <div class="toolbar-group"><label class="action-btn view-sync" id="viewSyncTrigger" aria-expanded="false" aria-controls="viewSyncMenu" title="길게 누르거나 아래쪽 화살표 키로 동기화 탭 선택"><input id="viewSync" type="checkbox"/><span data-board-icon="sync">화면 동기화</span></label></div>
 <div class="toolbar-group"><output id="cloudSyncStatus" role="status">로컬 모드</output></div>
 <div class="toolbar-group"><button aria-expanded="false" class="action-btn" data-popup="moreSettings" id="moreBtn">더 보기 ▲</button></div>
@@ -36,6 +38,16 @@
 <div class="tip-up-settings" id="colorPalette"><div class="quick-colors" id="quickColors" role="group" aria-label="색상 선택"></div></div>
 <div class="tip-up-settings" id="sizePalette"><div class="quick-sizes" id="quickSizes" role="group" aria-label="크기 선택"></div></div>
 <div class="tip-up-settings" id="pageList" aria-label="페이지 목록"><div id="pageTiles"></div></div>
+<div class="cr2-tools-tray" id="cr2ToolsMenu" hidden role="menu" aria-label="클래스레볼루션 수업 도구">
+  <button type="button" class="cr2-tray-btn" data-cr2-tool="panel-students">👥 학생목록</button>
+  <button type="button" class="cr2-tray-btn" data-cr2-tool="panel-seats">🪑 자리배치</button>
+  <button type="button" class="cr2-tray-btn" data-cr2-tool="toggle-tree">🥚 학급점수</button>
+  <button type="button" class="cr2-tray-btn" data-cr2-tool="panel-selfcheck">☑️ 체크표</button>
+  <button type="button" class="cr2-tray-btn" data-cr2-tool="panel-timer">⏱ 타이머</button>
+  <span class="cr2-tray-sep"></span>
+  <button type="button" class="cr2-tray-btn is-plus" data-cr2-tool="score-plus">👍 으쓱</button>
+  <button type="button" class="cr2-tray-btn is-minus" data-cr2-tool="score-minus">👎 머쓱</button>
+</div>
 <div class="tip-up-settings" id="moreSettings" style="display:none"><div class="more-grid"><button class="action-btn" id="loadGeneralBtn" data-board-icon="folder-open">불러오기</button><button class="action-btn" id="saveBtn" data-board-icon="save">저장</button><button class="action-btn" id="copyBtn" data-board-icon="copy">복사</button><button class="action-btn" id="pasteBtn" data-board-icon="paste">붙여넣기</button><button class="action-btn" id="importFileBtn" data-board-icon="image">이미지·PDF</button><button class="action-btn" id="deviceConnectBtn" data-board-icon="devices">기기 연결</button><button class="action-btn" id="fileManagerBtn" data-board-icon="files">파일 관리</button><button class="action-btn" id="backgroundManageBtn" data-board-icon="fixed-objects">고정개체 관리</button><button class="action-btn" id="helpBtn" data-board-icon="book">사용 안내</button><button class="action-btn" id="colorSettingsBtn" data-board-icon="palette">색상·크기 세부속성</button><button class="action-btn" id="moreTextPropsBtn" type="button" data-board-icon="text-settings">텍스트 박스 기본속성</button><button class="action-btn" id="exportBackupBtn" data-board-icon="backup-down">JSON 백업</button><button class="action-btn" id="importBackupBtn" data-board-icon="backup-up">백업 가져오기</button><button class="action-btn" id="importLegacyBtn" data-board-icon="history">이전 데이터</button></div></div>
 <div aria-labelledby="passwordModalTitle" aria-modal="true" class="modal" id="passwordModal" role="dialog"><div class="modal-content compact-modal-content"><header class="dialog-header"><h2 id="passwordModalTitle">PDF 암호</h2><button aria-label="닫기" class="close-btn dialog-close" data-close="passwordModal">×</button></header><p id="passwordModalMessage"></p><input autocomplete="off" id="pdfPasswordInput" placeholder="PDF 암호" type="password"/><div class="modal-actions"><button class="action-btn" id="passwordModalCancelBtn">취소</button><button class="action-btn" id="passwordModalOkBtn">확인</button></div></div></div><div aria-labelledby="confirmModalTitle" aria-modal="true" class="modal" id="confirmModal" role="dialog"><div class="modal-content"><header class="dialog-header"><h2 id="confirmModalTitle">확인</h2><button aria-label="닫기" class="close-btn dialog-close" data-close="confirmModal">×</button></header><p id="confirmModalMessage"></p><div class="modal-actions"><button class="action-btn" id="confirmModalCancelBtn">취소</button><button class="action-btn" id="confirmModalOkBtn">확인</button></div></div></div>
 <div aria-labelledby="importLayoutTitle" aria-modal="true" class="modal" id="importLayoutModal" role="dialog"><div class="modal-content import-layout-content"><header class="dialog-header"><h2 id="importLayoutTitle">배치 방법 선택</h2><button aria-label="닫기" class="close-btn dialog-close" data-close="importLayoutModal">×</button></header><p id="importLayoutCount">여러 항목을 몇 열로 배치할까요?</p><div class="layout-choice-grid"><button aria-label="1열 배치" class="layout-choice" data-columns="1" type="button"><span class="layout-preview columns-1"><span></span></span><strong>1열</strong></button><button aria-label="2열 배치" class="layout-choice" data-columns="2" type="button"><span class="layout-preview columns-2"><span></span><span></span></span><strong>2열</strong></button><button aria-label="3열 배치" class="layout-choice" data-columns="3" type="button"><span class="layout-preview columns-3"><span></span><span></span><span></span></span><strong>3열</strong></button><button aria-label="4열 배치" class="layout-choice" data-columns="4" type="button"><span class="layout-preview columns-4"><span></span><span></span><span></span><span></span></span><strong>4열</strong></button></div><label><input id="importAsBackground" type="checkbox"/> 배경으로 고정</label><div class="modal-actions"><button class="action-btn" type="button" data-columns="0">한곳에 겹치기</button><button class="action-btn" data-close="importLayoutModal">취소</button></div></div></div>
@@ -176,7 +188,7 @@
 </div>
 <input accept=".png,.jpg,.jpeg,.gif,.pdf" hidden="" id="fileInput" multiple="" type="file"/><input accept=".json,application/json" hidden="" id="backupInput" type="file"/>
 <div hidden="" id="dropOverlay">PNG · JPG · GIF · PDF 파일을 여기에 놓으세요.</div><div aria-hidden="true" hidden="" id="busyOverlay"></div><div hidden="" id="fatalError" role="alert"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script><script src="script.js?v=device-guide-1" type="module"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script><script src="script.js?v=cr2-3" type="module"></script>
 <noscript>만능칠판을 사용하려면 JavaScript를 활성화해주세요.</noscript><div aria-label="객체 메뉴" hidden="" id="objectContextMenu" role="menu">
 <div class="context-palette" role="group" aria-label="색상">
   <span aria-hidden="true">색상</span><div class="quick-colors" id="contextColors"></div>

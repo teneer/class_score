@@ -324,3 +324,50 @@
   display: block;
   flex-shrink: 0;
 }
+
+
+/* ============================================================
+   만능칠판 위 학급점수 투명 나무·목표 오버레이 (별길/하늘 배경 숨김, 판서 투과)
+   ============================================================ */
+.wb-tree-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 32;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.wb-tree-overlay .growth-world {
+  background: transparent !important;
+  pointer-events: none !important;
+}
+
+.wb-tree-overlay .growth-bg-layer,
+.wb-tree-overlay .growth-sky-area {
+  display: none !important;
+}
+
+.wb-tree-overlay .growth-tree-trunk,
+.wb-tree-overlay .tree-track-viewport,
+.wb-tree-overlay .goal-leaf-banner,
+.wb-tree-overlay .egg-popup-backdrop {
+  pointer-events: auto;
+}
+
+/* 플로팅 패널 내부 원본 뷰(학생목록 · 자리배치 · 타이머 · 셀프체크) 풀핏 호스트 */
+.wbf-body.is-native-host {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.wbf-body.is-native-host > .students-shell,
+.wbf-body.is-native-host > .timer-stage {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+}

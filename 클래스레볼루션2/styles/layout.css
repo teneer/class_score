@@ -25,6 +25,12 @@
   background: #fff;
 }
 
+/* 만능칠판 전용 풀스크린 모드 — 상단 바 및 좌측 사이드바 완전 숨김 */
+.app-shell.is-whiteboard-fullscreen .app-header,
+.app-shell.is-whiteboard-fullscreen .side-rail {
+  display: none !important;
+}
+
 .app-header {
   height: var(--header-h);
   max-height: var(--header-h);

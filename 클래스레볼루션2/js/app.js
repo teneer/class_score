@@ -8,12 +8,13 @@ import { renderGrowthView } from './views/growth.js';
 import { renderChecklistView } from './views/checklist.js';
 import { renderPickerView, renderTimerView, setPickerSubTool } from './views/tools.js';
 import { renderBulkScoreView, setBulkScoreTab } from './views/bulk-score.js';
-import { renderWhiteboardView, setWhiteboardNavigator } from './views/whiteboard.js';
+import { renderWhiteboardView, setWhiteboardNavigator, setWhiteboardExitHandler } from './views/whiteboard.js';
 import { renderAssignmentsView, initTeacherCloudAutoConnect } from './views/assignments.js';
 import { renderCyberView } from './views/cyber.js';
 import { isCloudConnected, syncTeacherStateToCloud } from './cloud-sync.js';
 
 let currentMode = 'students'; // 'students' | 'seats' | 'growth' | 'checklist' | 'picker' | 'timer' | 'bulk' | 'whiteboard' | 'assignments' | 'cyber'
+let previousModeBeforeWhiteboard = 'students';
 
 const VIEW_CONTAINERS = {
   students: () => document.getElementById('view-students'),
@@ -30,7 +31,15 @@ const VIEW_CONTAINERS = {
 
 function switchMode(mode, options = {}) {
   if (!VIEW_CONTAINERS[mode]) return;
+  if (mode === 'whiteboard' && currentMode !== 'whiteboard') {
+    previousModeBeforeWhiteboard = currentMode;
+  }
   currentMode = mode;
+
+  const shellEl = document.querySelector('.app-shell');
+  if (shellEl) {
+    shellEl.classList.toggle('is-whiteboard-fullscreen', mode === 'whiteboard');
+  }
 
   if (mode === 'students') {
     setStudentsSubView('list');
@@ -150,6 +159,7 @@ async function bootstrap() {
   setActiveModeProvider(() => currentMode);
   setStudentsNavigator((mode, opts) => switchMode(mode, opts));
   setWhiteboardNavigator((mode, opts) => switchMode(mode, opts));
+  setWhiteboardExitHandler(() => switchMode(previousModeBeforeWhiteboard || 'students'));
 
   // 학생 태블릿에서 온 셀프 퀘스트 체크 실시간 반영
   window.addEventListener('class123:remote-selfchecks', async (ev) => {
