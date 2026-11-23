@@ -322,6 +322,18 @@ async function bootstrap() {
     });
   });
 
+  // 모달 내부에서 드래그하다 바깥(backdrop)에서 마우스를 떼어도 닫히지 않도록 전역 가드
+  let modalPointerDownOnBackdrop = false;
+  document.addEventListener('pointerdown', (e) => {
+    modalPointerDownOnBackdrop = Boolean(e.target && e.target.classList && e.target.classList.contains('modal-backdrop'));
+  }, true);
+  document.addEventListener('click', (e) => {
+    if (e.target && e.target.classList && e.target.classList.contains('modal-backdrop') && !modalPointerDownOnBackdrop) {
+      e.stopImmediatePropagation();
+    }
+    modalPointerDownOnBackdrop = false;
+  }, true);
+
   renderChrome();
   switchMode('students');
 }
