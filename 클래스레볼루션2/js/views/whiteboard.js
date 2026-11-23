@@ -67,7 +67,6 @@ window.addEventListener('message', (ev) => {
 
 function handleToolbarAction(action) {
   if (action === 'exit') {
-    playSound('cardFlip');
     if (typeof exitHandler === 'function') exitHandler();
     else if (typeof navigateFn === 'function') navigateFn('students');
     return;
@@ -87,7 +86,6 @@ function handleToolbarAction(action) {
   }
   if (action === 'toggle-tree') {
     treeOverlayOpen = !treeOverlayOpen;
-    playSound('cardFlip');
     if (lastWbContainer) renderTreeOverlay(lastWbContainer);
     notifyToolbarState();
     return;
@@ -113,7 +111,6 @@ function handleToolbarAction(action) {
       panelState.width = Math.min(640, Math.max(420, window.innerWidth - 200));
       panelState.height = Math.min(480, Math.max(340, window.innerHeight - 150));
     }
-    playSound('cardFlip');
     if (lastWbContainer) renderFloatingPanel(lastWbContainer);
     notifyToolbarState();
   }

@@ -636,7 +636,6 @@ function openAssignmentEditorModal(existing, onSaved) {
         else s.assignments.unshift(payload);
       });
       await syncIfConnected();
-      playSound('confirm');
       showToast({ title: existing?.id ? '과제가 수정되었습니다!' : '새 과제가 출제되었습니다!', tone: 'plus' });
       close();
       if (typeof onSaved === 'function') onSaved();
@@ -841,7 +840,6 @@ function openChecklistLinkModal(asg, students, subMap, onUpdated) {
     });
 
     await syncIfConnected();
-    playSound('confirm');
     showToast({
       title: mode === 'score'
         ? `체크표(${targetDate})에 채점 점수 ${appliedCnt}명을 자동 입력했습니다!`
@@ -1152,7 +1150,6 @@ function renderStudentOverviewTab(bodyEl, asg, students, subMap, rerender) {
           }
         });
         await pushSubmissionToCloud(asg.id, curStudent.id, store.getState().submissions[asg.id][curStudent.id]);
-        playSound('confirm');
         showToast({ title: `${curStudent.name} 학생 피드백을 저장했습니다.`, tone: 'plus' });
         rerender();
       };
@@ -1351,7 +1348,6 @@ function mountRegionOverlayEditor(overlay, asg, pageIdx, getDefaultMaxScore, onC
         });
       });
       await syncIfConnected();
-      playSound('confirm');
       renderBoxes();
       if (typeof onChanged === 'function') onChanged();
     } else if (curMode === 'move' && origBox) {
@@ -1733,7 +1729,6 @@ function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
       const sub = store.getState().submissions[asg.id]?.[sid];
       if (sub) await pushSubmissionToCloud(asg.id, sid, sub);
     }
-    playSound(status === 'correct' ? 'plus' : status === 'wrong' ? 'minus' : 'confirm');
     showToast({ title: `${ids.length}명 문항 채점이 반영되었습니다!`, tone: status === 'wrong' ? 'minus' : 'plus' });
     selectedGradeStudentIds.clear();
     rerender();
@@ -1766,7 +1761,6 @@ function renderByQuestionGradingTab(bodyEl, asg, students, subMap, rerender) {
       });
       const sub = store.getState().submissions[asg.id]?.[sid];
       if (sub) await pushSubmissionToCloud(asg.id, sid, sub);
-      playSound('confirm');
       showToast({ title: '개별 문항 피드백을 저장했습니다.', tone: 'plus' });
     };
   });
@@ -1950,7 +1944,6 @@ export function openCloudDriveSettingsModal(onUpdated) {
         s.cloudConfig.classId = classId;
       });
       await syncTeacherStateToCloud(store.getState());
-      playSound('confirm');
       showToast({ title: '서버(Firebase)에 연결되었습니다!', tone: 'plus' });
       close();
       if (typeof onUpdated === 'function') onUpdated();
@@ -1988,7 +1981,6 @@ export function openCloudDriveSettingsModal(onUpdated) {
     try {
       showToast({ title: '구글 드라이브 연결 테스트 중...' });
       const res = await testDriveBridge(url, folder);
-      playSound('confirm');
       showToast({ title: `구글 드라이브 '${res.folderName}' 폴더 연결 성공!`, tone: 'plus' });
     } catch (err) {
       showToast({ title: '드라이브 연결 실패', detail: err.message, tone: 'minus' });
@@ -2003,7 +1995,6 @@ export function openCloudDriveSettingsModal(onUpdated) {
       s.cloudConfig.driveFolderName = folder;
     });
     await syncIfConnected();
-    playSound('confirm');
     showToast({ title: '구글 드라이브 설정이 저장되었습니다!', tone: 'plus' });
     if (typeof onUpdated === 'function') onUpdated();
   };
@@ -2050,7 +2041,6 @@ function openStudentLinkModal() {
   backdrop.querySelector('#btn-copy-st-url').onclick = async () => {
     try {
       await navigator.clipboard.writeText(studentUrl);
-      playSound('confirm');
       showToast({ title: '학생 접속 링크를 복사했습니다!', tone: 'plus' });
     } catch {
       backdrop.querySelector('#asg-student-url-box').select();
