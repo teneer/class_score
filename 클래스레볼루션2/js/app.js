@@ -10,9 +10,10 @@ import { renderPickerView, renderTimerView, setPickerSubTool } from './views/too
 import { renderBulkScoreView, setBulkScoreTab } from './views/bulk-score.js';
 import { renderWhiteboardView, setWhiteboardNavigator } from './views/whiteboard.js';
 import { renderAssignmentsView, initTeacherCloudAutoConnect } from './views/assignments.js';
+import { renderCyberView } from './views/cyber.js';
 import { isCloudConnected, syncTeacherStateToCloud } from './cloud-sync.js';
 
-let currentMode = 'students'; // 'students' | 'seats' | 'growth' | 'checklist' | 'picker' | 'timer' | 'bulk' | 'whiteboard' | 'assignments'
+let currentMode = 'students'; // 'students' | 'seats' | 'growth' | 'checklist' | 'picker' | 'timer' | 'bulk' | 'whiteboard' | 'assignments' | 'cyber'
 
 const VIEW_CONTAINERS = {
   students: () => document.getElementById('view-students'),
@@ -24,6 +25,7 @@ const VIEW_CONTAINERS = {
   bulk: () => document.getElementById('view-bulk'),
   whiteboard: () => document.getElementById('view-whiteboard'),
   assignments: () => document.getElementById('view-assignments'),
+  cyber: () => document.getElementById('view-cyber'),
 };
 
 function switchMode(mode, options = {}) {
@@ -109,6 +111,7 @@ function renderCurrentView() {
   else if (currentMode === 'bulk') renderBulkScoreView(container);
   else if (currentMode === 'whiteboard') renderWhiteboardView(container);
   else if (currentMode === 'assignments') renderAssignmentsView(container);
+  else if (currentMode === 'cyber') renderCyberView(container);
 }
 
 function triggerBackupDownload() {
@@ -293,6 +296,31 @@ async function bootstrap() {
     closeSettingsDialog();
     showToast({ title: '학급 설정을 저장했습니다.', tone: 'plus' });
   };
+
+  // 원격 학생 사이버지식정보방 세션 및 코인 차감 수신 반영
+  window.addEventListener('class123:remote-cyber', async (ev) => {
+    const sessions = ev.detail || {};
+    await store.update((s) => {
+      if (!s.cyberRoom) return;
+      if (!s.cyberRoom.activeSessions) s.cyberRoom.activeSessions = {};
+      if (!s.cyberRoom.coins) s.cyberRoom.coins = {};
+      for (const [sid, info] of Object.entries(sessions)) {
+        if (info.active) {
+          s.cyberRoom.activeSessions[sid] = {
+            siteId: info.siteId || '',
+            siteTitle: info.siteTitle || '',
+            startedAt: info.startedAt || Date.now(),
+            lastPingAt: info.updatedAt || Date.now(),
+          };
+        } else {
+          delete s.cyberRoom.activeSessions[sid];
+        }
+        if (typeof info.coinsAfter === 'number' && Number.isFinite(info.coinsAfter)) {
+          s.cyberRoom.coins[sid] = Math.max(0, Math.floor(info.coinsAfter));
+        }
+      }
+    });
+  });
 
   renderChrome();
   switchMode('students');

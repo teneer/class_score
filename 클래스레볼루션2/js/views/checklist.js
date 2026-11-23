@@ -4,6 +4,7 @@ import { store, todayIso, uid } from '../store.js';
 import { openScoreComposer, showToast, escapeHtml, escapeAttr } from '../effects.js';
 import { playSound } from '../audio.js';
 import { toggleSelfCheckValue } from './whiteboard.js';
+import { applyCyberActionToStudents } from './cyber.js';
 import { isCloudConnected, syncTeacherStateToCloud } from '../cloud-sync.js';
 
 let currentDate = todayIso();
@@ -112,8 +113,11 @@ export function renderChecklistView(root) {
         <div class="checklist-top-actions">
           ${pickedStudentIds.size > 0 ? `
             <span class="selected-pill">${pickedStudentIds.size}명 선택</span>
-            <button type="button" class="btn-blue" id="cl-manual-plus" style="padding:6px 12px;font-size:12px;">으쓱 지급</button>
-            <button type="button" class="btn-red" id="cl-manual-minus" style="padding:6px 12px;font-size:12px;">머쓱 지급</button>
+            <button type="button" class="btn-blue" id="cl-manual-plus" style="padding:6px 10px;font-size:12px;">으쓱 지급</button>
+            <button type="button" class="btn-red" id="cl-manual-minus" style="padding:6px 10px;font-size:12px;">머쓱 지급</button>
+            <button type="button" class="btn-outline" id="cl-cyber-allow" style="padding:5px 9px;font-size:12px;border-color:#78c832;color:#3d720d;">💻 방허용</button>
+            <button type="button" class="btn-outline" id="cl-cyber-block" style="padding:5px 9px;font-size:12px;border-color:#f0a4b2;color:#c92646;">⛔ 방차단</button>
+            <button type="button" class="btn-yellow" id="cl-cyber-coin" style="padding:5px 9px;font-size:12px;">🪙 코인</button>
             <button type="button" class="btn-ghost" id="cl-clear-picked" style="padding:6px 8px;font-size:12px;">해제</button>
           ` : ''}
           <button type="button" class="btn-outline" id="cl-download-csv">리포트 다운로드</button>
@@ -430,6 +434,40 @@ function bindChecklistEvents(root, students, activeItems, entries) {
     manualMinus.onclick = () => {
       if (pickedStudentIds.size === 0) return;
       openScoreComposer({ studentIds: Array.from(pickedStudentIds), initialType: 'negative' });
+    };
+  }
+  const cyberAllow = root.querySelector('#cl-cyber-allow');
+  if (cyberAllow) {
+    cyberAllow.onclick = async () => {
+      const ids = Array.from(pickedStudentIds);
+      if (ids.length === 0) return;
+      await applyCyberActionToStudents(ids, 'allow');
+      playSound('confirm');
+      showToast({ title: `체크표 선택 학생 ${ids.length}명의 사이버지식정보방 접속을 허용했습니다!`, tone: 'plus' });
+    };
+  }
+  const cyberBlock = root.querySelector('#cl-cyber-block');
+  if (cyberBlock) {
+    cyberBlock.onclick = async () => {
+      const ids = Array.from(pickedStudentIds);
+      if (ids.length === 0) return;
+      await applyCyberActionToStudents(ids, 'block');
+      playSound('cardFlip');
+      showToast({ title: `체크표 선택 학생 ${ids.length}명의 사이버지식정보방 접속을 차단했습니다.`, tone: 'minus' });
+    };
+  }
+  const cyberCoin = root.querySelector('#cl-cyber-coin');
+  if (cyberCoin) {
+    cyberCoin.onclick = async () => {
+      const ids = Array.from(pickedStudentIds);
+      if (ids.length === 0) return;
+      const ans = prompt(`선택한 ${ids.length}명에게 지급할 사이버 코인 수량을 입력하세요 (음수 입력 시 차감):`, '5');
+      if (ans === null) return;
+      const amt = Math.trunc(Number(ans));
+      if (!amt) return;
+      await applyCyberActionToStudents(ids, 'addCoin', amt);
+      playSound(amt > 0 ? 'plus' : 'minus');
+      showToast({ title: `${ids.length}명에게 🪙 ${amt > 0 ? `+${amt}` : amt}코인을 반영했습니다!`, tone: amt > 0 ? 'plus' : 'minus' });
     };
   }
 

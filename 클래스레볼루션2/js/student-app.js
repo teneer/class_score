@@ -1,6 +1,6 @@
 // 학생용 별도 접속 페이지 (관리페이지 종속 자동 서버 접속 · ID/PW 로그인 · 워크시트 경량 답변 제출 · 구글드라이브 사진 제출/열람/다운로드 · AI 퀴즈 개인/실시간 풀이)
 
-import { store, getStillAvatarUrl, todayIso } from './store.js';
+import { store, getStillAvatarUrl, todayIso, isStudentCyberAllowed, getStudentCyberCoins } from './store.js';
 import { playSound } from './audio.js';
 import { gradeQuizSubmission } from './quiz-csv.js';
 import { mountWorksheetEditor, renderWorksheetComposite } from './worksheet-renderer.js';
@@ -22,15 +22,27 @@ let classData = {
   students: [],
   assignments: [],
   selfChecks: [],
+  cyberRoom: {
+    globalAllowed: false,
+    studentAccess: {},
+    groupAccess: {},
+    coins: {},
+    sites: [],
+    activeSessions: {},
+  },
 };
 let allSubmissions = {}; // { [assignmentId]: { [studentId]: Submission } }
 let loggedStudentId = null;
-let activeTab = 'todo'; // 'todo' | 'quests' | 'done' | 'gallery'
+let activeTab = 'todo'; // 'todo' | 'quests' | 'cyber' | 'done' | 'gallery'
 let activeAssignmentId = null;
 let activeWorksheetCtrl = null;
 let draftFiles = [];
 let draftQuizAnswers = {};
 let loginError = '';
+
+// 사이버지식정보방 활성 세션 상태
+let activeCyberSession = null; // { site, startedAt, elapsedSec, nextChargeAtSec, loadCount, timerId, coins }
+let cyberTerminateMsg = '';
 
 const appEl = document.getElementById('student-app');
 const toastEl = document.getElementById('st-toast');
@@ -109,6 +121,73 @@ async function persistSelfCheck(checkId, studentId, value) {
   }
 }
 
+/** 사이버지식정보방 세션 및 코인 변동 저장 (클라우드/로컬 양쪽) */
+async function persistCyberState(studentId, { active, siteId = '', siteTitle = '', coinsAfter = null }) {
+  if (classData.cyberRoom) {
+    if (!classData.cyberRoom.coins) classData.cyberRoom.coins = {};
+    if (typeof coinsAfter === 'number') classData.cyberRoom.coins[studentId] = Math.max(0, Math.floor(coinsAfter));
+  }
+  if (dataMode === 'cloud' && cloudClient) {
+    await cloudClient.saveCyberSession(studentId, {
+      active: Boolean(active),
+      siteId,
+      siteTitle,
+      startedAt: activeCyberSession?.startedAt || Date.now(),
+      coinsAfter: typeof coinsAfter === 'number' ? Math.max(0, Math.floor(coinsAfter)) : null,
+    });
+  } else {
+    await store.update((s) => {
+      if (!s.cyberRoom) return;
+      if (typeof coinsAfter === 'number') {
+        s.cyberRoom.coins[studentId] = Math.max(0, Math.floor(coinsAfter));
+      }
+      if (active) {
+        s.cyberRoom.activeSessions[studentId] = {
+          siteId,
+          siteTitle,
+          startedAt: activeCyberSession?.startedAt || Date.now(),
+          lastPingAt: Date.now(),
+        };
+      } else {
+        delete s.cyberRoom.activeSessions[studentId];
+      }
+    });
+  }
+}
+
+/** 사이버지식정보방 즉시 접속 종료 (사유 메시지 출력) */
+async function terminateCyberSession(reasonMessage = '', silent = false) {
+  const prev = activeCyberSession;
+  if (!prev) return;
+  if (prev.timerId) clearInterval(prev.timerId);
+  activeCyberSession = null;
+
+  const frame = document.getElementById('st-cyber-frame');
+  if (frame) {
+    try { frame.src = 'about:blank'; } catch {}
+  }
+
+  const me = getCurrentStudent();
+  if (me) {
+    await persistCyberState(me.id, { active: false, coinsAfter: prev.coins }).catch(() => {});
+  }
+
+  if (reasonMessage) {
+    cyberTerminateMsg = reasonMessage;
+    if (!silent) playSound('timerAlarm');
+  } else if (!silent) {
+    playSound('cardFlip');
+  }
+  render();
+}
+
+function formatMmSs(totalSec) {
+  const s = Math.max(0, Math.floor(totalSec));
+  const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
 function getCurrentStudent() {
   return (classData.students || []).find((s) => s.id === loggedStudentId) || null;
 }
@@ -116,9 +195,30 @@ function getCurrentStudent() {
 function render() {
   const me = getCurrentStudent();
   if (!me) {
+    if (activeCyberSession) terminateCyberSession('', true);
     renderLogin();
     return;
   }
+
+  // 사이버지식정보방 이용 중이라면 교사 원격 차단 여부만 확인하고 iframe 리로드를 방지
+  if (activeCyberSession) {
+    const cr = classData.cyberRoom || {};
+    const stillAllowed = isStudentCyberAllowed(cr, me);
+    const liveSite = (cr.sites || []).find((x) => x.id === activeCyberSession.site.id && x.enabled !== false);
+    if (!stillAllowed || !liveSite) {
+      terminateCyberSession('선생님이 사이버지식정보방 접속을 종료했습니다.');
+      return;
+    }
+    // 교사가 코인을 원격 충전해준 경우 반영
+    const latestCoins = getStudentCyberCoins(cr, me.id);
+    if (latestCoins > activeCyberSession.coins) {
+      activeCyberSession.coins = latestCoins;
+      const coinEl = document.getElementById('st-cyber-coin-live');
+      if (coinEl) coinEl.textContent = `🪙 ${activeCyberSession.coins}코인`;
+    }
+    return;
+  }
+
   if (activeAssignmentId) {
     const asg = (classData.assignments || []).find((a) => a.id === activeAssignmentId);
     if (asg) {
@@ -182,6 +282,7 @@ function renderLogin() {
 }
 
 function renderHeader(me) {
+  const myCoins = getStudentCyberCoins(classData.cyberRoom, me.id);
   return `
     <header class="st-header">
       <div class="st-profile">
@@ -192,6 +293,7 @@ function renderHeader(me) {
         </div>
       </div>
       <div class="st-score-pills">
+        <span class="st-pill is-coin" title="사이버지식정보방 보유 코인">🪙 ${myCoins}코인</span>
         <span class="st-pill is-net">쑥쑥 ${me.score ?? 0}점</span>
         <span class="st-pill is-pos">으쓱 +${me.positive ?? 0}</span>
         <span class="st-pill is-neg">머쓱 -${me.negative ?? 0}</span>
@@ -223,19 +325,84 @@ function renderHome(me) {
     .filter((sc) => !Array.isArray(sc.targetStudentIds) || sc.targetStudentIds.length === 0 || sc.targetStudentIds.includes(me.id))
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
+  const cr = classData.cyberRoom || {};
+  const cyberAllowed = isStudentCyberAllowed(cr, me);
+  const cyberSites = (cr.sites || []).filter((s) => s.enabled !== false);
+  const myCoins = getStudentCyberCoins(cr, me.id);
+
   const list = activeTab === 'todo' ? todoList : activeTab === 'done' ? doneList : galleryList;
 
   appEl.innerHTML = `
     ${renderHeader(me)}
     <main class="st-main">
+      ${cyberTerminateMsg ? `
+        <div class="st-cyber-alert" role="alert">
+          <div>
+            <strong>⛔ 접속이 종료되었습니다</strong>
+            <p>${esc(cyberTerminateMsg)}</p>
+          </div>
+          <button type="button" class="st-btn is-outline is-sm" id="btn-dismiss-cy-alert">확인</button>
+        </div>
+      ` : ''}
+
       <div class="st-tabs">
         <button type="button" class="st-tab ${activeTab === 'todo' ? 'is-active' : ''}" data-st-tab="todo">할 과제 (${todoList.length})</button>
         <button type="button" class="st-tab ${activeTab === 'quests' ? 'is-active' : ''}" data-st-tab="quests">🎯 내 퀘스트 (${myQuests.length})</button>
+        <button type="button" class="st-tab ${activeTab === 'cyber' ? 'is-active' : ''}" data-st-tab="cyber">💻 사이버지식정보방</button>
         <button type="button" class="st-tab ${activeTab === 'done' ? 'is-active' : ''}" data-st-tab="done">제출한 과제 (${doneList.length})</button>
         <button type="button" class="st-tab ${activeTab === 'gallery' ? 'is-active' : ''}" data-st-tab="gallery">친구 작품 (${galleryList.length})</button>
       </div>
 
-      ${activeTab === 'quests' ? (
+      ${activeTab === 'cyber' ? (
+        !cyberAllowed ? `
+          <div class="st-work-card" style="text-align:center;color:#7d7465;padding:42px 20px;align-items:center;">
+            <img src="assets/visuals/icon-cyber.svg" alt="" width="64" height="64" style="opacity:0.6;margin-bottom:6px;">
+            <strong style="font-size:17px;color:#4a4235;">🔒 현재 사이버지식정보방 접속이 제한되어 있습니다</strong>
+            <p style="margin:4px 0 0;font-size:13.5px;">선생님이 접속을 허용하면 이용 가능한 사이트가 나타납니다.</p>
+          </div>
+        ` : cyberSites.length === 0 ? `
+          <div class="st-work-card" style="text-align:center;color:#7d7465;padding:42px 20px;align-items:center;">
+            <img src="assets/visuals/icon-cyber.svg" alt="" width="64" height="64" style="margin-bottom:6px;">
+            <strong style="font-size:16px;color:#4a4235;">등록된 사이버지식정보방 사이트가 없습니다.</strong>
+          </div>
+        ` : `
+          <div class="st-cyber-banner">
+            <div>
+              <strong>💻 사이버지식정보방 이용 가능</strong>
+              <span>현재 보유 코인: <b>🪙 ${myCoins}코인</b> · 입장 후 지정된 사이트를 벗어나거나 코인/시간이 만료되면 자동 종료됩니다.</span>
+            </div>
+          </div>
+          <div class="st-card-grid">
+            ${cyberSites.map((site) => {
+              const entryCost = Math.max(0, Number(site.entryCost) || 0);
+              const perMin = Math.max(0, Number(site.coinPerMin) ?? 1);
+              const limitMin = Math.max(0, Number(site.timeLimitMin) || 0);
+              const canEnter = myCoins >= entryCost && (perMin === 0 || myCoins > entryCost);
+              return `
+                <article class="st-card st-cyber-card" style="cursor:default;">
+                  <div class="st-card-meta">
+                    <span style="display:inline-flex;align-items:center;gap:5px;">
+                      <img src="assets/visuals/icon-cyber.svg" alt="" width="18" height="18">
+                      ${esc(site.category || '학습')}
+                    </span>
+                    <span class="st-badge ${perMin === 0 && entryCost === 0 ? 'is-graded' : 'is-todo'}">
+                      ${entryCost > 0 ? `입장 ${entryCost}코인 · ` : ''}${perMin > 0 ? `분당 ${perMin}코인` : '무료 이용'}
+                    </span>
+                  </div>
+                  <h3 style="margin:4px 0;">${esc(site.title)}</h3>
+                  <div class="st-card-meta" style="margin-bottom:6px;">
+                    <span>${limitMin > 0 ? `⏱ 최대 ${limitMin}분 이용` : '⏱ 시간 제한 없음'}</span>
+                    ${site.strictSinglePage ? `<span>🔒 이탈 시 종료</span>` : ''}
+                  </div>
+                  <button type="button" class="st-btn ${canEnter ? 'is-primary' : 'is-outline'}" data-enter-cyber="${site.id}" ${canEnter ? '' : 'disabled'} style="width:100%;">
+                    ${canEnter ? '🚀 입장하기' : '🪙 코인이 부족합니다'}
+                  </button>
+                </article>
+              `;
+            }).join('')}
+          </div>
+        `
+      ) : activeTab === 'quests' ? (
         myQuests.length === 0 ? `
           <div class="st-work-card" style="text-align:center;color:#7d7465;padding:38px 20px;align-items:center;">
             <img src="assets/visuals/student-mascot-empty.svg" alt="" width="96" height="76" style="margin-bottom:6px;">
@@ -353,6 +520,19 @@ function renderHome(me) {
       renderHome(me);
     };
   });
+  const dismissBtn = appEl.querySelector('#btn-dismiss-cy-alert');
+  if (dismissBtn) {
+    dismissBtn.onclick = () => {
+      cyberTerminateMsg = '';
+      renderHome(me);
+    };
+  }
+  appEl.querySelectorAll('[data-enter-cyber]').forEach((b) => {
+    b.onclick = () => {
+      const site = cyberSites.find((x) => x.id === b.dataset.enterCyber);
+      if (site) startCyberSession(me, site);
+    };
+  });
   appEl.querySelectorAll('[data-open-work]').forEach((card) => {
     card.onclick = () => {
       activeAssignmentId = card.dataset.openWork;
@@ -362,6 +542,143 @@ function renderHome(me) {
       render();
     };
   });
+}
+
+/** 사이버지식정보방 입장 및 앱 내부 풀스크린 뷰어 시작 (URL 비공개 · 분당 코인 차감 · 시간 제한 · 이탈 감지) */
+async function startCyberSession(me, site) {
+  const cr = classData.cyberRoom || {};
+  if (!isStudentCyberAllowed(cr, me)) {
+    showStToast('현재 사이버지식정보방 접속이 제한되어 있습니다.');
+    return;
+  }
+  const entryCost = Math.max(0, Number(site.entryCost) || 0);
+  const coinPerMin = Math.max(0, Number(site.coinPerMin) ?? 1);
+  const timeLimitSec = Math.max(0, Number(site.timeLimitMin) || 0) * 60;
+  let coins = getStudentCyberCoins(cr, me.id);
+
+  if (coins < entryCost || (coinPerMin > 0 && coins <= entryCost)) {
+    showStToast('보유 코인이 부족하여 입장할 수 없습니다.');
+    return;
+  }
+
+  cyberTerminateMsg = '';
+  coins = Math.max(0, coins - entryCost);
+
+  activeCyberSession = {
+    site: { ...site, entryCost, coinPerMin, timeLimitSec },
+    startedAt: Date.now(),
+    elapsedSec: 0,
+    loadCount: 0,
+    coins,
+    timerId: null,
+  };
+
+  playSound('restoreDone');
+  await persistCyberState(me.id, {
+    active: true,
+    siteId: site.id,
+    siteTitle: site.title,
+    coinsAfter: coins,
+  }).catch(() => {});
+
+  renderCyberViewer(me);
+
+  // 1초마다 이용 시간 갱신, 시간 제한 및 분당 코인 차감 처리
+  activeCyberSession.timerId = setInterval(async () => {
+    if (!activeCyberSession) return;
+    activeCyberSession.elapsedSec += 1;
+    const elapsed = activeCyberSession.elapsedSec;
+    const sInfo = activeCyberSession.site;
+
+    // 상단 상태바 DOM만 갱신 (iframe 리로드 없음)
+    const timeEl = document.getElementById('st-cyber-time-live');
+    if (timeEl) {
+      if (sInfo.timeLimitSec > 0) {
+        const remain = Math.max(0, sInfo.timeLimitSec - elapsed);
+        timeEl.textContent = `⏱ 남은 시간 ${formatMmSs(remain)}`;
+      } else {
+        timeEl.textContent = `⏱ 이용 중 ${formatMmSs(elapsed)}`;
+      }
+    }
+
+    // 1) 코인 관계없이 시간 제한 도달 시 접속종료
+    if (sInfo.timeLimitSec > 0 && elapsed >= sInfo.timeLimitSec) {
+      await terminateCyberSession('지정된 이용 시간이 모두 종료되어 접속을 종료합니다.');
+      return;
+    }
+
+    // 2) 분당 코인 차감 (60초마다)
+    if (sInfo.coinPerMin > 0 && elapsed > 0 && elapsed % 60 === 0) {
+      const nextCoins = Math.max(0, activeCyberSession.coins - sInfo.coinPerMin);
+      activeCyberSession.coins = nextCoins;
+      const coinEl = document.getElementById('st-cyber-coin-live');
+      if (coinEl) coinEl.textContent = `🪙 ${nextCoins}코인`;
+
+      await persistCyberState(me.id, {
+        active: nextCoins > 0,
+        siteId: sInfo.id,
+        siteTitle: sInfo.title,
+        coinsAfter: nextCoins,
+      }).catch(() => {});
+
+      if (nextCoins <= 0) {
+        await terminateCyberSession('보유 코인이 모두 차감되어 접속을 종료합니다.');
+        return;
+      }
+      if (nextCoins <= sInfo.coinPerMin) {
+        playSound('tick');
+        showStToast(`⚠️ 남은 코인이 ${nextCoins}코인(약 1분 분량)입니다!`);
+      }
+    }
+  }, 1000);
+}
+
+/** 학생용 앱 내부 사이버지식정보방 풀스크린 뷰어 (URL 주소 완전 비공개) */
+function renderCyberViewer(me) {
+  if (!activeCyberSession) return;
+  const { site, coins } = activeCyberSession;
+
+  appEl.innerHTML = `
+    <div class="st-cyber-viewer">
+      <header class="st-cyber-vbar">
+        <div class="st-cyber-vleft">
+          <img src="assets/visuals/icon-cyber.svg" alt="" width="24" height="24">
+          <strong>${esc(site.title)}</strong>
+          <span class="st-cyber-vmeta">${site.coinPerMin > 0 ? `분당 ${site.coinPerMin}코인` : '무료'}${site.strictSinglePage ? ' · 🔒 이탈 시 종료' : ''}</span>
+        </div>
+        <div class="st-cyber-vright">
+          <span class="st-pill is-coin" id="st-cyber-coin-live">🪙 ${coins}코인</span>
+          <span class="st-cyber-timer-pill" id="st-cyber-time-live">${site.timeLimitSec > 0 ? `⏱ 남은 시간 ${formatMmSs(site.timeLimitSec)}` : '⏱ 이용 중 00:00'}</span>
+          <button type="button" class="st-btn is-outline is-sm" id="btn-exit-cyber">🚪 나가기</button>
+        </div>
+      </header>
+      <div class="st-cyber-frame-wrap">
+        <iframe
+          id="st-cyber-frame"
+          class="st-cyber-frame"
+          sandbox="allow-scripts allow-same-origin allow-forms"
+          referrerpolicy="no-referrer"
+          title="${esc(site.title)}"
+        ></iframe>
+      </div>
+    </div>
+  `;
+
+  const frame = document.getElementById('st-cyber-frame');
+  // URL은 DOM 속성에 미리 노출하지 않고 JS로 직접 주입
+  frame.onload = () => {
+    if (!activeCyberSession) return;
+    activeCyberSession.loadCount += 1;
+    // 최초 로드(1회) 이후 다른 주소로 이동(2회 이상) 감지 시 즉시 접속종료
+    if (activeCyberSession.site.strictSinglePage && activeCyberSession.loadCount >= 2) {
+      terminateCyberSession('지정된 사이트 주소를 벗어나 접속을 종료합니다.');
+    }
+  };
+  frame.src = site.url;
+
+  document.getElementById('btn-exit-cyber').onclick = () => {
+    terminateCyberSession('', false);
+  };
 }
 
 function renderAssignmentWork(me, asg) {
@@ -681,6 +998,7 @@ async function bootstrapStudentApp() {
             students: Array.isArray(data.students) ? data.students : [],
             assignments: Array.isArray(data.assignments) ? data.assignments : [],
             selfChecks: Array.isArray(data.selfChecks) ? data.selfChecks : [],
+            cyberRoom: data.cyberRoom || classData.cyberRoom,
           };
           render();
         },
@@ -707,6 +1025,7 @@ async function bootstrapStudentApp() {
       students: (st.students || []).filter((s) => !s.trashed),
       assignments: st.assignments || [],
       selfChecks: st.selfChecks || [],
+      cyberRoom: st.cyberRoom || classData.cyberRoom,
     };
     allSubmissions = st.submissions || {};
     render();

@@ -172,6 +172,20 @@ export function createDefaultState() {
     assignments: [],
     submissions: {}, // { [assignmentId]: { [studentId]: Submission } }
     selfChecks: [], // 전자칠판 5열/10열 터치 셀프체크 & 학생 태블릿 퀘스트 목록
+    cyberRoom: {
+      globalAllowed: false, // 학급 전체 사이버지식정보방 기본 허용 여부
+      studentAccess: {}, // { [studentId]: 'inherit' | 'allow' | 'block' }
+      groupAccess: {}, // { [groupId]: 'inherit' | 'allow' | 'block' }
+      coins: {}, // { [studentId]: number } 별도 사이버 코인 지갑
+      exchangeRate: 1, // 으쓱 1점 -> 코인 환전 비율
+      defaultPolicy: {
+        entryCost: 0, // 입장 코인
+        coinPerMin: 1, // 분당 차감 코인 (0 가능)
+        timeLimitMin: 0, // 코인 관계없이 시간 제한(분, 0=무제한)
+      },
+      sites: [], // { id, title, category, url, entryCost, coinPerMin, timeLimitMin, strictSinglePage, enabled, createdAt }
+      activeSessions: {}, // { [studentId]: { siteId, siteTitle, startedAt, lastPingAt } }
+    },
     cloudConfig: {
       firebaseConfig: null,
       classId: '',
@@ -244,6 +258,16 @@ class AppStore {
       assignments: Array.isArray(data.assignments) ? data.assignments : [],
       submissions: data.submissions && typeof data.submissions === 'object' ? data.submissions : {},
       selfChecks: Array.isArray(data.selfChecks) ? data.selfChecks : [],
+      cyberRoom: {
+        ...def.cyberRoom,
+        ...(data.cyberRoom || {}),
+        studentAccess: data.cyberRoom?.studentAccess && typeof data.cyberRoom.studentAccess === 'object' ? data.cyberRoom.studentAccess : {},
+        groupAccess: data.cyberRoom?.groupAccess && typeof data.cyberRoom.groupAccess === 'object' ? data.cyberRoom.groupAccess : {},
+        coins: data.cyberRoom?.coins && typeof data.cyberRoom.coins === 'object' ? data.cyberRoom.coins : {},
+        defaultPolicy: { ...def.cyberRoom.defaultPolicy, ...(data.cyberRoom?.defaultPolicy || {}) },
+        sites: Array.isArray(data.cyberRoom?.sites) ? data.cyberRoom.sites : [],
+        activeSessions: data.cyberRoom?.activeSessions && typeof data.cyberRoom.activeSessions === 'object' ? data.cyberRoom.activeSessions : {},
+      },
       cloudConfig: {
         ...def.cloudConfig,
         ...(data.cloudConfig || {}),
@@ -416,3 +440,21 @@ class AppStore {
 }
 
 export const store = new AppStore();
+
+/** 학생의 사이버지식정보방 접속 허용 여부 계산 (개별 > 모둠 > 학급 전체 우선순위) */
+export function isStudentCyberAllowed(cyberRoom, student) {
+  if (!cyberRoom || !student) return false;
+  const stRule = cyberRoom.studentAccess?.[student.id];
+  if (stRule === 'allow') return true;
+  if (stRule === 'block') return false;
+  const grpRule = student.groupId ? cyberRoom.groupAccess?.[student.groupId] : null;
+  if (grpRule === 'allow') return true;
+  if (grpRule === 'block') return false;
+  return Boolean(cyberRoom.globalAllowed);
+}
+
+/** 학생 보유 사이버 코인 조회 */
+export function getStudentCyberCoins(cyberRoom, studentId) {
+  const n = Number(cyberRoom?.coins?.[studentId] ?? 0);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+}

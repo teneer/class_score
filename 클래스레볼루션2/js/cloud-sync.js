@@ -307,6 +307,18 @@ export async function connectTeacherCloud(firebaseConfig, classId, { onRemoteSub
     window.dispatchEvent(new CustomEvent('class123:remote-selfchecks', { detail: entries }));
   }, () => {});
   fbRuntime.unsubs.push(unsubSc);
+
+  const cyberCol = rt.fs.collection(rt.db, 'cr2Classes', cid, 'cyberSessions');
+  const unsubCyber = rt.fs.onSnapshot(cyberCol, (snap) => {
+    const sessions = {};
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (!d?.studentId) return;
+      sessions[d.studentId] = d;
+    });
+    window.dispatchEvent(new CustomEvent('class123:remote-cyber', { detail: sessions }));
+  }, () => {});
+  fbRuntime.unsubs.push(unsubCyber);
   return cid;
 }
 
@@ -340,6 +352,7 @@ export async function syncTeacherStateToCloud(state) {
     students: publicStudents,
     assignments: Array.isArray(state.assignments) ? state.assignments : [],
     selfChecks: Array.isArray(state.selfChecks) ? state.selfChecks : [],
+    cyberRoom: state.cyberRoom || null,
     updatedAt: Date.now(),
   }, { merge: true });
 }
@@ -400,6 +413,14 @@ export async function connectStudentCloud(firebaseConfig, classId, { onClassUpda
         checkId,
         studentId,
         value,
+        updatedAt: Date.now(),
+      }, { merge: true });
+    },
+    saveCyberSession: async (studentId, payload) => {
+      const ref = rt.fs.doc(rt.db, 'cr2Classes', classId, 'cyberSessions', studentId);
+      await rt.fs.setDoc(ref, {
+        studentId,
+        ...payload,
         updatedAt: Date.now(),
       }, { merge: true });
     },
