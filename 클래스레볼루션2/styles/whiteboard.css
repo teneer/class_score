@@ -371,3 +371,31 @@
   height: 100%;
   width: 100%;
 }
+
+/* 플로팅 패널 안 타이머: 상단 탭 · 원형 시계 · 프리셋 · 하단 시작/초기화 버튼이 잘림 없이 한눈에 들어오도록 컴팩트 피팅 */
+.wbf-body.is-native-host > .timer-stage {
+  padding: 12px 14px;
+  gap: 10px;
+  justify-content: space-between;
+}
+.wbf-body.is-native-host .timer-ring-box {
+  width: 172px;
+  height: 172px;
+}
+.wbf-body.is-native-host .timer-digits {
+  font-size: 42px;
+}
+.wbf-body.is-native-host .timer-presets {
+  gap: 5px;
+}
+.wbf-body.is-native-host .timer-preset-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.wbf-body.is-native-host .timer-controls {
+  gap: 8px;
+}
+.wbf-body.is-native-host .timer-ctrl-btn {
+  padding: 8px 20px;
+  font-size: 14px;
+}
