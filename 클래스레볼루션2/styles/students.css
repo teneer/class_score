@@ -443,7 +443,21 @@
   cursor: grabbing;
 }
 .group-box.is-group-selected {
-  outline: 3px solid #f7c72c;
+  background: #f5c928;
+  border-color: #e2b40f;
+  outline: 3px solid #ffe838;
+  box-shadow: 0 6px 18px rgba(226, 180, 15, 0.42);
+}
+.group-box.is-group-selected .group-footer {
+  background: #ffe838;
+  color: #4b3808;
+}
+.group-box.is-group-selected .group-name-btn,
+.group-box.is-group-selected .group-total {
+  color: #4b3808;
+}
+.group-box:not(.is-editable) .group-footer {
+  cursor: pointer;
 }
 .group-box.is-drop-target {
   outline: 3px dashed #2396d4;

@@ -710,8 +710,9 @@ function renderSeatingBody(state, activeStudents, scoreMode) {
             ${displayBoxes.map((box) => {
               const g = box.group;
               const members = activeStudents.filter((s) => s.groupId === g.id);
+              const selectableMembers = members.filter((m) => !m.absent);
               const orderedSlots = Array.from({ length: box.totalSlots }, (_, i) => i);
-              const allInGroupSelected = members.length > 0 && members.every((m) => selectedIds.has(m.id));
+              const allInGroupSelected = selectableMembers.length > 0 && selectableMembers.every((m) => selectedIds.has(m.id));
 
               return `
                 <div class="group-box ${allInGroupSelected ? 'is-group-selected' : ''} ${seatEditMode ? 'is-editable' : ''}"
@@ -930,22 +931,35 @@ function bindSeatingEvents(root, state, activeStudents) {
     };
   }
 
-  // 모둠 이름 클릭 → 일반 모드: 모둠원 전체 선택
+  // 모둠(그룹 박스 여백 · 하단 푸터 · 그룹 이름) 클릭 → 일반 모드: 그룹과 소속 학생 모두 선택/해제
+  const toggleGroupSelection = (gid) => {
+    const members = activeStudents.filter((s) => s.groupId === gid && !s.absent);
+    if (members.length === 0) return;
+    const allSel = members.every((m) => selectedIds.has(m.id));
+    if (allSel) members.forEach((m) => selectedIds.delete(m.id));
+    else members.forEach((m) => selectedIds.add(m.id));
+    renderStudentsView(root);
+  };
+
   root.querySelectorAll('[data-select-group]').forEach((btn) => {
     btn.onclick = (e) => {
       if (seatEditMode) return;
       e.stopPropagation();
-      const gid = btn.dataset.selectGroup;
-      const members = activeStudents.filter((s) => s.groupId === gid && !s.absent);
-      const allSel = members.length > 0 && members.every((m) => selectedIds.has(m.id));
-      if (allSel) members.forEach((m) => selectedIds.delete(m.id));
-      else members.forEach((m) => selectedIds.add(m.id));
-      renderStudentsView(root);
+      toggleGroupSelection(btn.dataset.selectGroup);
     };
   });
 
-  // 자리 클릭 (일반 모드: 선택/출석체크)
+  // 자리 클릭 (일반 모드: 학생 개별 선택 / 그룹 영역 클릭 시 그룹+학생 전체 선택)
   if (!seatEditMode) {
+    root.querySelectorAll('[data-group-box]').forEach((boxEl) => {
+      boxEl.onclick = (e) => {
+        if (e.target.closest('.seat-slot[data-seat-student]')) return;
+        if (e.target.closest('[data-select-group]')) return;
+        e.stopPropagation();
+        toggleGroupSelection(boxEl.dataset.groupBox);
+      };
+    });
+
     root.querySelectorAll('.seat-slot[data-seat-student]').forEach((slot) => {
       slot.onclick = () => {
         const stId = slot.dataset.seatStudent;
