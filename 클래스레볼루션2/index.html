@@ -6,36 +6,36 @@
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#efeee3">
   <title>Class123 - 클래스123 복원 웹</title>
-  <link rel="stylesheet" href="styles/base.css">
-  <link rel="stylesheet" href="styles/layout.css?v=20261123n">
-  <link rel="stylesheet" href="styles/students.css?v=20261123m">
-  <link rel="stylesheet" href="styles/growth.css">
-  <link rel="stylesheet" href="styles/checklist.css">
-  <link rel="stylesheet" href="styles/tools.css">
-  <link rel="stylesheet" href="styles/whiteboard.css?v=20261124b">
-  <link rel="stylesheet" href="styles/assignments.css">
-  <link rel="stylesheet" href="styles/cyber.css">
-  <link rel="stylesheet" href="styles/effects.css">
+  <link rel="stylesheet" href="styles/base.css?v=20261124c">
+  <link rel="stylesheet" href="styles/layout.css?v=20261124c">
+  <link rel="stylesheet" href="styles/students.css?v=20261124c">
+  <link rel="stylesheet" href="styles/growth.css?v=20261124c">
+  <link rel="stylesheet" href="styles/checklist.css?v=20261124c">
+  <link rel="stylesheet" href="styles/tools.css?v=20261124c">
+  <link rel="stylesheet" href="styles/whiteboard.css?v=20261124c">
+  <link rel="stylesheet" href="styles/assignments.css?v=20261124c">
+  <link rel="stylesheet" href="styles/cyber.css?v=20261124c">
+  <link rel="stylesheet" href="styles/effects.css?v=20261124c">
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=20261124b",
-      "./js/audio.js": "./js/audio.js?v=20261124b",
-      "./js/cloud-sync.js": "./js/cloud-sync.js?v=20261124b",
-      "./js/doc-importer.js": "./js/doc-importer.js?v=20261124b",
-      "./js/effects.js": "./js/effects.js?v=20261124b",
-      "./js/quiz-csv.js": "./js/quiz-csv.js?v=20261124b",
-      "./js/score-engine.js": "./js/score-engine.js?v=20261124b",
-      "./js/store.js": "./js/store.js?v=20261124b",
-      "./js/worksheet-renderer.js": "./js/worksheet-renderer.js?v=20261124b",
-      "./js/views/assignments.js": "./js/views/assignments.js?v=20261124b",
-      "./js/views/bulk-score.js": "./js/views/bulk-score.js?v=20261124b",
-      "./js/views/checklist.js": "./js/views/checklist.js?v=20261124b",
-      "./js/views/cyber.js": "./js/views/cyber.js?v=20261124b",
-      "./js/views/growth.js": "./js/views/growth.js?v=20261124b",
-      "./js/views/students.js": "./js/views/students.js?v=20261124b",
-      "./js/views/tools.js": "./js/views/tools.js?v=20261124b",
-      "./js/views/whiteboard.js": "./js/views/whiteboard.js?v=20261124b"
+      "./js/app.js": "./js/app.js?v=20261124c",
+      "./js/audio.js": "./js/audio.js?v=20261124c",
+      "./js/cloud-sync.js": "./js/cloud-sync.js?v=20261124c",
+      "./js/doc-importer.js": "./js/doc-importer.js?v=20261124c",
+      "./js/effects.js": "./js/effects.js?v=20261124c",
+      "./js/quiz-csv.js": "./js/quiz-csv.js?v=20261124c",
+      "./js/score-engine.js": "./js/score-engine.js?v=20261124c",
+      "./js/store.js": "./js/store.js?v=20261124c",
+      "./js/worksheet-renderer.js": "./js/worksheet-renderer.js?v=20261124c",
+      "./js/views/assignments.js": "./js/views/assignments.js?v=20261124c",
+      "./js/views/bulk-score.js": "./js/views/bulk-score.js?v=20261124c",
+      "./js/views/checklist.js": "./js/views/checklist.js?v=20261124c",
+      "./js/views/cyber.js": "./js/views/cyber.js?v=20261124c",
+      "./js/views/growth.js": "./js/views/growth.js?v=20261124c",
+      "./js/views/students.js": "./js/views/students.js?v=20261124c",
+      "./js/views/tools.js": "./js/views/tools.js?v=20261124c",
+      "./js/views/whiteboard.js": "./js/views/whiteboard.js?v=20261124c"
     }
   }
   </script>
@@ -44,78 +44,8 @@
   <div class="stage-viewport" id="stage-viewport">
     <div class="stage-16x9" id="stage-16x9">
       <div class="app-shell">
-        <!-- 상단 헤더 (원본 클래스123 상단 바 충실 복원) -->
-        <header class="app-header">
-          <div class="header-left">
-            <button class="icon-btn" type="button" id="btn-home" title="학생 목록 홈" aria-label="학생 목록 홈">
-              <i class="sp-icon sp-home" aria-hidden="true"></i>
-            </button>
-            <button class="class-title-btn" type="button" id="btn-class-title" title="학급 설정 열기">
-              <span id="header-class-name">우리반 5기</span>
-            </button>
-            <button class="icon-btn" type="button" id="btn-header-settings" title="학급 설정" aria-label="학급 설정">
-              <i class="sp-icon sp-gear" aria-hidden="true"></i>
-            </button>
-          </div>
-
-          <nav class="header-tabs" aria-label="상단 탭">
-            <button class="header-tab is-active" type="button" data-quick-tab="students">
-              <i class="sp-icon sp-diamond" aria-hidden="true"></i>
-              <span>수업화면</span>
-            </button>
-            <button class="header-tab" type="button" data-quick-tab="growth">
-              <i class="sp-icon sp-egg-mini" aria-hidden="true"></i>
-              <span>학급점수</span>
-            </button>
-            <button class="header-tab" type="button" data-quick-tab="checklist">
-              <i class="sp-icon sp-checklist" aria-hidden="true" style="transform:scale(0.76);"></i>
-              <span>체크표</span>
-            </button>
-            <button class="header-tab" type="button" data-quick-tab="cyber">
-              <img src="assets/visuals/icon-cyber.svg" alt="" width="18" height="18" aria-hidden="true">
-              <span>사이버방</span>
-            </button>
-            <button class="header-tab" type="button" data-quick-tab="bulk">
-              <i class="sp-icon sp-report-tab" aria-hidden="true"></i>
-              <span>이력·관리</span>
-            </button>
-          </nav>
-
-          <div class="header-right">
-            <!-- 학생화면·자리배치 전용 표시 옵션 (다른 화면에서는 자동 숨김) -->
-            <div class="header-view-controls" id="header-view-controls">
-              <label class="header-check">
-                <input type="checkbox" id="hdr-show-numbers" checked>
-                <span>번호 표시</span>
-              </label>
-              <label class="header-check">
-                <input type="checkbox" id="hdr-show-avatars" checked>
-                <span>아바타 표시</span>
-              </label>
-              <select class="header-select" id="hdr-score-mode" title="점수 표시 방식">
-                <option value="net">쑥쑥점수</option>
-                <option value="pos">으쓱점수</option>
-                <option value="neg">머쓱점수</option>
-                <option value="both">으쓱+머쓱</option>
-              </select>
-              <select class="header-select" id="hdr-sort-by" title="학생 정렬">
-                <option value="number">번호순</option>
-                <option value="name">이름순</option>
-                <option value="score-desc">점수 높은순</option>
-                <option value="score-asc">점수 낮은순</option>
-              </select>
-            </div>
-            <span class="db-badge" id="db-status" title="로컬 IndexedDB 저장 상태">
-              <i class="db-dot"></i>로컬 저장
-            </span>
-            <button class="header-pill-btn" type="button" id="btn-backup" title="JSON 전체 백업">백업</button>
-            <button class="header-pill-btn" type="button" id="btn-restore" title="JSON 백업 복원">복원</button>
-            <input type="file" id="restore-file-input" accept="application/json,.json" hidden>
-          </div>
-        </header>
-
         <div class="app-body">
-          <!-- 좌측 사이드바 (화면보기 아래 학생화면[새싹] · 자리배치[격자] · 학급점수[황금알]) -->
+          <!-- 좌측 사이드바 (최상단 바 제거 · 단독 네비게이션) -->
           <aside class="side-rail" aria-label="수업 도구 메뉴">
             <div class="rail-group">
               <span class="rail-caption">화면보기</span>
@@ -149,12 +79,16 @@
                 <span class="rail-label">점수관리</span>
               </button>
               <button class="rail-btn" type="button" data-mode="whiteboard" title="만능칠판 6.0 (판서 · 페이지 · PDF/이미지 · 플로팅 패널)">
-                <img class="rail-svg-icon" src="assets/visuals/icon-whiteboard.svg" alt="" width="28" height="28">
+                <img class="rail-svg-icon" src="assets/visuals/icon-whiteboard.svg" alt="" width="24" height="24">
                 <span class="rail-label">만능칠판</span>
               </button>
               <button class="rail-btn" type="button" data-mode="assignments" title="과제 · 워크시트 · 문항별 채점 · AI 퀴즈">
-                <img class="rail-svg-icon" src="assets/visuals/icon-assignment.svg" alt="" width="28" height="28">
+                <img class="rail-svg-icon" src="assets/visuals/icon-assignment.svg" alt="" width="24" height="24">
                 <span class="rail-label">과제</span>
+              </button>
+              <button class="rail-btn" type="button" data-mode="cyber" title="사이버지식정보방 관리">
+                <img class="rail-svg-icon" src="assets/visuals/icon-cyber.svg" alt="" width="24" height="24">
+                <span class="rail-label">사이버방</span>
               </button>
             </div>
 
@@ -217,11 +151,15 @@
             </div>
             <div class="settings-divider"></div>
             <div class="settings-danger-zone">
+              <div class="settings-btn-row">
+                <button type="button" class="btn-yellow" id="btn-settings-open-roster">👥 학생 편집 · 명단 · 계정 관리</button>
+              </div>
               <p class="settings-hint">데이터는 현재 브라우저의 IndexedDB에 자동 저장되며, 같은 브라우저의 다른 탭과 실시간으로 동기화됩니다.</p>
               <div class="settings-btn-row">
                 <button type="button" class="btn-outline" id="btn-settings-backup">JSON 전체 백업</button>
                 <button type="button" class="btn-outline" id="btn-settings-restore">JSON 백업 복원</button>
                 <button type="button" class="btn-danger-outline" id="btn-reset-demo">기본 샘플 데이터로 초기화</button>
+                <input type="file" id="restore-file-input" accept="application/json,.json" hidden>
               </div>
             </div>
           </div>
@@ -255,6 +193,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20261124b"></script>
+  <script type="module" src="js/app.js?v=20261124c"></script>
 </body>
 </html>

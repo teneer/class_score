@@ -433,7 +433,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 6. 우측 상단 초록 잎사귀 목표 배너 (sp_board_tree.png 원본 반원 형태, z-index: 8) */
+/* 6. 우측 상단 초록 잎사귀 목표 배너 (sp_board_tree.png 원본 반원 형태 · 내부 요소 세로 중앙 정렬, z-index: 8) */
 .goal-leaf-banner {
   position: absolute;
   top: 0;
@@ -441,14 +441,14 @@
   z-index: 8;
   width: 286px;
   height: 178px;
-  padding: 15px 14px 18px 48px;
+  padding: 0 16px 8px 48px;
   background: url('../assets/visuals/sp_board_tree.png') -111.5px 0 / 498.8px 436.4px no-repeat;
   color: #fff;
   text-align: right;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  justify-content: flex-start;
+  justify-content: center;
   cursor: pointer;
   transition: filter 0.15s;
 }
@@ -458,8 +458,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  justify-content: flex-start;
-  gap: 14px;
+  justify-content: center;
+  gap: 10px;
   width: 100%;
 }
 
@@ -514,15 +514,14 @@
   max-height: calc(1.32em * 2);
 }
 
-/* 배너 호버 또는 클릭 시 원본 2줄 메뉴 전환 (우측 사이드바 설정 + 온도계 목표설정, 원본 스프라이트 아이콘) */
+/* 배너 호버 또는 클릭 시 원본 2줄 메뉴 전환 (우측 사이드바 설정 + 온도계 목표설정, 세로 중앙 정렬) */
 .goal-leaf-menu {
   display: none;
   flex-direction: column;
   align-items: flex-end;
-  justify-content: flex-start;
-  gap: 16px;
+  justify-content: center;
+  gap: 12px;
   width: 100%;
-  padding-top: 8px;
   padding-right: 2px;
 }
 .goal-leaf-banner:hover .goal-leaf-content,

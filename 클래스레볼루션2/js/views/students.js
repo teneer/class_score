@@ -507,8 +507,41 @@ export function renderStudentsView(root) {
     ? `${selectedNames.slice(0, 4).join(', ')} 외 ${selectedNames.length - 4}명`
     : selectedNames.join(', ');
 
+  const isAvatarShown = viewKind === 'seats' ? Boolean(prefs.seatShowAvatars) : prefs.showAvatars !== false;
+
   root.innerHTML = `
     <div class="students-shell ${prefs.showNumbers ? '' : 'hide-numbers'} ${hideAvatarsClass}">
+      <div class="students-top-bar">
+        <button type="button" class="st-top-class-btn" data-open-class-cfg title="학급 설정 열기">
+          <span class="st-top-class-dot"></span>
+          <span>${escapeHtml(state.classInfo.name || '우리 반')}</span>
+        </button>
+        <div class="st-top-options">
+          <label class="st-top-check">
+            <input type="checkbox" data-top-opt="numbers" ${prefs.showNumbers !== false ? 'checked' : ''}>
+            <span>번호 표시</span>
+          </label>
+          <label class="st-top-check">
+            <input type="checkbox" data-top-opt="avatars" ${isAvatarShown ? 'checked' : ''}>
+            <span>아바타 표시</span>
+          </label>
+          <select class="st-top-select" data-top-opt="scoreMode" title="점수 표시 방식">
+            <option value="net" ${scoreMode === 'net' ? 'selected' : ''}>쑥쑥점수</option>
+            <option value="pos" ${scoreMode === 'pos' ? 'selected' : ''}>으쓱점수</option>
+            <option value="neg" ${scoreMode === 'neg' ? 'selected' : ''}>머쓱점수</option>
+            <option value="both" ${scoreMode === 'both' ? 'selected' : ''}>으쓱+머쓱</option>
+          </select>
+          ${viewKind === 'list' ? `
+            <select class="st-top-select" data-top-opt="sortBy" title="학생 정렬">
+              <option value="number" ${(prefs.sortBy || 'number') === 'number' ? 'selected' : ''}>번호순</option>
+              <option value="name" ${prefs.sortBy === 'name' ? 'selected' : ''}>이름순</option>
+              <option value="score-desc" ${prefs.sortBy === 'score-desc' ? 'selected' : ''}>점수 높은순</option>
+              <option value="score-asc" ${prefs.sortBy === 'score-asc' ? 'selected' : ''}>점수 낮은순</option>
+            </select>
+          ` : ''}
+        </div>
+      </div>
+
       ${attendanceMode ? `
         <div class="seat-edit-banner" style="margin-top:8px;border-radius:6px;">
           <span>📋 <strong>출석체크 모드</strong> — 학생을 클릭하면 출석/결석 상태가 전환됩니다. (결석 학생은 뽑기·전체선택에서 제외)</span>
@@ -675,9 +708,6 @@ function renderListBody(sortedStudents, scoreMode) {
                 <div class="card-name-row">
                   <span class="card-num">${s.number}</span><span class="card-name-txt">${escapeHtml(s.name)}</span>
                 </div>
-                <button type="button" class="card-edit-gear" data-edit-student="${s.id}" title="학생 정보 수정">
-                  <i class="sp-icon sp-pencil-mini" aria-hidden="true"></i>
-                </button>
               </div>
             `;
           }).join('')}
@@ -764,8 +794,8 @@ function renderSeatingBody(state, activeStudents, scoreMode) {
                           <div class="seat-num-bar">${st.number}</div>
                           ${isSwapSrc ? `<span class="seat-swap-badge">교환 선택</span>` : ''}
                           ${showPose
-                            ? `<div class="avatar-fx-sprite is-finite seat-avatar-fx" style="background-image:url('${getFxAvatarUrl(st.avatarId)}')"></div>`
-                            : (showAvatars ? `<img class="seat-avatar" src="${getStillAvatarUrl(st.avatarId)}" alt="">` : '')
+                            ? `<div class="seat-avatar-wrap"><div class="avatar-fx-sprite is-finite seat-avatar-fx" style="background-image:url('${getFxAvatarUrl(st.avatarId)}')"></div></div>`
+                            : (showAvatars ? `<div class="seat-avatar-wrap"><img class="seat-avatar" src="${getStillAvatarUrl(st.avatarId)}" alt=""></div>` : '')
                           }
                           <div class="seat-info">
                             <span class="seat-name">${escapeHtml(st.name)}</span>
@@ -835,15 +865,36 @@ function renderSeatingBody(state, activeStudents, scoreMode) {
 }
 
 function bindStudentsEvents(root, state, activeStudents) {
+  const viewKind = getEffectiveSubView(root);
+
+  // 상단 소형 표시 옵션 바 이벤트
+  const classCfgBtn = root.querySelector('[data-open-class-cfg]');
+  if (classCfgBtn) {
+    classCfgBtn.onclick = () => window.dispatchEvent(new CustomEvent('class123:open-class-settings'));
+  }
+  const optNum = root.querySelector('[data-top-opt="numbers"]');
+  if (optNum) {
+    optNum.onchange = () => store.update((s) => { s.uiPrefs.showNumbers = optNum.checked; });
+  }
+  const optAva = root.querySelector('[data-top-opt="avatars"]');
+  if (optAva) {
+    optAva.onchange = () => store.update((s) => {
+      if (viewKind === 'seats') s.uiPrefs.seatShowAvatars = optAva.checked;
+      else s.uiPrefs.showAvatars = optAva.checked;
+    });
+  }
+  const optScore = root.querySelector('[data-top-opt="scoreMode"]');
+  if (optScore) {
+    optScore.onchange = () => store.update((s) => { s.uiPrefs.scoreDisplayMode = optScore.value; });
+  }
+  const optSort = root.querySelector('[data-top-opt="sortBy"]');
+  if (optSort) {
+    optSort.onchange = () => store.update((s) => { s.uiPrefs.sortBy = optSort.value; });
+  }
+
   // 목록보기 카드 클릭
   root.querySelectorAll('[data-student-card]').forEach((card) => {
-    card.onclick = (e) => {
-      const editBtn = e.target.closest('[data-edit-student]');
-      if (editBtn) {
-        e.stopPropagation();
-        openStudentEditModal(editBtn.dataset.editStudent);
-        return;
-      }
+    card.onclick = () => {
       const id = card.dataset.studentCard;
       if (attendanceMode) {
         store.update((s) => {
@@ -2387,7 +2438,7 @@ function openPlaceStudentModal(targetGroupId, newGroupCoords) {
 }
 
 /** 학생 추가 / 수정 모달 (70종 아바타 선택 + 휴지통 이동) */
-export function openStudentEditModal(studentId = null, defaultGroupId = null) {
+export function openStudentEditModal(studentId = null, defaultGroupId = null, onSaved = null) {
   const state = store.getState();
   const existing = studentId ? state.students.find((s) => s.id === studentId) : null;
   const active = state.students.filter((s) => !s.trashed);
@@ -2500,6 +2551,7 @@ export function openStudentEditModal(studentId = null, defaultGroupId = null) {
       selectedIds.delete(existing.id);
       showToast({ title: `${existing.name} 학생을 휴지통으로 옮겼습니다.` });
       close();
+      onSaved?.();
     };
   }
 
@@ -2571,11 +2623,12 @@ export function openStudentEditModal(studentId = null, defaultGroupId = null) {
     });
     playSound('confirm');
     close();
+    onSaved?.();
   };
 }
 
-/** 학생 설정 모달 (명단 일괄 붙여넣기 + 휴지통 복원) */
-function openRosterManagerModal() {
+/** 학생 설정 모달 (개별 학생 정보·아바타 편집 + 접속 계정 ID/PW + 명단 일괄 붙여넣기 + 휴지통 복원) */
+export function openRosterManagerModal() {
   const modalRoot = document.getElementById('modal-root');
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -2585,43 +2638,57 @@ function openRosterManagerModal() {
     const state = store.getState();
     const activeStudents = state.students.filter((s) => !s.trashed).sort((a, b) => a.number - b.number);
     const trashed = state.students.filter((s) => s.trashed);
+    const groupNameById = new Map((state.groups || []).map((g) => [g.id, g.name]));
 
     backdrop.innerHTML = `
       <div class="dialog-card is-wide">
         <div class="dialog-header">
-          <h2>학생 설정 · 접속 계정(ID/PW) · 명단 · 휴지통</h2>
+          <h2>학생 설정 · 개별 편집(아바타/모둠) · 접속 계정 · 명단 · 휴지통</h2>
           <button type="button" class="dialog-close">&times;</button>
         </div>
         <div class="dialog-body" style="max-height:76vh;overflow-y:auto;">
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-              <h3 style="margin:0;font-size:14px;color:#3f3629;">🔑 학생 접속 아이디 · 비밀번호 관리 (${activeStudents.length}명)</h3>
+              <h3 style="margin:0;font-size:14px;color:#3f3629;">👥 학생 정보 · 아바타 · 접속 계정 관리 (${activeStudents.length}명)</h3>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button type="button" class="btn-outline" id="btn-roster-add-student" style="padding:4px 10px;font-size:12px;font-weight:800;">+ 새 학생 추가</button>
                 <button type="button" class="btn-outline" id="btn-acc-auto-num" style="padding:4px 9px;font-size:12px;">번호별 일괄생성(s01/1234)</button>
                 <button type="button" class="btn-outline" id="btn-acc-rand-pw" style="padding:4px 9px;font-size:12px;">4자리 랜덤비번</button>
                 <button type="button" class="btn-outline" id="btn-acc-copy" style="padding:4px 9px;font-size:12px;">안내표 복사</button>
                 <button type="button" class="btn-yellow" id="btn-acc-save" style="padding:4px 12px;font-size:12px;">계정 저장</button>
               </div>
             </div>
-            <div style="max-height:220px;overflow-y:auto;border:1px solid #e4dfd0;border-radius:8px;background:#fff;">
+            <div style="max-height:260px;overflow-y:auto;border:1px solid #e4dfd0;border-radius:8px;background:#fff;">
               <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
                 <thead>
-                  <tr style="background:#f7f5ee;color:#5d5242;text-align:left;">
-                    <th style="padding:6px 8px;width:54px;">번호</th>
-                    <th style="padding:6px 8px;width:96px;">이름</th>
+                  <tr style="background:#f7f5ee;color:#5d5242;text-align:left;position:sticky;top:0;z-index:1;">
+                    <th style="padding:6px 8px;width:48px;">번호</th>
+                    <th style="padding:6px 8px;width:136px;">학생 / 모둠</th>
                     <th style="padding:6px 8px;">접속 아이디</th>
                     <th style="padding:6px 8px;">비밀번호</th>
-                    <th style="padding:6px 8px;width:54px;text-align:center;">허용</th>
+                    <th style="padding:6px 8px;width:46px;text-align:center;">허용</th>
+                    <th style="padding:6px 8px;width:82px;text-align:center;">학생편집</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${activeStudents.map((st) => `
                     <tr style="border-top:1px solid #f0ede3;" data-acc-row="${st.id}">
                       <td style="padding:5px 8px;font-weight:700;color:#7a7162;">${st.number}</td>
-                      <td style="padding:5px 8px;font-weight:800;color:#3d352a;">${escapeHtml(st.name)}</td>
+                      <td style="padding:4px 8px;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                          <img src="${getStillAvatarUrl(st.avatarId)}" alt="" style="width:28px;height:32px;object-fit:contain;flex-shrink:0;">
+                          <div style="min-width:0;">
+                            <div style="font-weight:800;color:#3d352a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(st.name)}</div>
+                            <div style="font-size:11px;color:#887f70;">${escapeHtml(groupNameById.get(st.groupId) || '미배치')}</div>
+                          </div>
+                        </div>
+                      </td>
                       <td style="padding:4px 6px;"><input type="text" data-acc-id="${st.id}" value="${escapeAttr(st.loginId || '')}" maxlength="24" style="width:100%;height:28px;padding:0 8px;border:1px solid #d9d3c3;border-radius:6px;font-size:12.5px;"></td>
                       <td style="padding:4px 6px;"><input type="text" data-acc-pw="${st.id}" value="${escapeAttr(st.loginPw ?? '1234')}" maxlength="24" style="width:100%;height:28px;padding:0 8px;border:1px solid #d9d3c3;border-radius:6px;font-size:12.5px;"></td>
                       <td style="padding:4px 6px;text-align:center;"><input type="checkbox" data-acc-en="${st.id}" ${st.loginEnabled !== false ? 'checked' : ''}></td>
+                      <td style="padding:4px 6px;text-align:center;">
+                        <button type="button" class="btn-outline" data-edit-roster-st="${st.id}" style="padding:4px 8px;font-size:11.5px;white-space:nowrap;">✏️ 편집</button>
+                      </td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -2671,6 +2738,15 @@ function openRosterManagerModal() {
     backdrop.querySelector('.dialog-close').onclick = close;
     backdrop.querySelector('[data-close]').onclick = close;
     backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+
+    // 개별 학생 편집(번호·이름·모둠·성별·70종 아바타·휴지통 이동) 및 새 학생 추가
+    const rosterAddBtn = backdrop.querySelector('#btn-roster-add-student');
+    if (rosterAddBtn) {
+      rosterAddBtn.onclick = () => openStudentEditModal(null, null, renderModal);
+    }
+    backdrop.querySelectorAll('[data-edit-roster-st]').forEach((btn) => {
+      btn.onclick = () => openStudentEditModal(btn.dataset.editRosterSt, null, renderModal);
+    });
 
     // 학생 접속 계정(ID/PW) 일괄 관리 핸들러
     backdrop.querySelector('#btn-acc-auto-num').onclick = async () => {

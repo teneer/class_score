@@ -8,6 +8,86 @@
   background: var(--bg-cream);
 }
 
+/* 학생 카드 영역 상단 소형 표시 옵션 바 (최상단 헤더 제거 후 컴팩트 배치) */
+.students-top-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 4px 2px;
+  min-height: 30px;
+}
+.st-top-class-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #e3ded0;
+  color: #564d3e;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: background 0.14s, border-color 0.14s;
+}
+.st-top-class-btn:hover {
+  background: #fff;
+  border-color: #cfc6b2;
+}
+.st-top-class-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #77c62e;
+  flex-shrink: 0;
+}
+.st-top-options {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #e3ded0;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.st-top-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #584f40;
+  cursor: pointer;
+  user-select: none;
+}
+.st-top-check input[type="checkbox"] {
+  accent-color: #efb922;
+  width: 13.5px;
+  height: 13.5px;
+  margin: 0;
+  cursor: pointer;
+}
+.st-top-select {
+  height: 23px;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 1px solid #d4cebf;
+  background: #fff;
+  color: #4b4235;
+  font-size: 11.5px;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+}
+.st-top-select:focus {
+  border-color: #e5b824;
+}
+
 /* ==================== 1. 학생목록 (목록보기 — 4:3 비율 둥근 카드 & 자동 확대/축소 & 3자리 점수·출석번호 가독성 강화) ==================== */
 .student-grid-scroll {
   flex: 1;
@@ -91,32 +171,34 @@
   z-index: 4;
 }
 
-/* 좌측 아바타: 카드 좌측 44% 영역(폭 72px)에 깔끔하게 배치되어 우측 번호·점수를 전혀 가리지 않음 */
+/* 좌측 아바타: 카드 좌측 영역(폭 74px, 높이 100%) 내 세로 정중앙 배치 & 확대 (영역을 살짝 넘는 귀/발끝만 클리핑, 얼굴 100% 보존) */
 .card-avatar-wrap {
   position: absolute;
-  left: 4px;
-  top: 7px;
-  bottom: 7px;
-  width: 72px;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 74px;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   pointer-events: none;
   z-index: 1;
 }
 .card-avatar-wrap img {
   width: 100%;
-  height: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
   object-fit: contain;
   object-position: center center;
-  transform: scale(1.26);
+  /* 원본 200x250 PNG의 상단 투명 여백(+8.5% 하방 편향)을 보정해 캐릭터가 카드 세로 정중앙에 오도록 정렬 */
+  transform: translateY(-8.5%) scale(1.44);
 }
 .card-avatar-wrap .avatar-fx-sprite {
   width: 100%;
   height: auto;
   aspect-ratio: 4 / 5;
-  max-height: 100%;
-  transform: scale(1.26);
+  transform: translateY(-8.5%) scale(1.44);
 }
 
 /* 우측 상단 점수: 3자리 숫자(예: 100, 999, -12) 공간 충분히 확보 & 자릿수가 바뀌어도 오른쪽 끝 고정 정렬 */
@@ -241,25 +323,6 @@
   color: var(--red-penalty);
   letter-spacing: -0.04em;
 }
-
-.card-edit-gear {
-  position: absolute;
-  top: 5px;
-  left: 5px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  color: #887f70;
-  font-size: 13px;
-  display: grid;
-  place-items: center;
-  opacity: 0;
-  z-index: 3;
-  transition: opacity 0.14s;
-}
-.student-card:hover .card-edit-gear { opacity: 1; }
-.card-edit-gear:hover { background: #4a4235; color: #fff; }
 
 .student-add-card {
   width: 168px;
@@ -565,23 +628,30 @@
 }
 .hide-numbers .seat-num-bar { display: none; }
 
+.seat-avatar-wrap {
+  width: 52px;
+  height: 100%;
+  margin-left: 2px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
 .seat-avatar {
-  width: 48px;
-  height: 62px;
+  width: 50px;
+  height: 62.5px;
   object-fit: contain;
-  align-self: center;
-  margin-left: 4px;
   flex: none;
   pointer-events: none;
-  transform: scale(1.26);
+  transform: translateY(-8.5%) scale(1.42);
 }
 .seat-avatar-fx {
-  width: 48px;
-  height: 60px;
+  width: 50px;
+  height: 62.5px;
   flex: none;
-  align-self: center;
-  margin-left: 4px;
-  transform: scale(1.26);
+  transform: translateY(-8.5%) scale(1.42);
 }
 
 .seat-info {

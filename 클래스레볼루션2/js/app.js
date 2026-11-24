@@ -3,7 +3,7 @@
 import { store } from './store.js';
 import { setSoundEnabled, playSound } from './audio.js';
 import { setActiveModeProvider, openScoreComposer, presentOutcome, showToast } from './effects.js';
-import { renderStudentsView, setStudentsNavigator, setStudentsSubView, getSelectedStudentIds } from './views/students.js';
+import { renderStudentsView, setStudentsNavigator, setStudentsSubView, getSelectedStudentIds, openRosterManagerModal } from './views/students.js';
 import { renderGrowthView } from './views/growth.js';
 import { renderChecklistView } from './views/checklist.js';
 import { renderPickerView, renderTimerView, setPickerSubTool } from './views/tools.js';
@@ -78,35 +78,10 @@ function switchMode(mode, options = {}) {
 
 function renderChrome() {
   const state = store.getState();
-  const titleEl = document.getElementById('header-class-name');
-  if (titleEl) titleEl.textContent = state.classInfo.name || '우리 반';
-
   const soundOn = state.classInfo.soundEnabled !== false;
   setSoundEnabled(soundOn);
   const soundBtn = document.getElementById('btn-sound');
   if (soundBtn) soundBtn.setAttribute('aria-pressed', String(soundOn));
-
-  // 최상단 헤더 표시 옵션(번호/아바타/점수표시/정렬) — 학생화면·자리배치에서만 노출
-  const viewControls = document.getElementById('header-view-controls');
-  const isStudentScreen = currentMode === 'students' || currentMode === 'seats';
-  if (viewControls) {
-    viewControls.hidden = !isStudentScreen;
-    if (isStudentScreen) {
-      const prefs = state.uiPrefs;
-      const chkNum = document.getElementById('hdr-show-numbers');
-      const chkAva = document.getElementById('hdr-show-avatars');
-      const selScore = document.getElementById('hdr-score-mode');
-      const selSort = document.getElementById('hdr-sort-by');
-      if (chkNum) chkNum.checked = prefs.showNumbers !== false;
-      if (chkAva) chkAva.checked = currentMode === 'seats' ? Boolean(prefs.seatShowAvatars) : prefs.showAvatars !== false;
-      if (selScore) selScore.value = prefs.scoreDisplayMode || 'net';
-      if (selSort) {
-        selSort.value = prefs.sortBy || 'number';
-        selSort.hidden = false;
-        selSort.classList.toggle('is-invisible', currentMode !== 'students');
-      }
-    }
-  }
 }
 
 function renderCurrentView() {
@@ -202,41 +177,24 @@ async function bootstrap() {
     }
   });
 
-  // 좌측 사이드바 & 상단 탭 바인딩
+  // 좌측 사이드바 바인딩
   document.querySelectorAll('.rail-btn[data-mode]').forEach((btn) => {
     btn.onclick = () => {
       if (btn.dataset.mode === 'picker') setPickerSubTool('hub');
       switchMode(btn.dataset.mode);
     };
   });
-  document.querySelectorAll('.header-tab[data-quick-tab]').forEach((tab) => {
-    tab.onclick = () => switchMode(tab.dataset.quickTab);
-  });
 
-  document.getElementById('btn-home').onclick = () => switchMode('students');
-  document.getElementById('btn-class-title').onclick = openSettingsDialog;
-  document.getElementById('btn-header-settings').onclick = openSettingsDialog;
-  document.getElementById('btn-rail-settings').onclick = openSettingsDialog;
+  const railSettingsBtn = document.getElementById('btn-rail-settings');
+  if (railSettingsBtn) railSettingsBtn.onclick = openSettingsDialog;
+  window.addEventListener('class123:open-class-settings', openSettingsDialog);
 
-  // 최상단 헤더 표시 옵션 바인딩 (번호/아바타/점수표시/정렬)
-  const hdrNum = document.getElementById('hdr-show-numbers');
-  if (hdrNum) {
-    hdrNum.onchange = () => store.update((s) => { s.uiPrefs.showNumbers = hdrNum.checked; });
-  }
-  const hdrAva = document.getElementById('hdr-show-avatars');
-  if (hdrAva) {
-    hdrAva.onchange = () => store.update((s) => {
-      if (currentMode === 'seats') s.uiPrefs.seatShowAvatars = hdrAva.checked;
-      else s.uiPrefs.showAvatars = hdrAva.checked;
-    });
-  }
-  const hdrScore = document.getElementById('hdr-score-mode');
-  if (hdrScore) {
-    hdrScore.onchange = () => store.update((s) => { s.uiPrefs.scoreDisplayMode = hdrScore.value; });
-  }
-  const hdrSort = document.getElementById('hdr-sort-by');
-  if (hdrSort) {
-    hdrSort.onchange = () => store.update((s) => { s.uiPrefs.sortBy = hdrSort.value; });
+  const openRosterFromSettingsBtn = document.getElementById('btn-settings-open-roster');
+  if (openRosterFromSettingsBtn) {
+    openRosterFromSettingsBtn.onclick = () => {
+      closeSettingsDialog();
+      openRosterManagerModal();
+    };
   }
 
   // 소리 토글
@@ -257,12 +215,12 @@ async function bootstrap() {
   curtainBtn.onclick = () => toggleCurtain(curtain.hidden);
   document.getElementById('btn-curtain-off').onclick = () => toggleCurtain(false);
 
-  // 백업 / 복원
+  // 백업 / 복원 (설정 모달 내부)
   const fileInput = document.getElementById('restore-file-input');
-  document.getElementById('btn-backup').onclick = triggerBackupDownload;
-  document.getElementById('btn-settings-backup').onclick = triggerBackupDownload;
-  document.getElementById('btn-restore').onclick = () => fileInput.click();
-  document.getElementById('btn-settings-restore').onclick = () => fileInput.click();
+  const backupBtn = document.getElementById('btn-settings-backup');
+  if (backupBtn) backupBtn.onclick = triggerBackupDownload;
+  const restoreBtn = document.getElementById('btn-settings-restore');
+  if (restoreBtn) restoreBtn.onclick = () => fileInput.click();
 
   fileInput.onchange = async () => {
     const file = fileInput.files?.[0];
