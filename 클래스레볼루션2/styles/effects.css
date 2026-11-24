@@ -26,30 +26,83 @@
 .composer-sidebar {
   display: flex;
   flex-direction: column;
+  gap: 8px;
   min-height: 0;
+}
+.composer-sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .composer-back {
   align-self: flex-start;
-  padding: 4px 8px 10px 0;
+  padding: 2px 8px 4px 0;
   font-size: 13px;
   font-weight: 700;
   color: #887f70;
 }
 .composer-back:hover { color: #473e30; }
 
+/* 좌측 사이드바 상단(즐겨찾기 세트) / 하단(최근 사용 세트) 공간 분리 */
+.composer-set-box {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1.5px solid #e2dccb;
+  background: rgba(255, 255, 255, 0.56);
+}
+.composer-set-box.is-fav-box {
+  flex: 0 1 auto;
+  max-height: 38%;
+  background: #fffbeb;
+  border-color: #f6d57a;
+}
+.composer-set-box.is-recent-box {
+  flex: 1 1 0;
+  background: rgba(255, 255, 255, 0.62);
+  border-color: #ded8c8;
+}
+
 .composer-history-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
-.composer-history-head h3 {
+.set-head-title {
   margin: 0;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 800;
   color: #4b4235;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
+.set-head-title.is-fav { color: #92400e; }
+.set-head-title.is-recent { color: #334155; }
+
+.sec-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.sec-icon.is-fav {
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fcd34d;
+}
+.sec-icon.is-recent {
+  background: #e2e8f0;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
 .composer-history-count {
   padding: 2px 8px;
   border-radius: 99px;
@@ -59,30 +112,39 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
-.composer-history-hint {
-  margin: 0 0 10px;
-  font-size: 12px;
-  color: #887f70;
-  line-height: 1.4;
+.composer-history-count.is-fav {
+  background: #fde68a;
+  color: #92400e;
 }
 
+.composer-favset-list,
 .composer-history-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding-right: 4px;
+  gap: 6px;
+  padding-right: 3px;
+}
+.composer-set-empty-mini {
+  padding: 10px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px dashed #edd282;
+  color: #9a6b16;
+  font-size: 11.5px;
+  line-height: 1.4;
+  text-align: center;
 }
 .composer-history-empty {
-  padding: 24px 12px;
+  padding: 20px 12px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.56);
   border: 1px dashed #d6d0c0;
   text-align: center;
   color: #887f70;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.5;
 }
 .composer-history-item {
@@ -90,15 +152,20 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 5px;
-  padding: 10px 12px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 2px solid transparent;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1.5px solid transparent;
   box-shadow: 0 1px 4px rgba(74, 66, 53, 0.06);
   text-align: left;
   white-space: normal;
+  cursor: pointer;
   transition: transform 0.1s, border-color 0.14s, background 0.14s;
+}
+.composer-history-item.is-favset-item {
+  background: #ffffff;
+  border-color: #f8dfa1;
 }
 .composer-history-item:hover {
   background: #fff;
@@ -114,7 +181,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+}
+.composer-history-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.set-fav-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
+  transition: background 0.12s, color 0.12s;
+}
+.set-fav-btn:hover {
+  background: #fef3c7;
+  color: #d97706;
+}
+.set-fav-btn.is-fav {
+  color: #f59e0b;
 }
 .composer-history-badge {
   display: inline-flex;
@@ -212,6 +300,29 @@
   color: #c92d49;
 }
 
+.composer-manage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 99px;
+  background: #fffbeb;
+  border: 1.5px solid #f59e0b;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: background 0.12s, transform 0.08s;
+}
+.composer-manage-btn svg {
+  color: #f59e0b;
+}
+.composer-manage-btn:hover {
+  background: #fef3c7;
+  transform: translateY(-1px);
+}
+
 .composer-close {
   font-size: 28px;
   line-height: 1;
@@ -226,24 +337,57 @@
   padding-right: 4px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
-.reason-section-label {
+.reason-section-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.reason-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.reason-group-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 99px;
   font-size: 12px;
   font-weight: 800;
-  color: #485866;
-  margin-bottom: 6px;
 }
-.is-penalty .reason-section-label { color: #7a3b47; }
+.reason-group-pill.is-fav {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+.reason-group-pill.is-fav svg { color: #f59e0b; }
 
-.reason-group-title {
-  font-size: 12px;
-  font-weight: 800;
-  color: #2f5573;
-  margin-bottom: 6px;
+.reason-group-pill.is-recent {
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+  color: #334155;
 }
-.is-penalty .reason-group-title { color: #7a2e3e; }
+.reason-group-pill.is-recent svg { color: #475569; }
+
+.reason-group-pill.is-preset {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  color: #475569;
+}
+
+.reason-empty-guide {
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: rgba(255, 251, 235, 0.85);
+  border: 1px dashed #f6c967;
+  color: #92400e;
+  font-size: 12.5px;
+  font-weight: 600;
+}
 
 .reason-grid {
   display: grid;
@@ -256,7 +400,7 @@
   align-items: center;
   gap: 10px;
   min-height: 48px;
-  padding: 8px 13px;
+  padding: 8px 12px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.9);
   color: #3f4b56;
@@ -265,6 +409,10 @@
   text-align: left;
   border: 2px solid transparent;
   transition: transform 0.08s, border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+.reason-card-btn.is-fav-card {
+  background: #fffef7;
+  border-color: rgba(245, 158, 11, 0.35);
 }
 .reason-card-btn:hover { background: #fff; transform: translateY(-1px); border-color: #6ab5e8; }
 .is-penalty .reason-card-btn:hover { border-color: #eb738b; }
@@ -278,18 +426,36 @@
   box-shadow: 0 0 0 3px rgba(223, 51, 87, 0.22);
 }
 
+/* 카드 좌측 구분 배지 아이콘: 즐겨찾기(황금 북마크) vs 최근 사용(시계) vs 기본 추천 */
 .reason-badge-icon {
   width: 28px;
   height: 28px;
-  border-radius: 50%;
-  background: #27ada4;
-  color: #fff56c;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   flex: none;
-  font-size: 14px;
 }
-.is-penalty .reason-badge-icon { background: #e85873; color: #fff; }
+.reason-badge-icon.is-fav-badge {
+  background: #fef3c7;
+  border: 1.5px solid #f59e0b;
+  color: #d97706;
+}
+.reason-badge-icon.is-recent-badge {
+  background: #e2e8f0;
+  border: 1.5px solid #94a3b8;
+  color: #334155;
+}
+.reason-badge-icon.is-preset-badge {
+  background: #eef4f9;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+}
+.is-penalty .reason-badge-icon.is-preset-badge {
+  background: #fdf0f3;
+  border-color: #f2c5cf;
+  color: #9f3a50;
+}
+
 .reason-card-text {
   flex: 1;
   min-width: 0;
@@ -297,13 +463,198 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.reason-fav-star {
+.reason-fav-toggle {
   margin-left: auto;
-  color: #d6c99b;
-  font-size: 16px;
-  padding: 2px 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
+  transition: background 0.12s, color 0.12s;
 }
-.reason-fav-star.is-fav { color: #f5b800; }
+.reason-fav-toggle:hover {
+  background: #fef3c7;
+  color: #d97706;
+}
+.reason-fav-toggle.is-fav {
+  color: #f59e0b;
+}
+
+/* 설정 내 으쓱·머쓱 즐겨찾기 카드 & 세트 등록 모달 */
+.card-mgr-dialog {
+  max-width: 680px;
+}
+.card-mgr-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 76vh;
+  overflow-y: auto;
+}
+.card-mgr-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.card-mgr-tab {
+  flex: 1;
+  min-width: 140px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: #f5f3eb;
+  border: 1.5px solid #e2ddd0;
+  color: #5a5244;
+  font-size: 13px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.card-mgr-tab.is-pos.is-active {
+  background: #e6f4ff;
+  border-color: #198bd2;
+  color: #11649a;
+}
+.card-mgr-tab.is-neg.is-active {
+  background: #ffe9ee;
+  border-color: #df3357;
+  color: #b11f3d;
+}
+.card-mgr-tab.is-sets.is-active {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+.mgr-tab-bm {
+  display: inline-grid;
+  place-items: center;
+  color: #f59e0b;
+}
+.card-mgr-desc {
+  margin: 0;
+  font-size: 12.5px;
+  color: #6b6254;
+  line-height: 1.45;
+}
+.card-mgr-add-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+.card-mgr-add-row input,
+.card-mgr-set-form input,
+.card-mgr-set-form select {
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1.5px solid #d5cfc1;
+  font-size: 13px;
+  font-weight: 700;
+}
+.card-mgr-set-form {
+  display: grid;
+  grid-template-columns: 126px 76px 1fr auto;
+  gap: 8px;
+}
+.card-mgr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 290px;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 9px;
+  border: 1px solid #e5dfd1;
+  background: #faf9f4;
+}
+.card-mgr-empty {
+  padding: 22px 12px;
+  text-align: center;
+  color: #887f70;
+  font-size: 12.5px;
+}
+.card-mgr-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #eae4d6;
+}
+.card-mgr-bm-icon {
+  color: #f59e0b;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.card-mgr-edit-input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #dcd6c7;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #3d3529;
+}
+.card-mgr-set-reason {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #3d3529;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-mgr-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.card-mgr-mini {
+  padding: 4px 8px !important;
+  font-size: 11.5px !important;
+  min-height: 28px;
+}
+.card-mgr-presets-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f5f3ec;
+}
+.card-mgr-presets-label {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #746b5c;
+}
+.card-mgr-preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.card-mgr-chip {
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: #fff;
+  border: 1px solid #d7d0c0;
+  color: #4f4638;
+  font-size: 12px;
+  font-weight: 700;
+}
+.card-mgr-chip:hover {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  color: #92400e;
+}
 
 /* 하단 1회 점수 조절 + 사유 입력 + 확인 버튼 패널 */
 .composer-bottom-panel {

@@ -1,6 +1,6 @@
 // 공통 점수 부여 모달(한 장 주기 / 여러 장 주기, 으쓱 파랑 / 머쓱 분홍) + 원본 영상 충실 연출 + 하단 검정 토스트
 
-import { store, getStillAvatarUrl, getFxAvatarUrl } from './store.js';
+import { store, getStillAvatarUrl, getFxAvatarUrl, uid } from './store.js';
 import { applyStudentScoreBatch } from './score-engine.js';
 import { playSound } from './audio.js';
 
@@ -342,6 +342,319 @@ function runNextFx() {
   fxTimer = setTimeout(finish, duration);
 }
 
+/** 즐겨찾기(황금 북마크 리본) vs 최근 사용(시계 히스토리) 전용 구분 SVG 아이콘 */
+const SVG_BOOKMARK_FILLED = `<svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M5 2.5A1.5 1.5 0 0 1 6.5 1h7A1.5 1.5 0 0 1 15 2.5v15.05a.75.75 0 0 1-1.16.63L10 15.66l-3.84 2.52A.75.75 0 0 1 5 17.55V2.5Z"/></svg>`;
+const SVG_BOOKMARK_OUTLINE = `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 2.75A1.25 1.25 0 0 1 6.75 1.5h6.5a1.25 1.25 0 0 1 1.25 1.25v14.5L10 14.3l-4.5 2.95V2.75Z"/></svg>`;
+const SVG_CLOCK_RECENT = `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 6.5A7.3 7.3 0 1 1 2.8 10"/><path d="M3 3.2v3.5h3.5"/><path d="M10 6.2v4.1l2.7 1.7"/></svg>`;
+const SVG_SPARK_PRESET = `<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M7 8h6M7 12h4"/></svg>`;
+
+function isSameSet(a, b) {
+  return (
+    a.type === b.type &&
+    Math.abs(Math.trunc(Number(a.points) || 1)) === Math.abs(Math.trunc(Number(b.points) || 1)) &&
+    String(a.reason || '').trim() === String(b.reason || '').trim()
+  );
+}
+
+/**
+ * 설정창 및 점수 부여창에서 호출하는 으쓱·머쓱 즐겨찾기 카드 & 세트 미리 등록/관리 모달
+ */
+export function openScoreCardManagerModal(initialTab = 'pos', onChanged = null) {
+  const modalRoot = document.getElementById('modal-root');
+  if (!modalRoot) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  let activeTab = initialTab === 'neg' ? 'neg' : initialTab === 'sets' ? 'sets' : 'pos';
+  let draftSetType = 'positive';
+  let draftSetPoints = 2;
+
+  const close = () => {
+    backdrop.remove();
+    if (typeof onChanged === 'function') onChanged();
+  };
+
+  const renderModal = () => {
+    const st = store.getState();
+    const favPos = st.reasons.favoritesPositive || [];
+    const favNeg = st.reasons.favoritesNegative || [];
+    const favSets = st.reasons.favoriteSets || [];
+    const isCardTab = activeTab === 'pos' || activeTab === 'neg';
+    const isPosTab = activeTab === 'pos';
+    const curCards = isPosTab ? favPos : favNeg;
+    const curPresets = (isPosTab ? st.reasons.positivePresets : st.reasons.negativePresets) || [];
+    const unaddedPresets = curPresets.filter((p) => !curCards.includes(p));
+
+    backdrop.innerHTML = `
+      <div class="dialog-card is-wide card-mgr-dialog">
+        <div class="dialog-header">
+          <h2>으쓱·머쓱 즐겨찾기 카드 및 세트 등록</h2>
+          <button type="button" class="dialog-close" aria-label="닫기">&times;</button>
+        </div>
+        <div class="dialog-body card-mgr-body">
+          <div class="card-mgr-tabs">
+            <button type="button" class="card-mgr-tab is-pos ${activeTab === 'pos' ? 'is-active' : ''}" data-mgr-tab="pos">
+              <i class="sp-icon sp-star-blue" style="transform:scale(0.75);" aria-hidden="true"></i>
+              <span>으쓱 카드 (${favPos.length})</span>
+            </button>
+            <button type="button" class="card-mgr-tab is-neg ${activeTab === 'neg' ? 'is-active' : ''}" data-mgr-tab="neg">
+              <i class="sp-icon sp-cloud-red" style="transform:scale(0.75);" aria-hidden="true"></i>
+              <span>머쓱 카드 (${favNeg.length})</span>
+            </button>
+            <button type="button" class="card-mgr-tab is-sets ${activeTab === 'sets' ? 'is-active' : ''}" data-mgr-tab="sets">
+              <span class="mgr-tab-bm">${SVG_BOOKMARK_FILLED}</span>
+              <span>즐겨찾기 세트 (${favSets.length})</span>
+            </button>
+          </div>
+
+          ${isCardTab ? `
+            <p class="card-mgr-desc">
+              여기서 등록한 <strong>${isPosTab ? '으쓱(상점)' : '머쓱(감점)'} 카드</strong>는 점수 부여 창의 <strong>즐겨찾기 카드</strong> 영역에 항상 나타납니다.
+            </p>
+            <form class="card-mgr-add-row" id="form-mgr-add-card">
+              <input type="text" id="mgr-new-card-text" maxlength="50" placeholder="${isPosTab ? '새 으쓱 카드 문구 입력 (예: 발표를 멋지게 했어요)' : '새 머쓱 카드 문구 입력 (예: 수업 시간에 집중이 필요해요)'}" required>
+              <button type="submit" class="btn-yellow">+ 즐겨찾기에 등록</button>
+            </form>
+
+            <div class="card-mgr-list">
+              ${curCards.length === 0 ? `
+                <div class="card-mgr-empty">아직 등록된 ${isPosTab ? '으쓱' : '머쓱'} 즐겨찾기 카드가 없습니다. 위 입력창에서 카드를 등록해보세요.</div>
+              ` : curCards.map((text, idx) => `
+                <div class="card-mgr-item">
+                  <span class="card-mgr-bm-icon">${SVG_BOOKMARK_FILLED}</span>
+                  <input type="text" class="card-mgr-edit-input" data-mgr-edit-idx="${idx}" value="${escapeAttr(text)}" maxlength="50">
+                  <div class="card-mgr-actions">
+                    <button type="button" class="btn-outline card-mgr-mini" data-mgr-save-idx="${idx}">수정저장</button>
+                    <button type="button" class="btn-outline card-mgr-mini" data-mgr-up="${idx}" ${idx === 0 ? 'disabled' : ''} title="위로">▲</button>
+                    <button type="button" class="btn-outline card-mgr-mini" data-mgr-down="${idx}" ${idx === curCards.length - 1 ? 'disabled' : ''} title="아래로">▼</button>
+                    <button type="button" class="btn-danger-outline card-mgr-mini" data-mgr-del="${idx}">삭제</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+
+            ${unaddedPresets.length > 0 ? `
+              <div class="card-mgr-presets-box">
+                <span class="card-mgr-presets-label">추천 문구 빠른 등록:</span>
+                <div class="card-mgr-preset-chips">
+                  ${unaddedPresets.map((p) => `
+                    <button type="button" class="card-mgr-chip" data-mgr-quick-add="${escapeAttr(p)}">+ ${escapeHtml(p)}</button>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          ` : `
+            <p class="card-mgr-desc">
+              자주 쓰는 <strong>종류(으쓱/머쓱) + 점수 + 사유</strong> 조합을 <strong>즐겨찾기 세트</strong>로 등록하면 점수 부여 창 좌측 상단 전용 공간에 고정됩니다.
+            </p>
+            <form class="card-mgr-set-form" id="form-mgr-add-set">
+              <select id="mgr-set-type">
+                <option value="positive" ${draftSetType === 'positive' ? 'selected' : ''}>으쓱 (+상점)</option>
+                <option value="negative" ${draftSetType === 'negative' ? 'selected' : ''}>머쓱 (-감점)</option>
+              </select>
+              <input type="number" id="mgr-set-pts" min="1" max="99" value="${draftSetPoints}" title="1인당 점수">
+              <input type="text" id="mgr-set-reason" maxlength="50" placeholder="세트 사유 입력 (예: 모둠 활동 적극 협력)" required>
+              <button type="submit" class="btn-yellow">+ 세트 등록</button>
+            </form>
+
+            <div class="card-mgr-list">
+              ${favSets.length === 0 ? `
+                <div class="card-mgr-empty">등록된 즐겨찾기 세트가 없습니다. 위에서 등록하거나 최근 사용 세트의 북마크 아이콘을 눌러 추가하세요.</div>
+              ` : favSets.map((sItem, idx) => {
+                const sPos = sItem.type !== 'negative';
+                const pts = Math.max(1, Math.trunc(Number(sItem.points) || 1));
+                return `
+                  <div class="card-mgr-item">
+                    <span class="card-mgr-bm-icon">${SVG_BOOKMARK_FILLED}</span>
+                    <span class="composer-history-badge ${sPos ? 'is-pos' : 'is-neg'}">${sPos ? '으쓱' : '머쓱'} ${sPos ? '+' : '-'}${pts}점</span>
+                    <span class="card-mgr-set-reason">${escapeHtml(sItem.reason)}</span>
+                    <div class="card-mgr-actions">
+                      <button type="button" class="btn-outline card-mgr-mini" data-set-up="${idx}" ${idx === 0 ? 'disabled' : ''} title="위로">▲</button>
+                      <button type="button" class="btn-outline card-mgr-mini" data-set-down="${idx}" ${idx === favSets.length - 1 ? 'disabled' : ''} title="아래로">▼</button>
+                      <button type="button" class="btn-danger-outline card-mgr-mini" data-set-del="${idx}">삭제</button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+        <div class="dialog-footer">
+          <button type="button" class="btn-yellow" data-mgr-close>완료</button>
+        </div>
+      </div>
+    `;
+
+    backdrop.querySelector('.dialog-close').onclick = close;
+    backdrop.querySelector('[data-mgr-close]').onclick = close;
+    backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+
+    backdrop.querySelectorAll('[data-mgr-tab]').forEach((b) => {
+      b.onclick = () => {
+        activeTab = b.dataset.mgrTab;
+        renderModal();
+      };
+    });
+
+    if (isCardTab) {
+      const key = isPosTab ? 'favoritesPositive' : 'favoritesNegative';
+      const presetKey = isPosTab ? 'positivePresets' : 'negativePresets';
+
+      backdrop.querySelector('#form-mgr-add-card').onsubmit = async (e) => {
+        e.preventDefault();
+        const val = String(backdrop.querySelector('#mgr-new-card-text').value || '').trim();
+        if (!val) return;
+        await store.update((draft) => {
+          const arr = draft.reasons[key] || [];
+          if (!arr.includes(val)) {
+            draft.reasons[key] = [val, ...arr];
+          }
+          const pArr = draft.reasons[presetKey] || [];
+          if (!pArr.includes(val)) {
+            draft.reasons[presetKey] = [...pArr, val];
+          }
+        });
+        showToast({ title: `'${val}' 카드를 즐겨찾기에 등록했습니다.`, tone: 'plus' });
+        renderModal();
+      };
+
+      backdrop.querySelectorAll('[data-mgr-quick-add]').forEach((b) => {
+        b.onclick = async () => {
+          const val = b.dataset.mgrQuickAdd;
+          if (!val) return;
+          await store.update((draft) => {
+            const arr = draft.reasons[key] || [];
+            if (!arr.includes(val)) draft.reasons[key] = [...arr, val];
+          });
+          renderModal();
+        };
+      });
+
+      backdrop.querySelectorAll('[data-mgr-save-idx]').forEach((b) => {
+        b.onclick = async () => {
+          const idx = Number(b.dataset.mgrSaveIdx);
+          const inp = backdrop.querySelector(`[data-mgr-edit-idx="${idx}"]`);
+          const nextVal = String(inp?.value || '').trim();
+          if (!nextVal) return;
+          await store.update((draft) => {
+            const arr = [...(draft.reasons[key] || [])];
+            if (idx >= 0 && idx < arr.length) {
+              arr[idx] = nextVal;
+              draft.reasons[key] = Array.from(new Set(arr));
+            }
+          });
+          showToast({ title: '카드 문구를 수정했습니다.', tone: 'plus' });
+          renderModal();
+        };
+      });
+
+      backdrop.querySelectorAll('[data-mgr-up]').forEach((b) => {
+        b.onclick = async () => {
+          const idx = Number(b.dataset.mgrUp);
+          if (idx <= 0) return;
+          await store.update((draft) => {
+            const arr = [...(draft.reasons[key] || [])];
+            [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+            draft.reasons[key] = arr;
+          });
+          renderModal();
+        };
+      });
+
+      backdrop.querySelectorAll('[data-mgr-down]').forEach((b) => {
+        b.onclick = async () => {
+          const idx = Number(b.dataset.mgrDown);
+          await store.update((draft) => {
+            const arr = [...(draft.reasons[key] || [])];
+            if (idx >= 0 && idx < arr.length - 1) {
+              [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+              draft.reasons[key] = arr;
+            }
+          });
+          renderModal();
+        };
+      });
+
+      backdrop.querySelectorAll('[data-mgr-del]').forEach((b) => {
+        b.onclick = async () => {
+          const idx = Number(b.dataset.mgrDel);
+          await store.update((draft) => {
+            const arr = [...(draft.reasons[key] || [])];
+            arr.splice(idx, 1);
+            draft.reasons[key] = arr;
+          });
+          renderModal();
+        };
+      });
+    } else {
+      const typeSel = backdrop.querySelector('#mgr-set-type');
+      const ptsInp = backdrop.querySelector('#mgr-set-pts');
+      if (typeSel) typeSel.onchange = () => { draftSetType = typeSel.value; };
+      if (ptsInp) ptsInp.onchange = () => { draftSetPoints = Math.max(1, Math.min(99, Math.trunc(Number(ptsInp.value) || 1))); };
+
+      backdrop.querySelector('#form-mgr-add-set').onsubmit = async (e) => {
+        e.preventDefault();
+        const sType = backdrop.querySelector('#mgr-set-type').value === 'negative' ? 'negative' : 'positive';
+        const sPts = Math.max(1, Math.min(99, Math.trunc(Number(backdrop.querySelector('#mgr-set-pts').value) || 1)));
+        const sReason = String(backdrop.querySelector('#mgr-set-reason').value || '').trim();
+        if (!sReason) return;
+        draftSetType = sType;
+        draftSetPoints = sPts;
+        await store.update((draft) => {
+          const list = Array.isArray(draft.reasons.favoriteSets) ? draft.reasons.favoriteSets : [];
+          const candidate = { id: uid('fset'), type: sType, points: sPts, reason: sReason };
+          if (!list.some((x) => isSameSet(x, candidate))) {
+            draft.reasons.favoriteSets = [candidate, ...list];
+          }
+        });
+        showToast({ title: '즐겨찾기 세트를 등록했습니다.', tone: 'plus' });
+        renderModal();
+      };
+
+      backdrop.querySelectorAll('[data-set-up]').forEach((b) => {
+        b.onclick = async () => {
+          const idx = Number(b.dataset.setUp);
+          if (idx <= 0) return;
+          await store.update((draft) => {
+            const arr = [...(draft.reasons.favoriteSets || [])];
+            [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+            draft.reasons.favoriteSets = arr;
+          });
+          renderModal();
+        };
+      });
+
+      backdrop.querySelectorAll('[data-set-down]').forEach((b) => {
+        b.onclick = async () => {
+          const idx = Number(b.dataset.setDown);
+          await store.update((draft) => {
+            const arr = [...(draft.reasons.favoriteSets || [])];
+            if (idx >= 0 && idx < arr.length - 1) {
+              [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+              draft.reasons.favoriteSets = arr;
+            }
+          });
+          renderModal();
+        };
+      });
+
+      backdrop.querySelectorAll('[data-set-del]').forEach((b) => {
+        b.onclick = async () => {
+          const idx = Number(b.dataset.setDel);
+          await store.update((draft) => {
+            const arr = [...(draft.reasons.favoriteSets || [])];
+            arr.splice(idx, 1);
+            draft.reasons.favoriteSets = arr;
+          });
+          renderModal();
+        };
+      });
+    }
+  };
+
+  modalRoot.appendChild(backdrop);
+  renderModal();
+}
+
 /** 최근 기록 타임스탬프를 간결한 시각 문자열로 변환 */
 function formatShortTime(ts) {
   const d = new Date(Number(ts) || Date.now());
@@ -378,6 +691,7 @@ export function openScoreComposer({ studentIds = [], initialType = 'positive', o
   let pointsPerStudent = 1; // 1 ~ 99 정수
   let selectedReason = '';
   let activeHistoryId = null;
+  let activeFavSetId = null;
 
   const targetFullNames = targetStudents.map((s) => `${s.number}번 ${s.name}`).join(', ');
   const targetSummaryText =
@@ -437,22 +751,22 @@ export function openScoreComposer({ studentIds = [], initialType = 'positive', o
   };
 
   const render = () => {
+    const prevFavSetScroll = overlay.querySelector('.composer-favset-list')?.scrollTop || 0;
     const prevHistoryScroll = overlay.querySelector('.composer-history-list')?.scrollTop || 0;
     const prevReasonScroll = overlay.querySelector('.composer-reasons-scroll')?.scrollTop || 0;
 
     const st = store.getState();
     const isPos = modeType === 'positive';
     const sign = isPos ? '+' : '-';
-    const presets = isPos ? st.reasons.positivePresets : st.reasons.negativePresets;
-    const recentReasons = isPos ? st.reasons.recentPositive : st.reasons.recentNegative;
+    const presets = (isPos ? st.reasons.positivePresets : st.reasons.negativePresets) || [];
+    const recentReasons = (isPos ? st.reasons.recentPositive : st.reasons.recentNegative) || [];
     const favList = (isPos ? st.reasons.favoritesPositive : st.reasons.favoritesNegative) || [];
     const favSet = new Set(favList);
+    const favoriteSets = Array.isArray(st.reasons.favoriteSets) ? st.reasons.favoriteSets : [];
 
-    // 즐겨찾기와 중복되지 않는 최근 사유 + 기본 프리셋 목록
-    const regularReasons = [
-      ...recentReasons.filter((r) => !favSet.has(r)),
-      ...presets.filter((r) => !favSet.has(r) && !recentReasons.includes(r)),
-    ];
+    // 즐겨찾기와 확실히 구분되는 '최근 사용 카드' 및 미사용 '기본 추천 카드'
+    const recentOnlyList = recentReasons.filter((r) => !favSet.has(r));
+    const presetOnlyList = presets.filter((r) => !favSet.has(r) && !recentReasons.includes(r));
 
     const historyItems = (st.history || [])
       .filter((h) => h.kind === 'score' && !h.reverted && Number(h.delta) !== 0)
@@ -460,48 +774,101 @@ export function openScoreComposer({ studentIds = [], initialType = 'positive', o
 
     const totalPts = pointsPerStudent * targetStudents.length;
 
-    const renderReasonCard = (r) => `
-      <button type="button" class="reason-card-btn ${selectedReason === r ? 'is-selected' : ''}" data-select-reason="${escapeAttr(r)}">
-        <span class="reason-badge-icon">${isPos ? '★' : '☁'}</span>
-        <span class="reason-card-text" title="${escapeAttr(r)}">${escapeHtml(r)}</span>
-        <span class="reason-fav-star ${favSet.has(r) ? 'is-fav' : ''}" data-fav-toggle="${escapeAttr(r)}" title="즐겨찾기 토글">★</span>
-      </button>
-    `;
+    const renderReasonCard = (r, kind) => {
+      const isFav = favSet.has(r);
+      const badgeHtml = kind === 'fav'
+        ? `<span class="reason-badge-icon is-fav-badge" title="즐겨찾기 등록 카드">${SVG_BOOKMARK_FILLED}</span>`
+        : kind === 'recent'
+          ? `<span class="reason-badge-icon is-recent-badge" title="최근 사용 카드">${SVG_CLOCK_RECENT}</span>`
+          : `<span class="reason-badge-icon is-preset-badge" title="기본 추천 카드">${SVG_SPARK_PRESET}</span>`;
+      return `
+        <button type="button" class="reason-card-btn ${kind === 'fav' ? 'is-fav-card' : ''} ${selectedReason === r ? 'is-selected' : ''}" data-select-reason="${escapeAttr(r)}">
+          ${badgeHtml}
+          <span class="reason-card-text" title="${escapeAttr(r)}">${escapeHtml(r)}</span>
+          <span class="reason-fav-toggle ${isFav ? 'is-fav' : ''}" data-fav-toggle="${escapeAttr(r)}" title="${isFav ? '즐겨찾기 해제' : '즐겨찾기에 등록'}">
+            ${isFav ? SVG_BOOKMARK_FILLED : SVG_BOOKMARK_OUTLINE}
+          </span>
+        </button>
+      `;
+    };
 
     overlay.innerHTML = `
       <div class="composer-grid">
         <div class="composer-sidebar">
-          <button type="button" class="composer-back" id="comp-back">← 학급화면</button>
-          <div class="composer-history-head">
-            <h3>최근 부여 기록</h3>
-            <span class="composer-history-count">${historyItems.length}건</span>
+          <div class="composer-sidebar-top">
+            <button type="button" class="composer-back" id="comp-back">← 학급화면</button>
           </div>
-          <p class="composer-history-hint">기록을 클릭하면 사유와 점수가 아래에 적용됩니다.</p>
 
-          <div class="composer-history-list">
-            ${historyItems.length === 0 ? `
-              <div class="composer-history-empty">아직 부여한 점수 기록이 없습니다.<br>점수를 부여하면 여기에 최근 내역이 쌓입니다.</div>
-            ` : historyItems.map((h) => {
-              const hPos = h.delta > 0;
-              const absD = Math.abs(h.delta);
-              const names = Array.isArray(h.studentNames) ? h.studentNames : [];
-              const whoText = names.length === 0
-                ? '대상 없음'
-                : names.length === 1
-                  ? names[0]
-                  : `${names[0]} 외 ${names.length - 1}명`;
-              const histTotal = h.delta * Math.max(1, (h.studentIds || []).length);
-              return `
-                <button type="button" class="composer-history-item ${activeHistoryId === h.id ? 'is-active' : ''}" data-history-id="${escapeAttr(h.id)}">
-                  <div class="composer-history-top">
-                    <span class="composer-history-badge ${hPos ? 'is-pos' : 'is-neg'}">${hPos ? '으쓱' : '머쓱'} ${hPos ? '+' : '-'}${absD}점</span>
-                    <span class="composer-history-time">${formatShortTime(h.timestamp)}</span>
+          <!-- 상단 분리 공간: 즐겨찾기 세트 -->
+          <div class="composer-set-box is-fav-box">
+            <div class="composer-history-head">
+              <h3 class="set-head-title is-fav">
+                <span class="sec-icon is-fav">${SVG_BOOKMARK_FILLED}</span>
+                <span>즐겨찾기 세트</span>
+              </h3>
+              <span class="composer-history-count is-fav">${favoriteSets.length}개</span>
+            </div>
+            <div class="composer-favset-list">
+              ${favoriteSets.length === 0 ? `
+                <div class="composer-set-empty-mini">자주 쓰는 세트의 북마크 아이콘을 누르거나 [카드·세트 등록]에서 추가하세요.</div>
+              ` : favoriteSets.map((fs) => {
+                const fsPos = fs.type !== 'negative';
+                const fsPts = Math.max(1, Math.trunc(Number(fs.points) || 1));
+                return `
+                  <div class="composer-history-item is-favset-item ${activeFavSetId === fs.id ? 'is-active' : ''}" data-favset-id="${escapeAttr(fs.id)}" role="button" tabindex="0">
+                    <div class="composer-history-top">
+                      <span class="composer-history-badge ${fsPos ? 'is-pos' : 'is-neg'}">${fsPos ? '으쓱' : '머쓱'} ${fsPos ? '+' : '-'}${fsPts}점</span>
+                      <button type="button" class="set-fav-btn is-fav" data-remove-favset="${escapeAttr(fs.id)}" title="즐겨찾기 세트 해제">${SVG_BOOKMARK_FILLED}</button>
+                    </div>
+                    <span class="composer-history-reason">${escapeHtml(fs.reason)}</span>
                   </div>
-                  <span class="composer-history-reason">${escapeHtml(h.reason)}</span>
-                  <span class="composer-history-meta">${escapeHtml(whoText)} &middot; 총 ${histTotal > 0 ? `+${histTotal}` : histTotal}점</span>
-                </button>
-              `;
-            }).join('')}
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- 하단 분리 공간: 최근 사용 세트 -->
+          <div class="composer-set-box is-recent-box">
+            <div class="composer-history-head">
+              <h3 class="set-head-title is-recent">
+                <span class="sec-icon is-recent">${SVG_CLOCK_RECENT}</span>
+                <span>최근 사용 세트</span>
+              </h3>
+              <span class="composer-history-count">${historyItems.length}건</span>
+            </div>
+
+            <div class="composer-history-list">
+              ${historyItems.length === 0 ? `
+                <div class="composer-history-empty">아직 부여한 점수 기록이 없습니다.<br>점수를 부여하면 여기에 최근 세트가 쌓입니다.</div>
+              ` : historyItems.map((h) => {
+                const hPos = h.delta > 0;
+                const absD = Math.abs(h.delta);
+                const hType = hPos ? 'positive' : 'negative';
+                const matchedFavSet = favoriteSets.find((fs) => isSameSet(fs, { type: hType, points: absD, reason: h.reason }));
+                const names = Array.isArray(h.studentNames) ? h.studentNames : [];
+                const whoText = names.length === 0
+                  ? '대상 없음'
+                  : names.length === 1
+                    ? names[0]
+                    : `${names[0]} 외 ${names.length - 1}명`;
+                const histTotal = h.delta * Math.max(1, (h.studentIds || []).length);
+                return `
+                  <div class="composer-history-item ${activeHistoryId === h.id ? 'is-active' : ''}" data-history-id="${escapeAttr(h.id)}" role="button" tabindex="0">
+                    <div class="composer-history-top">
+                      <span class="composer-history-badge ${hPos ? 'is-pos' : 'is-neg'}">${hPos ? '으쓱' : '머쓱'} ${hPos ? '+' : '-'}${absD}점</span>
+                      <div class="composer-history-right">
+                        <span class="composer-history-time">${formatShortTime(h.timestamp)}</span>
+                        <button type="button" class="set-fav-btn ${matchedFavSet ? 'is-fav' : ''}" data-toggle-hist-favset="${escapeAttr(h.id)}" title="${matchedFavSet ? '즐겨찾기 세트 해제' : '즐겨찾기 세트로 등록'}">
+                          ${matchedFavSet ? SVG_BOOKMARK_FILLED : SVG_BOOKMARK_OUTLINE}
+                        </button>
+                      </div>
+                    </div>
+                    <span class="composer-history-reason">${escapeHtml(h.reason)}</span>
+                    <span class="composer-history-meta">${escapeHtml(whoText)} &middot; 총 ${histTotal > 0 ? `+${histTotal}` : histTotal}점</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
           </div>
         </div>
 
@@ -518,29 +885,60 @@ export function openScoreComposer({ studentIds = [], initialType = 'positive', o
             <span class="composer-target-summary ${targetStudents.length === 0 ? 'is-empty' : ''}" title="${escapeAttr(targetFullNames || '대상 학생 없음')}">
               대상: ${escapeHtml(targetSummaryText)}
             </span>
+            <button type="button" class="composer-manage-btn" id="comp-open-card-mgr" title="으쓱·머쓱 즐겨찾기 카드 및 세트 등록">
+              ${SVG_BOOKMARK_FILLED}
+              <span>카드·세트 등록</span>
+            </button>
             <button type="button" class="composer-close" id="comp-close" aria-label="닫기">&times;</button>
           </div>
 
           <div class="composer-reasons-scroll">
-            <div class="reason-section-label">
-              즐겨찾기·사유를 클릭해 선택한 뒤 아래에서 점수를 조절하고 [확인]을 눌러주세요.
+            <!-- 1. 즐겨찾기(등록) 카드 섹션 -->
+            <div class="reason-section-block is-fav-section">
+              <div class="reason-group-header">
+                <span class="reason-group-pill is-fav">
+                  ${SVG_BOOKMARK_FILLED}
+                  <span>즐겨찾기 카드 (등록됨 · ${favList.length})</span>
+                </span>
+              </div>
+              ${favList.length > 0 ? `
+                <div class="reason-grid">
+                  ${favList.map((r) => renderReasonCard(r, 'fav')).join('')}
+                </div>
+              ` : `
+                <div class="reason-empty-guide">등록된 즐겨찾기 카드가 없습니다. 우측 상단 <strong>[카드·세트 등록]</strong> 또는 설정에서 카드를 등록해보세요.</div>
+              `}
             </div>
 
-            ${favList.length > 0 ? `
-              <div>
-                <div class="reason-group-title">★ 즐겨찾기</div>
+            <!-- 2. 최근 사용 카드 섹션 -->
+            ${recentOnlyList.length > 0 ? `
+              <div class="reason-section-block is-recent-section">
+                <div class="reason-group-header">
+                  <span class="reason-group-pill is-recent">
+                    ${SVG_CLOCK_RECENT}
+                    <span>최근 사용 카드 (${recentOnlyList.length})</span>
+                  </span>
+                </div>
                 <div class="reason-grid">
-                  ${favList.map(renderReasonCard).join('')}
+                  ${recentOnlyList.map((r) => renderReasonCard(r, 'recent')).join('')}
                 </div>
               </div>
             ` : ''}
 
-            <div>
-              ${favList.length > 0 ? '<div class="reason-group-title">사유 목록</div>' : ''}
-              <div class="reason-grid">
-                ${regularReasons.map(renderReasonCard).join('')}
+            <!-- 3. 기본 추천 카드 섹션 -->
+            ${presetOnlyList.length > 0 ? `
+              <div class="reason-section-block">
+                <div class="reason-group-header">
+                  <span class="reason-group-pill is-preset">
+                    ${SVG_SPARK_PRESET}
+                    <span>기본 추천 카드</span>
+                  </span>
+                </div>
+                <div class="reason-grid">
+                  ${presetOnlyList.map((r) => renderReasonCard(r, 'preset')).join('')}
+                </div>
               </div>
-            </div>
+            ` : ''}
           </div>
 
           <div class="composer-bottom-panel">
@@ -575,6 +973,8 @@ export function openScoreComposer({ studentIds = [], initialType = 'positive', o
       </div>
     `;
 
+    const favSetScrollEl = overlay.querySelector('.composer-favset-list');
+    if (favSetScrollEl) favSetScrollEl.scrollTop = prevFavSetScroll;
     const histScrollEl = overlay.querySelector('.composer-history-list');
     if (histScrollEl) histScrollEl.scrollTop = prevHistoryScroll;
     const reasonScrollEl = overlay.querySelector('.composer-reasons-scroll');
@@ -582,16 +982,64 @@ export function openScoreComposer({ studentIds = [], initialType = 'positive', o
 
     overlay.querySelector('#comp-back').onclick = close;
     overlay.querySelector('#comp-close').onclick = close;
+    const mgrBtn = overlay.querySelector('#comp-open-card-mgr');
+    if (mgrBtn) {
+      mgrBtn.onclick = () => openScoreCardManagerModal(isPos ? 'pos' : 'neg', render);
+    }
 
-    // 좌측 최근 부여 기록 클릭 → 폼 상태만 채움 (즉시 부여 X)
+    // 상단 즐겨찾기 세트 클릭 및 해제
+    overlay.querySelectorAll('[data-favset-id]').forEach((itemEl) => {
+      itemEl.onclick = (e) => {
+        const rmBtn = e.target.closest('[data-remove-favset]');
+        if (rmBtn) {
+          e.stopPropagation();
+          const rmId = rmBtn.dataset.removeFavset;
+          store.update((draft) => {
+            draft.reasons.favoriteSets = (draft.reasons.favoriteSets || []).filter((x) => x.id !== rmId);
+          }).then(() => {
+            if (activeFavSetId === rmId) activeFavSetId = null;
+            render();
+          });
+          return;
+        }
+        const fs = favoriteSets.find((x) => x.id === itemEl.dataset.favsetId);
+        if (!fs) return;
+        modeType = fs.type === 'negative' ? 'negative' : 'positive';
+        pointsPerStudent = Math.max(1, Math.min(99, Math.abs(Math.trunc(Number(fs.points) || 1))));
+        selectedReason = fs.reason || '';
+        activeFavSetId = fs.id;
+        activeHistoryId = null;
+        render();
+      };
+    });
+
+    // 하단 최근 사용 세트 클릭 및 즐겨찾기 세트 등록/해제 토글
     overlay.querySelectorAll('[data-history-id]').forEach((btn) => {
-      btn.onclick = () => {
+      btn.onclick = (e) => {
+        const favToggleBtn = e.target.closest('[data-toggle-hist-favset]');
         const entry = historyItems.find((h) => h.id === btn.dataset.historyId);
         if (!entry) return;
+        if (favToggleBtn) {
+          e.stopPropagation();
+          const hType = entry.delta > 0 ? 'positive' : 'negative';
+          const absPts = Math.max(1, Math.min(99, Math.abs(Math.trunc(Number(entry.delta) || 1))));
+          const candidate = { id: uid('fset'), type: hType, points: absPts, reason: entry.reason || '' };
+          store.update((draft) => {
+            const list = Array.isArray(draft.reasons.favoriteSets) ? draft.reasons.favoriteSets : [];
+            const exists = list.find((x) => isSameSet(x, candidate));
+            if (exists) {
+              draft.reasons.favoriteSets = list.filter((x) => x.id !== exists.id);
+            } else {
+              draft.reasons.favoriteSets = [candidate, ...list];
+            }
+          }).then(render);
+          return;
+        }
         modeType = entry.delta > 0 ? 'positive' : 'negative';
         pointsPerStudent = Math.max(1, Math.min(99, Math.abs(Math.trunc(Number(entry.delta) || 1))));
         selectedReason = entry.reason || '';
         activeHistoryId = entry.id;
+        activeFavSetId = null;
         render();
       };
     });
@@ -602,18 +1050,19 @@ export function openScoreComposer({ studentIds = [], initialType = 'positive', o
         const nextType = btn.dataset.switchType === 'negative' ? 'negative' : 'positive';
         if (nextType === modeType) return;
         const prevList = modeType === 'positive'
-          ? [...(st.reasons.positivePresets || []), ...(st.reasons.recentPositive || [])]
-          : [...(st.reasons.negativePresets || []), ...(st.reasons.recentNegative || [])];
+          ? [...(st.reasons.positivePresets || []), ...(st.reasons.recentPositive || []), ...(st.reasons.favoritesPositive || [])]
+          : [...(st.reasons.negativePresets || []), ...(st.reasons.recentNegative || []), ...(st.reasons.favoritesNegative || [])];
         if (prevList.includes(selectedReason)) {
           selectedReason = '';
         }
         modeType = nextType;
         activeHistoryId = null;
+        activeFavSetId = null;
         render();
       };
     });
 
-    // 즐겨찾기·사유 카드 클릭 → 입력란·선택 하이라이트만 반영 (즉시 부여 X)
+    // 즐겨찾기·최근사용 사유 카드 클릭 → 입력란·선택 하이라이트만 반영
     overlay.querySelectorAll('[data-select-reason]').forEach((btn) => {
       btn.onclick = (e) => {
         const favTarget = e.target.closest('[data-fav-toggle]');
@@ -623,12 +1072,13 @@ export function openScoreComposer({ studentIds = [], initialType = 'positive', o
           store.update((draft) => {
             const key = isPos ? 'favoritesPositive' : 'favoritesNegative';
             const arr = draft.reasons[key] || [];
-            draft.reasons[key] = arr.includes(r) ? arr.filter((x) => x !== r) : [r, ...arr].slice(0, 10);
+            draft.reasons[key] = arr.includes(r) ? arr.filter((x) => x !== r) : [r, ...arr];
           }).then(render);
           return;
         }
         selectedReason = btn.dataset.selectReason || '';
         activeHistoryId = null;
+        activeFavSetId = null;
         render();
       };
     });

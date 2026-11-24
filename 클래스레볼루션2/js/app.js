@@ -2,7 +2,7 @@
 
 import { store } from './store.js';
 import { setSoundEnabled, playSound } from './audio.js';
-import { setActiveModeProvider, openScoreComposer, presentOutcome, showToast } from './effects.js';
+import { setActiveModeProvider, openScoreComposer, openScoreCardManagerModal, presentOutcome, showToast } from './effects.js';
 import { renderStudentsView, setStudentsNavigator, setStudentsSubView, getSelectedStudentIds, openRosterManagerModal } from './views/students.js';
 import { renderGrowthView } from './views/growth.js';
 import { renderChecklistView } from './views/checklist.js';
@@ -194,6 +194,13 @@ async function bootstrap() {
     openRosterFromSettingsBtn.onclick = () => {
       closeSettingsDialog();
       openRosterManagerModal();
+    };
+  }
+  const openCardsFromSettingsBtn = document.getElementById('btn-settings-open-cards');
+  if (openCardsFromSettingsBtn) {
+    openCardsFromSettingsBtn.onclick = () => {
+      closeSettingsDialog();
+      openScoreCardManagerModal('pos');
     };
   }
 

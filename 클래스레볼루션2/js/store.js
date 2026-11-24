@@ -147,6 +147,9 @@ export function createDefaultState() {
       recentNegative: ['수업 중 떠들었어요'],
       favoritesPositive: ['발표를 멋지게 했어요', '친구를 따뜻하게 도와줬어요'],
       favoritesNegative: ['수업 중 떠들었어요'],
+      favoriteSets: [
+        { id: 'fset-1', type: 'positive', points: 2, reason: '발표를 멋지게 했어요' },
+      ],
     },
     history: [
       {
@@ -255,7 +258,17 @@ class AppStore {
         eggStacks: Array.isArray(data.growth?.eggStacks) ? data.growth.eggStacks : [],
         goals: Array.isArray(data.growth?.goals) ? data.growth.goals : [],
       },
-      reasons: { ...def.reasons, ...(data.reasons || {}) },
+      reasons: {
+        ...def.reasons,
+        ...(data.reasons || {}),
+        positivePresets: Array.isArray(data.reasons?.positivePresets) ? data.reasons.positivePresets : def.reasons.positivePresets,
+        negativePresets: Array.isArray(data.reasons?.negativePresets) ? data.reasons.negativePresets : def.reasons.negativePresets,
+        recentPositive: Array.isArray(data.reasons?.recentPositive) ? data.reasons.recentPositive : [],
+        recentNegative: Array.isArray(data.reasons?.recentNegative) ? data.reasons.recentNegative : [],
+        favoritesPositive: Array.isArray(data.reasons?.favoritesPositive) ? data.reasons.favoritesPositive : def.reasons.favoritesPositive,
+        favoritesNegative: Array.isArray(data.reasons?.favoritesNegative) ? data.reasons.favoritesNegative : def.reasons.favoritesNegative,
+        favoriteSets: Array.isArray(data.reasons?.favoriteSets) ? data.reasons.favoriteSets : [],
+      },
       checklist: {
         items: Array.isArray(data.checklist?.items) ? data.checklist.items : def.checklist.items,
         entriesByDate: data.checklist?.entriesByDate || {},
