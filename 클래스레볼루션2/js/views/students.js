@@ -36,15 +36,42 @@ let celebratingIds = new Set();
 let celebratingType = null; // 'positive' | 'negative' | null
 let celebrateTimer = null;
 let lastStudentsRoot = null;
+const mountedStudentRoots = new Set();
 let studentsResizeRaf = 0;
 
+function getEffectiveSubView(root) {
+  const forced = root?.dataset?.forcedSubView;
+  if (forced === 'list' || forced === 'seats') return forced;
+  return subView;
+}
+
+function rerenderActiveStudentRoots(primaryRoot) {
+  for (const r of Array.from(mountedStudentRoots)) {
+    if (!r || !r.isConnected) {
+      mountedStudentRoots.delete(r);
+      continue;
+    }
+    const modeView = r.closest('.mode-view');
+    if (modeView && !modeView.classList.contains('is-active')) continue;
+    renderStudentsView(r);
+  }
+  if (primaryRoot && primaryRoot.isConnected && !mountedStudentRoots.has(primaryRoot)) {
+    renderStudentsView(primaryRoot);
+  }
+}
+
 window.addEventListener('resize', () => {
-  if (!lastStudentsRoot || !lastStudentsRoot.closest('.mode-view')?.classList.contains('is-active')) return;
   cancelAnimationFrame(studentsResizeRaf);
   studentsResizeRaf = requestAnimationFrame(() => {
-    if (!lastStudentsRoot) return;
-    if (subView === 'seats') applySeatingFit(lastStudentsRoot);
-    else applyListFit(lastStudentsRoot);
+    for (const r of Array.from(mountedStudentRoots)) {
+      if (!r || !r.isConnected) {
+        mountedStudentRoots.delete(r);
+        continue;
+      }
+      if (!r.closest('.mode-view')?.classList.contains('is-active')) continue;
+      if (getEffectiveSubView(r) === 'seats') applySeatingFit(r);
+      else applyListFit(r);
+    }
   });
 });
 
@@ -55,16 +82,12 @@ window.addEventListener('class123:award-finished', (ev) => {
   celebratingType = ev.detail?.type === 'negative' ? 'negative' : 'positive';
   selectedIds = new Set(ids);
   clearTimeout(celebrateTimer);
-  if (lastStudentsRoot && lastStudentsRoot.closest('.mode-view')?.classList.contains('is-active')) {
-    renderStudentsView(lastStudentsRoot);
-  }
+  rerenderActiveStudentRoots(lastStudentsRoot);
   celebrateTimer = setTimeout(() => {
     celebratingIds.clear();
     celebratingType = null;
     selectedIds.clear();
-    if (lastStudentsRoot && lastStudentsRoot.closest('.mode-view')?.classList.contains('is-active')) {
-      renderStudentsView(lastStudentsRoot);
-    }
+    rerenderActiveStudentRoots(lastStudentsRoot);
   }, 1020);
 });
 
@@ -93,7 +116,7 @@ export function clearSelectedStudents() {
 /** 플로팅 패널 리사이즈 시 원본 학생목록/자리배치 비율 피팅 재계산 */
 export function refitStudentsView(root) {
   if (!root) return;
-  if (subView === 'seats') applySeatingFit(root);
+  if (getEffectiveSubView(root) === 'seats') applySeatingFit(root);
   else applyListFit(root);
 }
 
@@ -450,7 +473,12 @@ function applySeatingFit(root) {
 }
 
 export function renderStudentsView(root) {
-  lastStudentsRoot = root;
+  if (!root) return;
+  if (!root.dataset?.forcedSubView) {
+    lastStudentsRoot = root;
+  }
+  mountedStudentRoots.add(root);
+  const viewKind = getEffectiveSubView(root);
   const state = store.getState();
   const activeStudents = state.students.filter((s) => !s.trashed);
   const prefs = state.uiPrefs;
@@ -470,7 +498,7 @@ export function renderStudentsView(root) {
   const starsPerEgg = Math.max(5, Number(state.classInfo.starsPerEgg) || 10);
   const filledStars = state.growth.pendingTrail.length;
 
-  const hideAvatarsClass = subView === 'list' ? (prefs.showAvatars ? '' : 'hide-avatars') : '';
+  const hideAvatarsClass = viewKind === 'list' ? (prefs.showAvatars ? '' : 'hide-avatars') : '';
   const hasSelection = selectedIds.size > 0;
   const selectableStudents = activeStudents.filter((s) => !s.absent);
   const allSelected = selectableStudents.length > 0 && selectableStudents.every((s) => selectedIds.has(s.id));
@@ -488,7 +516,7 @@ export function renderStudentsView(root) {
         </div>
       ` : ''}
 
-      ${subView === 'list'
+      ${viewKind === 'list'
         ? renderListBody(sortedStudents, scoreMode)
         : renderSeatingBody(state, activeStudents, scoreMode)}
 
@@ -562,7 +590,7 @@ export function renderStudentsView(root) {
   `;
 
   bindStudentsEvents(root, state, activeStudents);
-  if (subView === 'seats') {
+  if (viewKind === 'seats') {
     applySeatingFit(root);
   } else {
     applyListFit(root);
@@ -827,7 +855,7 @@ function bindStudentsEvents(root, state, activeStudents) {
       }
       if (selectedIds.has(id)) selectedIds.delete(id);
       else selectedIds.add(id);
-      renderStudentsView(root);
+      rerenderActiveStudentRoots(root);
     };
   });
 
@@ -835,7 +863,7 @@ function bindStudentsEvents(root, state, activeStudents) {
   if (addCard) addCard.onclick = () => openStudentEditModal(null);
 
   // 자리배치 일반 모드 & 편집 모드 이벤트
-  if (subView === 'seats') {
+  if (getEffectiveSubView(root) === 'seats') {
     bindSeatingEvents(root, state, activeStudents);
   }
 
@@ -850,7 +878,7 @@ function bindStudentsEvents(root, state, activeStudents) {
       const allSel = selectable.length > 0 && selectable.every((s) => selectedIds.has(s.id));
       if (allSel) selectedIds.clear();
       else selectable.forEach((s) => selectedIds.add(s.id));
-      renderStudentsView(root);
+      rerenderActiveStudentRoots(root);
     };
   }
 
@@ -858,7 +886,7 @@ function bindStudentsEvents(root, state, activeStudents) {
   if (selectRecentBtn) {
     selectRecentBtn.onclick = () => {
       selectedIds = new Set(lastSelectedIds.filter((id) => activeStudents.some((s) => s.id === id)));
-      renderStudentsView(root);
+      rerenderActiveStudentRoots(root);
     };
   }
 
@@ -866,7 +894,7 @@ function bindStudentsEvents(root, state, activeStudents) {
   if (clearBtn) {
     clearBtn.onclick = () => {
       selectedIds.clear();
-      renderStudentsView(root);
+      rerenderActiveStudentRoots(root);
     };
   }
 
@@ -878,7 +906,7 @@ function bindStudentsEvents(root, state, activeStudents) {
       initialType: type,
       onApplied: () => {
         // 연출 종료 후 1초 좌우 4세트 틸트가 끝날 때까지 노란 선택 하이라이트를 유지하고, 완료 시 자동 선택 해제
-        renderStudentsView(root);
+        rerenderActiveStudentRoots(root);
       },
     });
   };
@@ -895,7 +923,7 @@ function bindStudentsEvents(root, state, activeStudents) {
     toggleAttendBtn.onclick = () => {
       attendanceMode = !attendanceMode;
       if (attendanceMode) selectedIds.clear();
-      renderStudentsView(root);
+      rerenderActiveStudentRoots(root);
     };
   }
 
@@ -903,7 +931,7 @@ function bindStudentsEvents(root, state, activeStudents) {
   if (endAttend) {
     endAttend.onclick = () => {
       attendanceMode = false;
-      renderStudentsView(root);
+      rerenderActiveStudentRoots(root);
     };
   }
 
@@ -938,7 +966,7 @@ function bindSeatingEvents(root, state, activeStudents) {
     const allSel = members.every((m) => selectedIds.has(m.id));
     if (allSel) members.forEach((m) => selectedIds.delete(m.id));
     else members.forEach((m) => selectedIds.add(m.id));
-    renderStudentsView(root);
+    rerenderActiveStudentRoots(root);
   };
 
   root.querySelectorAll('[data-select-group]').forEach((btn) => {
@@ -974,7 +1002,7 @@ function bindSeatingEvents(root, state, activeStudents) {
         }
         if (selectedIds.has(stId)) selectedIds.delete(stId);
         else selectedIds.add(stId);
-        renderStudentsView(root);
+        rerenderActiveStudentRoots(root);
       };
     });
   } else {

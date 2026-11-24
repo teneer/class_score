@@ -1202,9 +1202,17 @@ const boardViewportHeight=()=>Math.max(1,Math.round($('canvas-container').getBou
 function resizeBoardViewport(){
   // 점수판은 원래 칠판 위에 나타나는 고정 패널이다.
   // 캔버스 전체 크기와 viewportTransform은 점수판 ON/OFF와 무관하다.
+  // 만능칠판 뷰가 숨김(display:none) 상태일 때 0x0 -> 1x1로 캔버스가 축소되어 먹통이 되는 현상 방어
   if(!c)return;
-  const width=boardViewportWidth(),height=boardViewportHeight();
-  if(c.width===width&&c.height===height)return;
+  const rawRect=$('canvas-container')?.getBoundingClientRect();
+  const rawW=Math.round(rawRect?.width||innerWidth||0);
+  const rawH=Math.round(rawRect?.height||innerHeight||0);
+  if(rawW<80||rawH<80)return;
+  const width=rawW,height=rawH;
+  if(c.width===width&&c.height===height){
+    c.calcOffset();
+    return;
+  }
   const vt=c.viewportTransform.slice();
   c.setDimensions({width,height});
   c.setViewportTransform(vt);
@@ -1385,6 +1393,11 @@ async function boot() {
       fail(err);
     }
   });
+  if (typeof ResizeObserver !== 'undefined' && $('canvas-container')) {
+    new ResizeObserver(() => {
+      resizeBoardViewport();
+    }).observe($('canvas-container'));
+  }
   try { window.parent?.postMessage({ type: 'cr2-wb-ready' }, '*'); } catch {}
 }
 boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'?' 파일을 직접 열지 말고 HTTPS 배포 주소 또는 localhost에서 실행해주세요.':'';const fatal=$('fatalError');if(fatal){fatal.textContent=`앱을 시작하지 못했습니다. ${error.message}${hint}`;fatal.hidden=false;}status('시작 실패','error');});
@@ -1450,12 +1463,13 @@ boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'
     });
   }
 
-  // 실제 하단바(#toolbar) 사각형 좌표만 부모창에 전달해 황금알 나무가 아래쪽 잘림 없이 하단바 뒤 레이어에 놓이도록 처리
+  // 실제 하단바(#toolbar) 사각형 좌표만 부모창에 전달해 황금알 나무·점수판이 하단바 버튼을 가리지 않도록 처리
   const reportToolbarRect = () => {
+    if (window.innerWidth < 80 || window.innerHeight < 80) return;
     const bar = document.getElementById('toolbar');
     const wrap = document.getElementById('toolbarWrapper');
     if (!bar) return;
-    const isHidden = !wrap || wrap.classList.contains('hidden') || bar.offsetHeight === 0 || getComputedStyle(bar).display === 'none';
+    const isHidden = !wrap || wrap.classList.contains('hidden') || bar.hidden || bar.offsetHeight === 0 || getComputedStyle(bar).display === 'none';
     const r = isHidden ? { left: 0, top: 0, right: 0, bottom: 0 } : bar.getBoundingClientRect();
     try {
       window.parent.postMessage({
@@ -1467,6 +1481,7 @@ boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'
 
   // 해상도·디스플레이 배율(125%/150% 등)에 따라 하단바 버튼이 바를 넘지 않도록 자동 비율 스케일링
   const fitBottomToolbar = () => {
+    if (window.innerWidth < 80 || window.innerHeight < 80) return;
     const scaleWrap = document.getElementById('toolbarScaleWrap');
     const bar = document.getElementById('toolbar');
     if (!scaleWrap || !bar) return;
@@ -1478,6 +1493,21 @@ boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'
     updateFeedbackPosition();
     reportToolbarRect();
   };
+
+  window.addEventListener('message', (ev) => {
+    if (ev.data?.type === 'cr2-wb-activated') {
+      requestAnimationFrame(() => {
+        resizeBoardViewport();
+        if (c) { c.calcOffset(); c.requestRenderAll(); }
+        fitBottomToolbar();
+      });
+      setTimeout(() => {
+        resizeBoardViewport();
+        if (c) { c.calcOffset(); c.requestRenderAll(); }
+        fitBottomToolbar();
+      }, 120);
+    }
+  });
 
   window.addEventListener('resize', fitBottomToolbar);
   const hideBtn = document.getElementById('toolbarHideBtn');

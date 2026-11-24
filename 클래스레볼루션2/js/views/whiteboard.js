@@ -141,15 +141,55 @@ function notifyToolbarState() {
 }
 
 function applyTreeToolbarCutout() {
+  const host = lastWbContainer?.querySelector('#wb-host');
   const overlayEl = lastWbContainer?.querySelector('#wb-tree-overlay');
-  if (!overlayEl) return;
-  if (!lastToolbarRect || lastToolbarRect.right <= lastToolbarRect.left || lastToolbarRect.bottom <= lastToolbarRect.top) {
-    overlayEl.style.clipPath = 'none';
-    return;
+  const board6El = lastWbContainer?.querySelector('#wb-board6-overlay');
+  const splitterEl = lastWbContainer?.querySelector('#wb6-splitter-bar');
+  const hasRect = Boolean(
+    lastToolbarRect &&
+    lastToolbarRect.right > lastToolbarRect.left &&
+    lastToolbarRect.bottom > lastToolbarRect.top
+  );
+
+  if (overlayEl) {
+    if (!hasRect) {
+      overlayEl.style.clipPath = 'none';
+    } else {
+      const { left: l, top: t, right: r, bottom: b } = lastToolbarRect;
+      // 원래 나무 크기(height: 100%)는 그대로 유지하고, 실제 #toolbar 영역만 하단바 앞 레이어에 오도록 클리핑
+      overlayEl.style.clipPath = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px ${t}px)`;
+    }
   }
-  const { left: l, top: t, right: r, bottom: b } = lastToolbarRect;
-  // 원래 나무 크기(height: 100%)는 그대로 유지하고, 실제 #toolbar 영역만 하단바 앞 레이어에 오도록 클리핑
-  overlayEl.style.clipPath = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px ${t}px)`;
+
+  // 만능칠판 6.0 점수판 도킹 시에도 원본과 동일하게 하단바가 앞 레이어에 노출되어 클릭 가능하고 일괄 반영 바는 하단바 위로 올라오도록 처리
+  if (board6El && splitterEl) {
+    if (!hasRect || board6Ui.full || scoreOverlayMode !== 'board6') {
+      board6El.style.clipPath = 'none';
+      board6El.style.setProperty('--toolbar-clearance', '0px');
+      splitterEl.style.bottom = '0px';
+    } else {
+      const { left: l, top: t, right: r, bottom: b } = lastToolbarRect;
+      const hostW = host?.clientWidth || window.innerWidth || 1280;
+      const hostH = host?.clientHeight || window.innerHeight || 800;
+      const dockW = board6El.offsetWidth || board6Width;
+      const dockLeft = hostW - dockW;
+      const ovL = Math.max(0, l - dockLeft);
+      const ovR = Math.min(dockW, r - dockLeft);
+      if (ovR > ovL && b > t) {
+        const clearance = Math.max(0, hostH - t + 6);
+        board6El.style.setProperty('--toolbar-clearance', `${clearance}px`);
+        board6El.style.clipPath = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${ovL}px ${t}px, ${ovR}px ${t}px, ${ovR}px ${b}px, ${ovL}px ${b}px, ${ovL}px ${t}px)`;
+      } else {
+        board6El.style.clipPath = 'none';
+        board6El.style.setProperty('--toolbar-clearance', '0px');
+      }
+      if (r > dockLeft - 10 && l < dockLeft && b > t) {
+        splitterEl.style.bottom = `${Math.max(0, hostH - t)}px`;
+      } else {
+        splitterEl.style.bottom = '0px';
+      }
+    }
+  }
 }
 
 window.addEventListener('message', (ev) => {
@@ -295,7 +335,7 @@ export function renderWhiteboardView(container) {
         <iframe
           id="cr2-whiteboard-frame"
           class="wb-iframe"
-          src="modules/whiteboard/index.html?v=cr2-8"
+          src="modules/whiteboard/index.html?v=cr2-9"
           title="클래스레볼루션2 만능칠판"
           allow="clipboard-read; clipboard-write; fullscreen"
         ></iframe>
@@ -318,6 +358,11 @@ export function renderWhiteboardView(container) {
   renderTreeOverlay(container);
   renderFloatingPanels(container);
   notifyToolbarState();
+  // 만능칠판 재진입 시 숨김(display:none) 해제 직후 캔버스 크기·오프셋·하단바 스케일 즉시 동기화
+  const iframe = document.getElementById('cr2-whiteboard-frame');
+  if (iframe && iframe.contentWindow) {
+    try { iframe.contentWindow.postMessage({ type: 'cr2-wb-activated' }, '*'); } catch {}
+  }
 }
 
 /** 가상 스테이지를 패널 본문 크기에 맞춰 원본 비율 그대로 스케일링 (학생목록·자리배치·타이머 공통) */
@@ -662,7 +707,8 @@ function renderBoard6Overlay(board6El, splitterEl, container) {
     </div>
   `;
 
-  // 자동 열/카드 크기 계산 및 리사이즈 관찰
+  // 자동 열/카드 크기 계산, 하단바 클리어런스 및 리사이즈 관찰
+  applyTreeToolbarCutout();
   requestAnimationFrame(() => updateBoard6TeamLayout(board6El, groupRows.length));
   if (typeof ResizeObserver !== 'undefined') {
     const vp = board6El.querySelector('#wb6-team-viewport');
@@ -684,6 +730,7 @@ function renderBoard6Overlay(board6El, splitterEl, container) {
       board6Width = Math.max(220, Math.min(Math.round(hostW * 0.8), origW + (startX - me.clientX)));
       board6El.style.width = `${board6Width}px`;
       splitterEl.style.right = `${board6Width}px`;
+      applyTreeToolbarCutout();
       updateBoard6TeamLayout(board6El, groupRows.length);
     };
     const onUp = () => {
@@ -1013,7 +1060,8 @@ function mountSingleFloatingPanel(container, kind) {
     if (kind === 'students' || kind === 'seats') {
       bodyEl.innerHTML = `<div class="wbf-scaled-stage" style="width:1280px;height:740px;"></div>`;
       const stageEl = bodyEl.querySelector('.wbf-scaled-stage');
-      setStudentsSubView(kind === 'seats' ? 'seats' : 'list');
+      // 패널별 독립 뷰 모드 고정 (학생목록·자리배치 동시 오픈 시 상태 충돌 방지)
+      stageEl.dataset.forcedSubView = kind === 'seats' ? 'seats' : 'list';
       renderStudentsView(stageEl);
       applyPanelStageScale(bodyEl, 1280, 740);
       requestAnimationFrame(() => {

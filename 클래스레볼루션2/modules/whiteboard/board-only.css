@@ -8,6 +8,7 @@ body.score-full #toolbarScaleWrap { display: block !important; }
 #toolbarScaleWrap {
   left: 50% !important;
   width: auto !important;
+  transform: translateX(-50%);
   transform-origin: bottom center !important;
 }
 #toolbarWrapper {
