@@ -1394,15 +1394,42 @@
   font-weight: 800;
 }
 
-#btn-select-all {
-  min-width: 96px;
+#btn-select-all,
+#btn-select-clear.is-cancel-slot {
+  min-width: 102px;
   height: 36px;
   justify-content: center;
 }
-#btn-select-recent {
+#btn-select-clear.is-cancel-slot {
+  background: #fff;
+  border: 1px solid #d7d2c6;
+  color: #5b5245;
+  font-weight: 800;
+  box-shadow: 0 1px 3px rgba(74, 66, 53, 0.08);
+}
+#btn-select-clear.is-cancel-slot:hover {
+  background: #faf8f2;
+  border-color: #bfb8a8;
+}
+
+#btn-select-recent,
+#btn-select-invert.is-invert-slot {
   min-width: 148px;
   height: 36px;
   justify-content: flex-start;
+}
+#btn-select-invert.is-invert-slot {
+  background: #fff;
+  border: 1px solid #d7d2c6;
+  color: #4b4235;
+  font-weight: 800;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(74, 66, 53, 0.08);
+}
+#btn-select-invert.is-invert-slot:hover {
+  background: #fff8cf;
+  border-color: #e2c515;
+  color: #4b3808;
 }
 
 .selected-pill {

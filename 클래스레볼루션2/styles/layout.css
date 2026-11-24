@@ -442,22 +442,42 @@ body.is-whiteboard-fullscreen .fx-stage {
   gap: 8px;
 }
 
-/* 화면 가리기 커튼 */
+/* 깜깜이(화면 가리기): 전체 완전 암전 + 원래 깜깜이 버튼과 정확히 같은 위치에 '보이기' 버튼 표시 */
 .screen-curtain {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 1200;
-  background: radial-gradient(circle at center, #1e2129 0%, #0d0f13 100%);
-  display: grid;
-  place-items: center;
+  z-index: 2400;
+  background: #050608;
   color: #fff;
 }
-.curtain-inner {
+.screen-curtain[hidden] {
+  display: none !important;
+}
+.curtain-same-spot-btn {
+  position: fixed;
+  left: 32px;
+  bottom: 54px;
+  transform: translate(-50%, -50%);
+  width: 54px;
+  min-height: 44px;
+  padding: 4px 2px;
+  border-radius: 9px;
+  background: #1d222c;
+  border: 1.5px solid #ffe347;
+  color: #ffe347;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  text-align: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.1;
+  box-shadow: 0 0 14px rgba(255, 227, 71, 0.28);
+  cursor: pointer;
+  transition: background 0.14s, transform 0.1s;
 }
-.curtain-icon { font-size: 48px; }
-.curtain-inner p { margin: 0; font-size: 18px; color: #cfd4de; }
+.curtain-same-spot-btn:hover {
+  background: #ffe347;
+  color: #1b1706;
+}

@@ -212,15 +212,28 @@ async function bootstrap() {
     showToast({ title: next ? '🔊 효과음을 켰습니다.' : '🔇 효과음을 껐습니다.' });
   };
 
-  // 화면 가리기 커튼
+  // 깜깜이(화면 가리기 커튼): 클릭 시 다른 모든 영역은 깜깜해지고 원래 깜깜이 버튼과 같은 위치에 '보이기' 버튼 표시
   const curtain = document.getElementById('screen-curtain');
   const curtainBtn = document.getElementById('btn-curtain');
+  const curtainOffBtn = document.getElementById('btn-curtain-off');
+  const syncCurtainSpot = () => {
+    if (!curtainBtn || !curtainOffBtn) return;
+    const r = curtainBtn.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      curtainOffBtn.style.left = `${Math.round(r.left + r.width / 2)}px`;
+      curtainOffBtn.style.top = `${Math.round(r.top + r.height / 2)}px`;
+    }
+  };
   const toggleCurtain = (show) => {
+    if (show) syncCurtainSpot();
     curtain.hidden = !show;
     curtainBtn.setAttribute('aria-pressed', String(show));
   };
   curtainBtn.onclick = () => toggleCurtain(curtain.hidden);
-  document.getElementById('btn-curtain-off').onclick = () => toggleCurtain(false);
+  curtainOffBtn.onclick = () => toggleCurtain(false);
+  window.addEventListener('resize', () => {
+    if (!curtain.hidden) syncCurtainSpot();
+  });
 
   // 백업 / 복원 (설정 모달 내부)
   const fileInput = document.getElementById('restore-file-input');

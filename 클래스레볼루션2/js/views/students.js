@@ -555,33 +555,33 @@ export function renderStudentsView(root) {
 
       <div class="students-bottombar ${hasSelection ? 'is-selecting' : ''}">
         <div class="bottom-left-slot">
-          ${hasSelection ? `
-            <button type="button" class="btn-select-cancel" id="btn-select-clear">
-              <i class="sp-icon sp-cancel-circle" aria-hidden="true"></i>
-              <span>선택 취소</span>
-            </button>
-          ` : `
-            <button type="button" class="mini-egg-progress" id="btn-goto-growth" title="학급점수 화면으로 이동">
-              <div class="mini-egg-top">
-                <i class="sp-icon sp-egg-bottom" aria-hidden="true"></i>
-                <span class="mini-egg-count">${state.growth.eggs}</span>
-              </div>
-              <div class="mini-stars-row">
-                ${Array.from({ length: starsPerEgg }, (_, i) => `<i class="sp-mini-star ${i < filledStars ? 'is-filled' : ''}" aria-hidden="true"></i>`).join('')}
-                <span class="mini-star-ratio">${filledStars}/${starsPerEgg}</span>
-              </div>
-            </button>
-          `}
+          <button type="button" class="mini-egg-progress" id="btn-goto-growth" title="학급점수 화면으로 이동">
+            <div class="mini-egg-top">
+              <i class="sp-icon sp-egg-bottom" aria-hidden="true"></i>
+              <span class="mini-egg-count">${state.growth.eggs}</span>
+            </div>
+            <div class="mini-stars-row">
+              ${Array.from({ length: starsPerEgg }, (_, i) => `<i class="sp-mini-star ${i < filledStars ? 'is-filled' : ''}" aria-hidden="true"></i>`).join('')}
+              <span class="mini-star-ratio">${filledStars}/${starsPerEgg}</span>
+            </div>
+          </button>
         </div>
 
         <div class="bottom-center-tools">
-          <button type="button" class="text-action-btn ${allSelected ? 'is-active' : ''}" id="btn-select-all">
-            <i class="sp-icon sp-all-select" aria-hidden="true"></i> 전체선택
-          </button>
           ${hasSelection ? `
+            <button type="button" class="text-action-btn is-cancel-slot" id="btn-select-clear">
+              <i class="sp-icon sp-cancel-circle" aria-hidden="true"></i> 선택취소
+            </button>
+            <button type="button" class="text-action-btn is-invert-slot" id="btn-select-invert">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h11l-3-3"/><path d="M16 13H5l3 3"/></svg>
+              <span>선택 반전</span>
+            </button>
             <span class="selected-pill">${selectedIds.size}명 선택됨</span>
             <span class="selected-names-summary" title="${escapeAttr(selectedNames.join(', '))}">${escapeHtml(selectedNamesSummary)}</span>
           ` : `
+            <button type="button" class="text-action-btn" id="btn-select-all">
+              <i class="sp-icon sp-all-select" aria-hidden="true"></i> 전체선택
+            </button>
             <button type="button" class="text-action-btn" id="btn-select-recent" ${lastSelectedIds.length === 0 ? 'disabled' : ''}>
               <i class="sp-icon sp-recent-dots" aria-hidden="true"></i> 최근 선택한 학생
             </button>
@@ -945,6 +945,19 @@ function bindStudentsEvents(root, state, activeStudents) {
   if (clearBtn) {
     clearBtn.onclick = () => {
       selectedIds.clear();
+      rerenderActiveStudentRoots(root);
+    };
+  }
+
+  const invertBtn = root.querySelector('#btn-select-invert');
+  if (invertBtn) {
+    invertBtn.onclick = () => {
+      const selectable = activeStudents.filter((s) => !s.absent);
+      const nextSet = new Set();
+      for (const s of selectable) {
+        if (!selectedIds.has(s.id)) nextSet.add(s.id);
+      }
+      selectedIds = nextSet;
       rerenderActiveStudentRoots(root);
     };
   }
