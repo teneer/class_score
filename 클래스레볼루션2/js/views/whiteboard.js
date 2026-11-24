@@ -25,6 +25,8 @@ let navigateFn = null;
 let exitHandler = null;
 let lastWbContainer = null;
 let lastToolbarRect = null;
+let lastPopupRects = [];
+let lastIframeModalOpen = false;
 
 // 다중 플로팅 패널 상태 (종류별 독립 열기/접기/z-index/위치·크기 기억)
 const ALL_PANEL_KINDS = ['students', 'seats', 'selfcheck', 'timer'];
@@ -140,54 +142,97 @@ function notifyToolbarState() {
   }
 }
 
+function buildEvenOddCutoutPolygon(holes) {
+  if (!holes || holes.length === 0) return 'none';
+  const subpaths = ['0 0, 100% 0, 100% 100%, 0 100%, 0 0'];
+  for (const h of holes) {
+    subpaths.push(`${h.left}px ${h.top}px, ${h.right}px ${h.top}px, ${h.right}px ${h.bottom}px, ${h.left}px ${h.bottom}px, ${h.left}px ${h.top}px`);
+  }
+  return `polygon(evenodd, ${subpaths.join(', ')})`;
+}
+
 function applyTreeToolbarCutout() {
   const host = lastWbContainer?.querySelector('#wb-host');
   const overlayEl = lastWbContainer?.querySelector('#wb-tree-overlay');
   const board6El = lastWbContainer?.querySelector('#wb-board6-overlay');
   const splitterEl = lastWbContainer?.querySelector('#wb6-splitter-bar');
+  const floatLayer = lastWbContainer?.querySelector('#wb-float-layer');
+
+  // 칠판 내부 모달(저장·불러오기·배경변경·기기연결 등)이 열렸을 때는 부모 오버레이가 가리지 않도록 일시 양보
+  if (host) {
+    host.classList.toggle('is-iframe-modal-open', Boolean(lastIframeModalOpen));
+  }
+  if (floatLayer) {
+    floatLayer.style.visibility = lastIframeModalOpen ? 'hidden' : '';
+  }
+
   const hasRect = Boolean(
     lastToolbarRect &&
     lastToolbarRect.right > lastToolbarRect.left &&
     lastToolbarRect.bottom > lastToolbarRect.top
   );
+  const allGlobalHoles = [
+    ...(hasRect ? [lastToolbarRect] : []),
+    ...(Array.isArray(lastPopupRects) ? lastPopupRects : []),
+  ];
 
   if (overlayEl) {
-    if (!hasRect) {
-      overlayEl.style.clipPath = 'none';
-    } else {
-      const { left: l, top: t, right: r, bottom: b } = lastToolbarRect;
-      // 원래 나무 크기(height: 100%)는 그대로 유지하고, 실제 #toolbar 영역만 하단바 앞 레이어에 오도록 클리핑
-      overlayEl.style.clipPath = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px ${t}px)`;
-    }
+    overlayEl.style.visibility = lastIframeModalOpen ? 'hidden' : '';
+    overlayEl.style.clipPath = buildEvenOddCutoutPolygon(allGlobalHoles);
   }
 
-  // 만능칠판 6.0 점수판 도킹 시에도 원본과 동일하게 하단바가 앞 레이어에 노출되어 클릭 가능하고 일괄 반영 바는 하단바 위로 올라오도록 처리
+  // 만능칠판 6.0 점수판 도킹 시에도 원본과 동일하게 하단바·더보기 팝업이 앞 레이어에 노출되고 일괄 반영 바는 하단바 위로 올라오도록 처리
   if (board6El && splitterEl) {
-    if (!hasRect || board6Ui.full || scoreOverlayMode !== 'board6') {
+    board6El.style.visibility = lastIframeModalOpen ? 'hidden' : '';
+    splitterEl.style.visibility = lastIframeModalOpen ? 'hidden' : '';
+    if (board6Ui.full || scoreOverlayMode !== 'board6') {
       board6El.style.clipPath = 'none';
       board6El.style.setProperty('--toolbar-clearance', '0px');
       splitterEl.style.bottom = '0px';
     } else {
-      const { left: l, top: t, right: r, bottom: b } = lastToolbarRect;
       const hostW = host?.clientWidth || window.innerWidth || 1280;
       const hostH = host?.clientHeight || window.innerHeight || 800;
       const dockW = board6El.offsetWidth || board6Width;
       const dockLeft = hostW - dockW;
-      const ovL = Math.max(0, l - dockLeft);
-      const ovR = Math.min(dockW, r - dockLeft);
-      if (ovR > ovL && b > t) {
-        const clearance = Math.max(0, hostH - t + 6);
-        board6El.style.setProperty('--toolbar-clearance', `${clearance}px`);
-        board6El.style.clipPath = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${ovL}px ${t}px, ${ovR}px ${t}px, ${ovR}px ${b}px, ${ovL}px ${b}px, ${ovL}px ${t}px)`;
+
+      // 하단바 클리어런스(일괄 반영 바 위치)
+      if (hasRect) {
+        const { left: l, top: t, right: r, bottom: b } = lastToolbarRect;
+        const ovL = Math.max(0, l - dockLeft);
+        const ovR = Math.min(dockW, r - dockLeft);
+        if (ovR > ovL && b > t) {
+          board6El.style.setProperty('--toolbar-clearance', `${Math.max(0, hostH - t + 6)}px`);
+        } else {
+          board6El.style.setProperty('--toolbar-clearance', '0px');
+        }
+        if (r > dockLeft - 10 && l < dockLeft && b > t) {
+          splitterEl.style.bottom = `${Math.max(0, hostH - t)}px`;
+        } else {
+          splitterEl.style.bottom = '0px';
+        }
       } else {
-        board6El.style.clipPath = 'none';
         board6El.style.setProperty('--toolbar-clearance', '0px');
-      }
-      if (r > dockLeft - 10 && l < dockLeft && b > t) {
-        splitterEl.style.bottom = `${Math.max(0, hostH - t)}px`;
-      } else {
         splitterEl.style.bottom = '0px';
       }
+
+      // 하단바 + 열린 팝업(더 보기·페이지 목록·도구 등) 모두 점수판 앞 레이어로 노출
+      const localHoles = [];
+      const splitterHoles = [];
+      for (const gh of allGlobalHoles) {
+        const ovL = Math.max(0, gh.left - dockLeft);
+        const ovR = Math.min(dockW, gh.right - dockLeft);
+        if (ovR > ovL && gh.bottom > gh.top) {
+          localHoles.push({ left: ovL, top: gh.top, right: ovR, bottom: gh.bottom });
+        }
+        const spLeft = dockLeft - 10;
+        const spOvL = Math.max(0, gh.left - spLeft);
+        const spOvR = Math.min(10, gh.right - spLeft);
+        if (spOvR > spOvL && gh.bottom > gh.top) {
+          splitterHoles.push({ left: spOvL, top: gh.top, right: spOvR, bottom: gh.bottom });
+        }
+      }
+      board6El.style.clipPath = buildEvenOddCutoutPolygon(localHoles);
+      splitterEl.style.clipPath = buildEvenOddCutoutPolygon(splitterHoles);
     }
   }
 }
@@ -201,6 +246,8 @@ window.addEventListener('message', (ev) => {
   }
   if (ev.data?.type === 'cr2-wb-toolbar-rect' && ev.data.rect) {
     lastToolbarRect = ev.data.rect;
+    lastPopupRects = Array.isArray(ev.data.popupRects) ? ev.data.popupRects : [];
+    lastIframeModalOpen = Boolean(ev.data.iframeModalOpen);
     applyTreeToolbarCutout();
     return;
   }
@@ -335,7 +382,7 @@ export function renderWhiteboardView(container) {
         <iframe
           id="cr2-whiteboard-frame"
           class="wb-iframe"
-          src="modules/whiteboard/index.html?v=cr2-9"
+          src="modules/whiteboard/index.html?v=cr2-10"
           title="클래스레볼루션2 만능칠판"
           allow="clipboard-read; clipboard-write; fullscreen"
         ></iframe>

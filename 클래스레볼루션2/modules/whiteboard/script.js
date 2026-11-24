@@ -1463,7 +1463,8 @@ boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'
     });
   }
 
-  // 실제 하단바(#toolbar) 사각형 좌표만 부모창에 전달해 황금알 나무·점수판이 하단바 버튼을 가리지 않도록 처리
+  // 실제 하단바(#toolbar) 및 열린 팝업/모달 좌표를 부모창에 전달해 나무·점수판이 하단바·더보기·모달을 가리지 않도록 처리
+  const POPUP_IDS = ['cr2ToolsMenu', 'moreSettings', 'pageList', 'colorPalette', 'sizePalette', 'viewSyncMenu', 'objectContextMenu'];
   const reportToolbarRect = () => {
     if (window.innerWidth < 80 || window.innerHeight < 80) return;
     const bar = document.getElementById('toolbar');
@@ -1471,13 +1472,37 @@ boot().catch(error=>{console.error(error);const hint=location.protocol==='file:'
     if (!bar) return;
     const isHidden = !wrap || wrap.classList.contains('hidden') || bar.hidden || bar.offsetHeight === 0 || getComputedStyle(bar).display === 'none';
     const r = isHidden ? { left: 0, top: 0, right: 0, bottom: 0 } : bar.getBoundingClientRect();
+    const barRect = { left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) };
+    const popupRects = [];
+    for (const pid of POPUP_IDS) {
+      const el = document.getElementById(pid);
+      if (!el || el.hidden || el.offsetWidth === 0 || el.offsetHeight === 0 || getComputedStyle(el).display === 'none') continue;
+      const pr = el.getBoundingClientRect();
+      const pb = barRect.bottom > barRect.top ? Math.min(Math.ceil(pr.bottom), barRect.top) : Math.ceil(pr.bottom);
+      if (Math.ceil(pr.right) > Math.floor(pr.left) && pb > Math.floor(pr.top)) {
+        popupRects.push({ left: Math.floor(pr.left), top: Math.floor(pr.top), right: Math.ceil(pr.right), bottom: pb });
+      }
+    }
     try {
       window.parent.postMessage({
         type: 'cr2-wb-toolbar-rect',
-        rect: { left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) },
+        rect: barRect,
+        popupRects,
+        iframeModalOpen: modalOpen(),
       }, '*');
     } catch {}
   };
+
+  let uiMutationRaf = 0;
+  if (typeof MutationObserver !== 'undefined') {
+    new MutationObserver(() => {
+      if (uiMutationRaf) return;
+      uiMutationRaf = requestAnimationFrame(() => {
+        uiMutationRaf = 0;
+        reportToolbarRect();
+      });
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['style', 'hidden', 'class'] });
+  }
 
   // 해상도·디스플레이 배율(125%/150% 등)에 따라 하단바 버튼이 바를 넘지 않도록 자동 비율 스케일링
   const fitBottomToolbar = () => {
