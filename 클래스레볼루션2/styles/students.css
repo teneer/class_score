@@ -8,24 +8,29 @@
   background: var(--bg-cream);
 }
 
-/* 학생 카드 영역 상단 소형 표시 옵션 바 (최상단 헤더 제거 후 컴팩트 배치) */
-.students-top-bar {
-  flex: none;
+/* 내부영역 최상단 좌·우 플로팅 패널 (별도 상단 바 제거, 빈 공간은 카드 영역으로 활용) */
+.students-floating-top {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  right: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 5px 4px 2px;
-  min-height: 30px;
+  pointer-events: none;
+  z-index: 26;
 }
 .st-top-class-btn {
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 99px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid #e3ded0;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid #dfd9ca;
+  box-shadow: 0 2px 7px rgba(74, 66, 53, 0.1);
   color: #564d3e;
   font-size: 12px;
   font-weight: 800;
@@ -44,16 +49,24 @@
   flex-shrink: 0;
 }
 .st-top-options {
+  pointer-events: auto;
   margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 3px 8px;
+  padding: 4px 9px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid #e3ded0;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid #dfd9ca;
+  box-shadow: 0 2px 7px rgba(74, 66, 53, 0.1);
   flex-wrap: nowrap;
   white-space: nowrap;
+}
+.seating-stage.is-editing .st-top-class-btn,
+.seating-stage.is-editing .st-top-options {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
 }
 .st-top-check {
   display: inline-flex;
@@ -89,11 +102,18 @@
 }
 
 /* ==================== 1. 학생목록 (목록보기 — 4:3 비율 둥근 카드 & 자동 확대/축소 & 3자리 점수·출석번호 가독성 강화) ==================== */
-.student-grid-scroll {
+.student-grid-stage {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
   position: relative;
+  margin: 6px 0 6px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.student-grid-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 
 .student-grid-fit {
@@ -385,7 +405,7 @@
   flex-direction: column;
   background: var(--bg-cream-deep);
   border-radius: 8px;
-  margin: 8px 0 6px;
+  margin: 6px 0 6px;
   position: relative;
   overflow: hidden;
   transition: background-color 0.25s ease;

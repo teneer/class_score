@@ -483,7 +483,38 @@ function computeDefaultGhostPos(boxes, stageWidth = 1506, stageHeight = 658) {
   return { x: minX, y: Math.round(maxBottom + GROUP_GAP_Y) };
 }
 
-/** 고정 원점(0,0) 기준으로 영역 초과 시에만 비율 축소(fitScale) 적용 — 편집 중 치우친 위치가 그대로 유지됨 */
+/** 내부영역(scrollEl) 위에 떠 있는 모든 UI 버튼들의 상대 좌표 사각형 수집 */
+function collectUiObstacleRects(root, scrollEl, pad = 6) {
+  const sr = scrollEl.getBoundingClientRect();
+  if (!sr.width || !sr.height) return [];
+  const selectors = [
+    '.st-top-class-btn',
+    '.st-top-options',
+    '.seat-edit-left-group',
+    '.seat-flip-pill',
+    '.seat-pick-btn-group',
+  ];
+  const rects = [];
+  for (const sel of selectors) {
+    const el = root.querySelector(sel);
+    if (!el || el.hidden) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    rects.push({
+      x1: r.left - sr.left - pad,
+      y1: r.top - sr.top - pad,
+      x2: r.right - sr.left + pad,
+      y2: r.bottom - sr.top + pad,
+    });
+  }
+  return rects;
+}
+
+function rectsOverlap(a, b) {
+  return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
+}
+
+/** 고정 원점(0,0) 기준 + UI 버튼과 겹칠 때만 화면 중앙 기준으로 자동 축소 (안 겹치는 빈공간은 그대로 유지) */
 function applySeatingFit(root) {
   const scrollEl = root?.querySelector('#seating-canvas-scroll');
   const fitEl = root?.querySelector('#seating-canvas-fit');
@@ -511,42 +542,86 @@ function applySeatingFit(root) {
 
   let maxRight = 0;
   let maxBottom = 0;
-  measureItems.forEach((el) => {
-    const r = el.offsetLeft + el.offsetWidth;
-    const b = el.offsetTop + el.offsetHeight;
-    if (r > maxRight) maxRight = r;
-    if (b > maxBottom) maxBottom = b;
+  const itemBoxes = measureItems.map((el) => {
+    const x = el.offsetLeft;
+    const y = el.offsetTop;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    if (x + w > maxRight) maxRight = x + w;
+    if (y + h > maxBottom) maxBottom = y + h;
+    return { x, y, w, h };
   });
 
-  // 강제 중앙 정렬(minLeft/minTop 차감) 없이 고정 원점(0,0) 기준 캔버스 사용
+  // 1) 고정 원점(0,0) 기준 기본 배율 (화면 밖 초과 시에만 축소)
   const contentW = Math.max(viewW, Math.ceil(maxRight + CANVAS_PAD));
   const contentH = Math.max(viewH, Math.ceil(maxBottom + CANVAS_PAD));
-  const baseFitScale = Math.min(1, viewW / contentW, viewH / contentH);
+  const rawFitScale = Math.min(1, viewW / contentW, viewH / contentH);
+
+  // 2) 내부영역에 떠 있는 UI 버튼들과 겹치는지 검사 — 안 겹치면 그대로, 겹치면 화면 중앙 기준 축소
+  const uiRects = collectUiObstacleRects(root, scrollEl, 6);
+  const cx = viewW / 2;
+  const cy = viewH / 2;
+  const overlapsUiAt = (k) => {
+    const s = rawFitScale * k;
+    const ox = cx * (1 - k);
+    const oy = cy * (1 - k);
+    for (const m of itemBoxes) {
+      const boxRect = {
+        x1: ox + m.x * s,
+        y1: oy + m.y * s,
+        x2: ox + (m.x + m.w) * s,
+        y2: oy + (m.y + m.h) * s,
+      };
+      for (const ui of uiRects) {
+        if (rectsOverlap(boxRect, ui)) return true;
+      }
+    }
+    return false;
+  };
+
+  let safeK = 1;
+  if (uiRects.length > 0 && overlapsUiAt(1)) {
+    let lo = 0.25;
+    let hi = 1;
+    for (let i = 0; i < 16; i++) {
+      const mid = (lo + hi) / 2;
+      if (overlapsUiAt(mid)) hi = mid;
+      else lo = mid;
+    }
+    safeK = lo;
+  }
+
+  const baseFitScale = rawFitScale * safeK;
+  const baseOx = Math.round(cx * (1 - safeK));
+  const baseOy = Math.round(cy * (1 - safeK));
+
   const userZoom = getUserZoom('seats');
   const fitScale = baseFitScale * userZoom;
 
-  // 캔버스 논리 크기는 화면 전체(viewW/baseFitScale × viewH/baseFitScale)를 채워 좌·상단 치우침이 그대로 보존됨
   let canvasMaxR = contentW;
   let canvasMaxB = contentH;
   allItems.forEach((el) => {
     canvasMaxR = Math.max(canvasMaxR, Math.ceil(el.offsetLeft + el.offsetWidth + CANVAS_PAD));
     canvasMaxB = Math.max(canvasMaxB, Math.ceil(el.offsetTop + el.offsetHeight + CANVAS_PAD));
   });
-  const virtualW = Math.max(canvasMaxR, Math.round(viewW / baseFitScale));
-  const virtualH = Math.max(canvasMaxB, Math.round(viewH / baseFitScale));
+  const virtualW = Math.max(canvasMaxR, Math.round(viewW / rawFitScale));
+  const virtualH = Math.max(canvasMaxB, Math.round(viewH / rawFitScale));
 
   canvasEl.style.width = `${virtualW}px`;
   canvasEl.style.height = `${virtualH}px`;
   fitEl.style.width = `${virtualW}px`;
   fitEl.style.height = `${virtualH}px`;
 
+  const isUserZoomed = Math.abs(userZoom - 1) > 0.005;
+  const offsetX = isUserZoomed ? 0 : baseOx;
+  const offsetY = isUserZoomed ? 0 : baseOy;
   const scaledW = virtualW * fitScale;
   const scaledH = virtualH * fitScale;
-  const needsScroll = scaledW > viewW + 1 || scaledH > viewH + 1;
+  const needsScroll = isUserZoomed && (scaledW > viewW + 1 || scaledH > viewH + 1);
   scrollEl.classList.toggle('is-zoomed', needsScroll);
 
-  fitEl.style.left = '0px';
-  fitEl.style.top = '0px';
+  fitEl.style.left = `${offsetX}px`;
+  fitEl.style.top = `${offsetY}px`;
   fitEl.style.transform = Math.abs(fitScale - 1) > 0.001 ? `scale(${fitScale.toFixed(5)})` : 'none';
   fitEl.style.marginRight = needsScroll ? `${Math.max(0, Math.ceil(scaledW - virtualW))}px` : '0px';
   fitEl.style.marginBottom = needsScroll ? `${Math.max(0, Math.ceil(scaledH - virtualH))}px` : '0px';
@@ -597,42 +672,45 @@ export function renderStudentsView(root) {
   const curZoom = getUserZoom(viewKind, state);
   const isDefaultZoom = Math.abs(curZoom - 1) < 0.005;
 
+  // 최상단 바 없이 내부영역 좌상단·우상단에 띄우는 플로팅 패널 HTML
+  const topFloatingHtml = `
+    <div class="students-floating-top">
+      <button type="button" class="st-top-class-btn" data-open-class-cfg title="학급 설정 열기">
+        <span class="st-top-class-dot"></span>
+        <span>${escapeHtml(state.classInfo.name || '우리 반')}</span>
+      </button>
+      <div class="st-top-options">
+        <button type="button" class="st-zoom-reset-btn" data-zoom-reset="${viewKind}" title="기본 배율(100%)로 되돌리기" ${isDefaultZoom ? 'hidden' : ''}>
+          ${Math.round(curZoom * 100)}% · 원래대로
+        </button>
+        <label class="st-top-check">
+          <input type="checkbox" data-top-opt="numbers" ${prefs.showNumbers !== false ? 'checked' : ''}>
+          <span>번호 표시</span>
+        </label>
+        <label class="st-top-check">
+          <input type="checkbox" data-top-opt="avatars" ${isAvatarShown ? 'checked' : ''}>
+          <span>아바타 표시</span>
+        </label>
+        <select class="st-top-select" data-top-opt="scoreMode" title="점수 표시 방식">
+          <option value="net" ${scoreMode === 'net' ? 'selected' : ''}>쑥쑥점수</option>
+          <option value="pos" ${scoreMode === 'pos' ? 'selected' : ''}>으쓱점수</option>
+          <option value="neg" ${scoreMode === 'neg' ? 'selected' : ''}>머쓱점수</option>
+          <option value="both" ${scoreMode === 'both' ? 'selected' : ''}>으쓱+머쓱</option>
+        </select>
+        ${viewKind === 'list' ? `
+          <select class="st-top-select" data-top-opt="sortBy" title="학생 정렬">
+            <option value="number" ${(prefs.sortBy || 'number') === 'number' ? 'selected' : ''}>번호순</option>
+            <option value="name" ${prefs.sortBy === 'name' ? 'selected' : ''}>이름순</option>
+            <option value="score-desc" ${prefs.sortBy === 'score-desc' ? 'selected' : ''}>점수 높은순</option>
+            <option value="score-asc" ${prefs.sortBy === 'score-asc' ? 'selected' : ''}>점수 낮은순</option>
+          </select>
+        ` : ''}
+      </div>
+    </div>
+  `;
+
   root.innerHTML = `
     <div class="students-shell ${prefs.showNumbers ? '' : 'hide-numbers'} ${hideAvatarsClass}">
-      <div class="students-top-bar">
-        <button type="button" class="st-top-class-btn" data-open-class-cfg title="학급 설정 열기">
-          <span class="st-top-class-dot"></span>
-          <span>${escapeHtml(state.classInfo.name || '우리 반')}</span>
-        </button>
-        <div class="st-top-options">
-          <button type="button" class="st-zoom-reset-btn" data-zoom-reset="${viewKind}" title="기본 배율(100%)로 되돌리기" ${isDefaultZoom ? 'hidden' : ''}>
-            ${Math.round(curZoom * 100)}% · 원래대로
-          </button>
-          <label class="st-top-check">
-            <input type="checkbox" data-top-opt="numbers" ${prefs.showNumbers !== false ? 'checked' : ''}>
-            <span>번호 표시</span>
-          </label>
-          <label class="st-top-check">
-            <input type="checkbox" data-top-opt="avatars" ${isAvatarShown ? 'checked' : ''}>
-            <span>아바타 표시</span>
-          </label>
-          <select class="st-top-select" data-top-opt="scoreMode" title="점수 표시 방식">
-            <option value="net" ${scoreMode === 'net' ? 'selected' : ''}>쑥쑥점수</option>
-            <option value="pos" ${scoreMode === 'pos' ? 'selected' : ''}>으쓱점수</option>
-            <option value="neg" ${scoreMode === 'neg' ? 'selected' : ''}>머쓱점수</option>
-            <option value="both" ${scoreMode === 'both' ? 'selected' : ''}>으쓱+머쓱</option>
-          </select>
-          ${viewKind === 'list' ? `
-            <select class="st-top-select" data-top-opt="sortBy" title="학생 정렬">
-              <option value="number" ${(prefs.sortBy || 'number') === 'number' ? 'selected' : ''}>번호순</option>
-              <option value="name" ${prefs.sortBy === 'name' ? 'selected' : ''}>이름순</option>
-              <option value="score-desc" ${prefs.sortBy === 'score-desc' ? 'selected' : ''}>점수 높은순</option>
-              <option value="score-asc" ${prefs.sortBy === 'score-asc' ? 'selected' : ''}>점수 낮은순</option>
-            </select>
-          ` : ''}
-        </div>
-      </div>
-
       ${attendanceMode ? `
         <div class="seat-edit-banner" style="margin-top:8px;border-radius:6px;">
           <span>📋 <strong>출석체크 모드</strong> — 학생을 클릭하면 출석/결석 상태가 전환됩니다. (결석 학생은 뽑기·전체선택에서 제외)</span>
@@ -641,8 +719,8 @@ export function renderStudentsView(root) {
       ` : ''}
 
       ${viewKind === 'list'
-        ? renderListBody(sortedStudents, scoreMode)
-        : renderSeatingBody(state, activeStudents, scoreMode, root)}
+        ? renderListBody(sortedStudents, scoreMode, topFloatingHtml)
+        : renderSeatingBody(state, activeStudents, scoreMode, root, topFloatingHtml)}
 
       <div class="students-bottombar ${hasSelection ? 'is-selecting' : ''}">
         <div class="bottom-left-slot">
@@ -763,7 +841,43 @@ function applyListFit(root) {
 
   const gridW = gridEl.offsetWidth || (bestCols * cardW + (bestCols - 1) * gapX);
   const gridH = gridEl.offsetHeight || (Math.ceil(cards / bestCols) * cardH + (Math.ceil(cards / bestCols) - 1) * gapY);
-  const baseFitScale = Math.min(maxScale, availW / gridW, availH / gridH);
+  let baseFitScale = Math.min(maxScale, availW / gridW, availH / gridH);
+
+  // 상단 플로팅 패널(우리반/옵션)과 학생 카드가 겹치면 안 겹치는 최대 배율로 자동 축소
+  const uiRects = collectUiObstacleRects(root, scrollEl, 6);
+  const cardBoxes = Array.from(gridEl.children).map((el) => ({
+    x: el.offsetLeft,
+    y: el.offsetTop,
+    w: el.offsetWidth,
+    h: el.offsetHeight,
+  }));
+  const listOverlapsUi = (scale) => {
+    const ox = Math.round((viewW - gridW * scale) / 2);
+    const oy = Math.round((viewH - gridH * scale) / 2);
+    for (const c of cardBoxes) {
+      const r = {
+        x1: ox + c.x * scale,
+        y1: oy + c.y * scale,
+        x2: ox + (c.x + c.w) * scale,
+        y2: oy + (c.y + c.h) * scale,
+      };
+      for (const ui of uiRects) {
+        if (rectsOverlap(r, ui)) return true;
+      }
+    }
+    return false;
+  };
+  if (uiRects.length > 0 && listOverlapsUi(baseFitScale)) {
+    let lo = 0.25;
+    let hi = baseFitScale;
+    for (let i = 0; i < 16; i++) {
+      const mid = (lo + hi) / 2;
+      if (listOverlapsUi(mid)) hi = mid;
+      else lo = mid;
+    }
+    baseFitScale = lo;
+  }
+
   const userZoom = getUserZoom('list');
   const fitScale = baseFitScale * userZoom;
 
@@ -772,11 +886,12 @@ function applyListFit(root) {
 
   const scaledW = gridW * fitScale;
   const scaledH = gridH * fitScale;
-  const needsScroll = scaledW > viewW - padX || scaledH > viewH - padY;
+  const isUserZoomed = Math.abs(userZoom - 1) > 0.005;
+  const needsScroll = isUserZoomed && (scaledW > viewW - padX || scaledH > viewH - padY);
   scrollEl.classList.toggle('is-zoomed', needsScroll);
 
-  const offsetX = scaledW > viewW - padX * 2 ? padX : Math.round((viewW - scaledW) / 2);
-  const offsetY = scaledH > viewH - padY * 2 ? padY : Math.round((viewH - scaledH) / 2);
+  const offsetX = needsScroll && scaledW > viewW - padX * 2 ? padX : Math.round((viewW - scaledW) / 2);
+  const offsetY = needsScroll && scaledH > viewH - padY * 2 ? padY : Math.round((viewH - scaledH) / 2);
 
   fitEl.style.left = `${offsetX}px`;
   fitEl.style.top = `${offsetY}px`;
@@ -786,43 +901,46 @@ function applyListFit(root) {
 }
 
 /** 학생목록: 4:3 비율 둥근 카드 (좌측 아바타 / 우상단 3자리 고정우측정렬 점수 / 우하단 선명한 출석번호+이름) */
-function renderListBody(sortedStudents, scoreMode) {
+function renderListBody(sortedStudents, scoreMode, topFloatingHtml = '') {
   return `
-    <div class="student-grid-scroll" id="student-grid-scroll">
-      <div class="student-grid-fit" id="student-grid-fit">
-        <div class="student-card-grid" id="student-card-grid">
-          ${sortedStudents.map((s) => {
-            const isCeleb = celebratingIds.has(s.id);
-            const showPose = isCeleb && celebratingType === 'positive';
-            return `
-              <div class="student-card ${selectedIds.has(s.id) ? 'is-selected' : ''} ${s.absent ? 'is-absent' : ''} ${isCeleb ? 'is-celebrating' : ''}" data-student-card="${s.id}" role="button" tabindex="0">
-                <div class="card-avatar-wrap">
-                  ${showPose
-                    ? `<div class="avatar-fx-sprite is-finite" style="background-image:url('${getFxAvatarUrl(s.avatarId)}')"></div>`
-                    : `<img src="${getStillAvatarUrl(s.avatarId)}" alt="${escapeAttr(s.name)}" loading="lazy">`
-                  }
+    <div class="student-grid-stage">
+      <div class="student-grid-scroll" id="student-grid-scroll">
+        <div class="student-grid-fit" id="student-grid-fit">
+          <div class="student-card-grid" id="student-card-grid">
+            ${sortedStudents.map((s) => {
+              const isCeleb = celebratingIds.has(s.id);
+              const showPose = isCeleb && celebratingType === 'positive';
+              return `
+                <div class="student-card ${selectedIds.has(s.id) ? 'is-selected' : ''} ${s.absent ? 'is-absent' : ''} ${isCeleb ? 'is-celebrating' : ''}" data-student-card="${s.id}" role="button" tabindex="0">
+                  <div class="card-avatar-wrap">
+                    ${showPose
+                      ? `<div class="avatar-fx-sprite is-finite" style="background-image:url('${getFxAvatarUrl(s.avatarId)}')"></div>`
+                      : `<img src="${getStillAvatarUrl(s.avatarId)}" alt="${escapeAttr(s.name)}" loading="lazy">`
+                    }
+                  </div>
+                  <div class="card-score-cell">
+                    ${renderScoreHtml(s, scoreMode)}
+                  </div>
+                  <div class="card-name-row">
+                    <span class="card-num">${s.number}</span><span class="card-name-txt">${escapeHtml(s.name)}</span>
+                  </div>
                 </div>
-                <div class="card-score-cell">
-                  ${renderScoreHtml(s, scoreMode)}
-                </div>
-                <div class="card-name-row">
-                  <span class="card-num">${s.number}</span><span class="card-name-txt">${escapeHtml(s.name)}</span>
-                </div>
-              </div>
-            `;
-          }).join('')}
-          <button type="button" class="student-add-card" id="btn-add-student-card">
-            <span class="student-add-plus">+</span>
-            <span>학생추가</span>
-          </button>
+              `;
+            }).join('')}
+            <button type="button" class="student-add-card" id="btn-add-student-card">
+              <span class="student-add-plus">+</span>
+              <span>학생추가</span>
+            </button>
+          </div>
         </div>
       </div>
+      ${topFloatingHtml}
     </div>
   `;
 }
 
 /** 자유형 자리배치 본문 (원본 내부공간 + 편집모드 어두운 배경 + 16:9 학생카드 + 180도 일체형 상하반전 + 자동 비율축소) */
-function renderSeatingBody(state, activeStudents, scoreMode, root) {
+function renderSeatingBody(state, activeStudents, scoreMode, root, topFloatingHtml = '') {
   const showAvatars = Boolean(state.uiPrefs.seatShowAvatars);
   const isReversed = Boolean(state.uiPrefs.seatingReversed);
   const isRotatingNow = seatingFlipping && seatingFlipTargetRoot === root;
@@ -854,6 +972,7 @@ function renderSeatingBody(state, activeStudents, scoreMode, root) {
   return `
     <div class="seating-stage ${seatEditMode ? 'is-editing' : ''}">
       <div class="seating-viewport-body" id="seating-viewport-body">
+        ${topFloatingHtml}
         <div class="seating-rotator ${isRotatingNow ? 'is-rotating-board' : ''}" id="seating-rotator">
           <div class="seating-canvas-scroll" id="seating-canvas-scroll">
             <div class="seating-canvas-fit" id="seating-canvas-fit">
@@ -2007,6 +2126,7 @@ function startGroupDrag(ev, groupId, canvas, baseBoxes) {
         el.style.top = `${b.y}px`;
       }
     }
+    if (lastStudentsRoot) applySeatingFit(lastStudentsRoot);
   };
 
   const onUp = async () => {
@@ -2404,6 +2524,7 @@ function startGroupResize(ev, groupId, dir, handleEl, canvas, baseBoxes) {
       boxEl.style.width = `${calcBoxW(curCols)}px`;
       boxEl.style.height = `${calcBoxH(curRows)}px`;
       badge.textContent = `${curCols}열 × ${curRows}행`;
+      if (lastStudentsRoot) applySeatingFit(lastStudentsRoot);
     }
   };
 
