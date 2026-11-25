@@ -25,6 +25,7 @@ let lastSelectedIds = [];
 let attendanceMode = false;
 let seatEditMode = false;
 let seatingFlipping = false;
+let seatingFlipTargetRoot = null;
 let seatingPickRunning = false; // 자리배치 내 그룹 뽑기 / 개인 뽑기 하이라이트 진행 중 플래그
 let ghostAddPos = null; // 편집 모드 중 이동 가능한 1명 크기 점선 '+' 새 모둠 카드 좌표 { x, y }
 let swapSourceStudentId = null; // 편집 모드에서 학생 카드 2개 클릭 자리 교환용 첫 번째 선택 학생 ID
@@ -476,6 +477,15 @@ function applySeatingFit(root) {
   fitEl.style.left = `${offsetX}px`;
   fitEl.style.top = `${offsetY}px`;
   fitEl.style.transform = Math.abs(fitScale - 1) > 0.001 ? `scale(${fitScale.toFixed(5)})` : 'none';
+
+  // 상·하단 교탁 슬롯(top 23px / bottom 27px) 및 좌석 영역(top 46px / bottom 50px)의 공통 대칭 중점을 회전축으로 설정
+  const rotatorEl = root?.querySelector('#seating-rotator');
+  const bodyEl = root?.querySelector('#seating-viewport-body');
+  if (rotatorEl && bodyEl) {
+    const bodyW = bodyEl.clientWidth || viewW;
+    const bodyH = bodyEl.clientHeight || (viewH + 96);
+    rotatorEl.style.transformOrigin = `${(bodyW / 2).toFixed(1)}px ${((bodyH - 4) / 2).toFixed(1)}px`;
+  }
 }
 
 export function renderStudentsView(root) {
@@ -557,7 +567,7 @@ export function renderStudentsView(root) {
 
       ${viewKind === 'list'
         ? renderListBody(sortedStudents, scoreMode)
-        : renderSeatingBody(state, activeStudents, scoreMode)}
+        : renderSeatingBody(state, activeStudents, scoreMode, root)}
 
       <div class="students-bottombar ${hasSelection ? 'is-selecting' : ''}">
         <div class="bottom-left-slot">
@@ -727,11 +737,13 @@ function renderListBody(sortedStudents, scoreMode) {
   `;
 }
 
-/** 자유형 자리배치 본문 (원본 내부공간 + 편집모드 어두운 배경 + 16:9 학생카드 + 180도 상하반전 + 자동 비율축소) */
-function renderSeatingBody(state, activeStudents, scoreMode) {
+/** 자유형 자리배치 본문 (원본 내부공간 + 편집모드 어두운 배경 + 16:9 학생카드 + 180도 일체형 상하반전 + 자동 비율축소) */
+function renderSeatingBody(state, activeStudents, scoreMode, root) {
   const showAvatars = Boolean(state.uiPrefs.seatShowAvatars);
-  const curScroll = lastStudentsRoot?.querySelector('#seating-canvas-scroll');
-  const stageW = curScroll?.clientWidth || lastStudentsRoot?.querySelector('.students-shell')?.clientWidth || Math.max(800, window.innerWidth - 100);
+  const isReversed = Boolean(state.uiPrefs.seatingReversed);
+  const isRotatingNow = seatingFlipping && seatingFlipTargetRoot === root;
+  const curScroll = root?.querySelector('#seating-canvas-scroll') || lastStudentsRoot?.querySelector('#seating-canvas-scroll');
+  const stageW = curScroll?.clientWidth || root?.querySelector('.students-shell')?.clientWidth || Math.max(800, window.innerWidth - 100);
   const stageH = curScroll?.clientHeight || Math.max(460, window.innerHeight - 200);
   const displayBoxes = ensureGroupLayout(state.groups, activeStudents, stageW);
 
@@ -768,102 +780,111 @@ function renderSeatingBody(state, activeStudents, scoreMode) {
         </div>
       ` : ''}
 
-      <div class="seating-canvas-scroll" id="seating-canvas-scroll">
-        <div class="seating-canvas-fit" id="seating-canvas-fit">
-          <div class="seating-canvas" id="seating-canvas" style="width:${canvasW}px;height:${canvasH}px;">
-            ${displayBoxes.map((box) => {
-              const g = box.group;
-              const members = activeStudents.filter((s) => s.groupId === g.id);
-              const selectableMembers = members.filter((m) => !m.absent);
-              const orderedSlots = Array.from({ length: box.totalSlots }, (_, i) => i);
-              const allInGroupSelected = selectableMembers.length > 0 && selectableMembers.every((m) => selectedIds.has(m.id));
+      <div class="seating-viewport-body" id="seating-viewport-body">
+        <div class="seating-rotator ${isRotatingNow ? 'is-rotating-board' : ''}" id="seating-rotator">
+          <div class="seating-canvas-scroll" id="seating-canvas-scroll">
+            <div class="seating-canvas-fit" id="seating-canvas-fit">
+              <div class="seating-canvas" id="seating-canvas" style="width:${canvasW}px;height:${canvasH}px;">
+                ${displayBoxes.map((box) => {
+                  const g = box.group;
+                  const members = activeStudents.filter((s) => s.groupId === g.id);
+                  const selectableMembers = members.filter((m) => !m.absent);
+                  const orderedSlots = Array.from({ length: box.totalSlots }, (_, i) => i);
+                  const allInGroupSelected = selectableMembers.length > 0 && selectableMembers.every((m) => selectedIds.has(m.id));
 
-              return `
-                <div class="group-box ${allInGroupSelected ? 'is-group-selected' : ''} ${seatEditMode ? 'is-editable' : ''}"
-                     data-group-box="${g.id}"
-                     style="left:${box.x}px;top:${box.y}px;width:${box.w}px;">
-                  <div class="group-seats" style="grid-template-columns:repeat(${box.cols}, ${SEAT_W}px);">
-                    ${orderedSlots.map((slotIdx) => {
-                      const st = box.seatMap.get(slotIdx);
-                      if (!st) {
-                        return `<div class="seat-cell-empty ${seatEditMode && swapSourceStudentId ? 'is-swap-ready' : ''}" data-empty-seat-group="${g.id}" data-empty-seat-index="${slotIdx}"></div>`;
-                      }
-                      const isCeleb = celebratingIds.has(st.id);
-                      const showPose = isCeleb && celebratingType === 'positive';
-                      const hasAv = showAvatars || showPose;
-                      const isSwapSrc = seatEditMode && swapSourceStudentId === st.id;
-                      return `
-                        <div class="seat-slot ${selectedIds.has(st.id) ? 'is-selected' : ''} ${st.absent ? 'is-absent' : ''} ${isCeleb ? 'is-celebrating' : ''} ${hasAv ? 'has-avatar' : ''} ${seatEditMode ? 'is-edit-draggable' : ''} ${isSwapSrc ? 'is-swap-source' : ''}"
-                             data-seat-student="${st.id}"
-                             data-seat-group="${g.id}"
-                             data-seat-index="${slotIdx}">
-                          <div class="seat-num-bar">${st.number}</div>
-                          ${isSwapSrc ? `<span class="seat-swap-badge">교환 선택</span>` : ''}
-                          ${showPose
-                            ? `<div class="seat-avatar-wrap"><div class="avatar-fx-sprite is-finite seat-avatar-fx" style="background-image:url('${getFxAvatarUrl(st.avatarId)}')"></div></div>`
-                            : (showAvatars ? `<div class="seat-avatar-wrap"><img class="seat-avatar" src="${getStillAvatarUrl(st.avatarId)}" alt=""></div>` : '')
+                  return `
+                    <div class="group-box ${allInGroupSelected ? 'is-group-selected' : ''} ${seatEditMode ? 'is-editable' : ''}"
+                         data-group-box="${g.id}"
+                         style="left:${box.x}px;top:${box.y}px;width:${box.w}px;">
+                      <div class="group-seats" style="grid-template-columns:repeat(${box.cols}, ${SEAT_W}px);">
+                        ${orderedSlots.map((slotIdx) => {
+                          const st = box.seatMap.get(slotIdx);
+                          if (!st) {
+                            return `<div class="seat-cell-empty ${seatEditMode && swapSourceStudentId ? 'is-swap-ready' : ''}" data-empty-seat-group="${g.id}" data-empty-seat-index="${slotIdx}"></div>`;
                           }
-                          <div class="seat-info">
-                            <span class="seat-name">${escapeHtml(st.name)}</span>
-                            <span class="seat-score">${renderScoreHtml(st, scoreMode)}</span>
-                          </div>
-                          ${seatEditMode ? `<button type="button" class="seat-unassign-btn" data-unassign-student="${st.id}" title="미배치로 빼기">&times;</button>` : ''}
-                        </div>
-                      `;
-                    }).join('')}
-                  </div>
-
-                  <div class="group-footer" data-group-drag-handle="${g.id}">
-                    <button type="button" class="group-name-btn" data-select-group="${g.id}" title="${seatEditMode ? '드래그하여 모둠 통째 이동' : '클릭하면 모둠원 전체 선택'}">${escapeHtml(g.name)}</button>
-                    ${seatEditMode ? `
-                      <div class="group-edit-actions">
-                        <button type="button" class="group-mini-btn" data-cols-dec="${g.id}" title="가로 열 줄이기">열−</button>
-                        <button type="button" class="group-mini-btn" data-cols-inc="${g.id}" title="가로 열 늘리기">열+</button>
-                        <button type="button" class="group-mini-btn" data-rename-group="${g.id}">이름</button>
-                        <button type="button" class="group-mini-btn" data-delete-group="${g.id}">삭제</button>
+                          const isCeleb = celebratingIds.has(st.id);
+                          const showPose = isCeleb && celebratingType === 'positive';
+                          const hasAv = showAvatars || showPose;
+                          const isSwapSrc = seatEditMode && swapSourceStudentId === st.id;
+                          return `
+                            <div class="seat-slot ${selectedIds.has(st.id) ? 'is-selected' : ''} ${st.absent ? 'is-absent' : ''} ${isCeleb ? 'is-celebrating' : ''} ${hasAv ? 'has-avatar' : ''} ${seatEditMode ? 'is-edit-draggable' : ''} ${isSwapSrc ? 'is-swap-source' : ''}"
+                                 data-seat-student="${st.id}"
+                                 data-seat-group="${g.id}"
+                                 data-seat-index="${slotIdx}">
+                              <div class="seat-num-bar">${st.number}</div>
+                              ${isSwapSrc ? `<span class="seat-swap-badge">교환 선택</span>` : ''}
+                              ${showPose
+                                ? `<div class="seat-avatar-wrap"><div class="avatar-fx-sprite is-finite seat-avatar-fx" style="background-image:url('${getFxAvatarUrl(st.avatarId)}')"></div></div>`
+                                : (showAvatars ? `<div class="seat-avatar-wrap"><img class="seat-avatar" src="${getStillAvatarUrl(st.avatarId)}" alt=""></div>` : '')
+                              }
+                              <div class="seat-info">
+                                <span class="seat-name">${escapeHtml(st.name)}</span>
+                                <span class="seat-score">${renderScoreHtml(st, scoreMode)}</span>
+                              </div>
+                              ${seatEditMode ? `<button type="button" class="seat-unassign-btn" data-unassign-student="${st.id}" title="미배치로 빼기">&times;</button>` : ''}
+                            </div>
+                          `;
+                        }).join('')}
                       </div>
-                    ` : `
-                      <span class="group-total">
-                        ${renderGroupTotalHtml(members, scoreMode)}
-                        <i class="sp-icon sp-sprout-mini" aria-hidden="true"></i>
-                      </span>
-                    `}
+
+                      <div class="group-footer" data-group-drag-handle="${g.id}">
+                        <button type="button" class="group-name-btn" data-select-group="${g.id}" title="${seatEditMode ? '드래그하여 모둠 통째 이동' : '클릭하면 모둠원 전체 선택'}">${escapeHtml(g.name)}</button>
+                        ${seatEditMode ? `
+                          <div class="group-edit-actions">
+                            <button type="button" class="group-mini-btn" data-cols-dec="${g.id}" title="가로 열 줄이기">열−</button>
+                            <button type="button" class="group-mini-btn" data-cols-inc="${g.id}" title="가로 열 늘리기">열+</button>
+                            <button type="button" class="group-mini-btn" data-rename-group="${g.id}">이름</button>
+                            <button type="button" class="group-mini-btn" data-delete-group="${g.id}">삭제</button>
+                          </div>
+                        ` : `
+                          <span class="group-total">
+                            ${renderGroupTotalHtml(members, scoreMode)}
+                            <i class="sp-icon sp-sprout-mini" aria-hidden="true"></i>
+                          </span>
+                        `}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+
+                <!-- 편집 모드 전용: 1명 크기 반투명 점선 '+' 새 모둠(학생 추가) 카드 (드래그 이동 가능, 편집완료 시 숨김) -->
+                ${seatEditMode && ghostAddPos ? `
+                  <div class="group-ghost-add" id="group-ghost-add"
+                       style="left:${ghostAddPos.x}px;top:${ghostAddPos.y}px;"
+                       title="클릭하여 새 모둠·학생 추가 · 드래그하여 위치 이동 · 학생을 여기로 끌어다 새 모둠 생성">
+                    <span class="group-ghost-plus">+</span>
+                    <span class="group-ghost-label">${unassigned.length > 0 ? `새 모둠 / 미배치(${unassigned.length})` : '새 모둠 추가'}</span>
                   </div>
-                </div>
-              `;
-            }).join('')}
-
-            <!-- 편집 모드 전용: 1명 크기 반투명 점선 '+' 새 모둠(학생 추가) 카드 (드래그 이동 가능, 편집완료 시 숨김) -->
-            ${seatEditMode && ghostAddPos ? `
-              <div class="group-ghost-add" id="group-ghost-add"
-                   style="left:${ghostAddPos.x}px;top:${ghostAddPos.y}px;"
-                   title="클릭하여 새 모둠·학생 추가 · 드래그하여 위치 이동 · 학생을 여기로 끌어다 새 모둠 생성">
-                <span class="group-ghost-plus">+</span>
-                <span class="group-ghost-label">${unassigned.length > 0 ? `새 모둠 / 미배치(${unassigned.length})` : '새 모둠 추가'}</span>
+                ` : ''}
               </div>
-            ` : ''}
+            </div>
           </div>
-        </div>
-      </div>
 
-      <!-- 원본 자리배치 수업화면.png 하단 도구 배치 (자리배치수정 · 상하반전 · 그룹 뽑기 · 개인 뽑기) -->
-      <div class="seating-floating-bar">
-        <button type="button" class="seat-edit-origin-btn ${seatEditMode ? 'is-active' : ''}" id="btn-toggle-seat-edit">
-          <span class="seat-edit-circle">
-            <i class="sp-icon sp-grid" aria-hidden="true"></i>
-          </span>
-          <span>${seatEditMode ? '자리배치 수정 중' : '자리배치수정'}</span>
-        </button>
-        <button type="button" class="seat-flip-pill" id="btn-flip-seating">
-          <i class="sp-icon sp-seat-flip-icon" aria-hidden="true"></i> 자리배치 상하반전
-        </button>
-        <div class="seat-pick-btn-group">
-          <button type="button" class="seat-group-pick-card" id="btn-quick-group-pick">
-            <i class="sp-icon sp-clover-brown" aria-hidden="true"></i> 그룹 뽑기
+          <button type="button"
+                  class="seat-flip-pill ${isReversed ? 'is-pos-top' : 'is-pos-bottom'}"
+                  id="btn-flip-seating"
+                  title="${isReversed ? '교실 뒤쪽 시점 — 클릭하면 교사 시점(아래)으로 상하반전' : '교실 앞쪽(교사) 시점 — 클릭하면 교실 뒤쪽 시점(위)으로 상하반전'}">
+            <i class="sp-icon sp-seat-flip-icon" aria-hidden="true"></i>
+            <span>상하반전(교탁)</span>
           </button>
-          <button type="button" class="seat-group-pick-card" id="btn-quick-student-pick">
-            <i class="sp-icon sp-clover-green-mini" aria-hidden="true"></i> 개인 뽑기
+        </div>
+
+        <!-- 좌·우 고정 하단 도구 배치 (자리배치수정 · 그룹 뽑기 · 개인 뽑기) -->
+        <div class="seating-floating-bar">
+          <button type="button" class="seat-edit-origin-btn ${seatEditMode ? 'is-active' : ''}" id="btn-toggle-seat-edit">
+            <span class="seat-edit-circle">
+              <i class="sp-icon sp-grid" aria-hidden="true"></i>
+            </span>
+            <span>${seatEditMode ? '자리배치 수정 중' : '자리배치수정'}</span>
           </button>
+          <div class="seat-pick-btn-group">
+            <button type="button" class="seat-group-pick-card" id="btn-quick-group-pick">
+              <i class="sp-icon sp-clover-brown" aria-hidden="true"></i> 그룹 뽑기
+            </button>
+            <button type="button" class="seat-group-pick-card" id="btn-quick-student-pick">
+              <i class="sp-icon sp-clover-green-mini" aria-hidden="true"></i> 개인 뽑기
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1285,17 +1306,18 @@ function bindSeatingEvents(root, state, activeStudents) {
 
   const btnFlip = root.querySelector('#btn-flip-seating');
   if (btnFlip) {
-    btnFlip.onclick = () => {
+    btnFlip.onclick = async () => {
       if (seatingFlipping) return;
       seatingFlipping = true;
+      seatingFlipTargetRoot = root;
       swapSourceStudentId = null;
       playSound('confirm');
-      btnFlip.classList.add('is-flipping-btn-180');
+
       const canvasEl = root.querySelector('#seating-canvas');
       const stageW = canvasEl ? canvasEl.offsetWidth : 1506;
       const stageH = canvasEl ? canvasEl.offsetHeight : 696;
 
-      // 회전 시작 직전 각 모둠·추가카드의 실제 DOM 좌표/크기를 기록해 180도 점대칭 도착 위치에 그대로 안착
+      // 회전 시작 직전 각 모둠·추가카드의 실제 DOM 좌표/크기를 기록해 180도 점대칭 위치로 즉시 배치
       const domGroupRects = new Map();
       if (canvasEl) {
         canvasEl.querySelectorAll('[data-group-box]').forEach((el) => {
@@ -1312,62 +1334,62 @@ function bindSeatingEvents(root, state, activeStudents) {
         ? { x: ghostEl.offsetLeft, y: ghostEl.offsetTop, w: ghostEl.offsetWidth, h: ghostEl.offsetHeight }
         : null;
 
-      if (canvasEl) {
-        canvasEl.style.transformOrigin = `${stageW / 2}px ${stageH / 2}px`;
-        canvasEl.classList.add('is-flipping-180');
-      }
+      // 내부 요소 개별 회전 애니메이션 없이, 먼저 좌석·짝·교탁 위치를 도착 상태(정방향)로 전환한 뒤
+      // 단일 회전 판(#seating-rotator)을 -180deg(내부가 돌아간 상태)에서 0deg로 통째로 회전
+      await store.update((s) => {
+        const active = s.students.filter((x) => !x.trashed);
+        const boxes = ensureGroupLayout(s.groups, active);
+        if (boxes.length > 0) {
+          boxes.forEach((b) => {
+            const g = s.groups.find((x) => x.id === b.id);
+            const rect = domGroupRects.get(b.id) || { x: b.x, y: b.y, w: b.w, h: b.h };
+            if (g) {
+              g.x = Math.max(CANVAS_PAD, Math.round(stageW - (rect.x + rect.w)));
+              g.y = Math.max(CANVAS_PAD, Math.round(stageH - (rect.y + rect.h)));
+            }
+            const members = active.filter((m) => m.groupId === b.id);
+            const cols = b.cols;
+            const rows = b.rows;
+            for (const m of members) {
+              const idx = Math.max(0, Math.trunc(Number(m.seatIndex) || 0));
+              const r = Math.floor(idx / cols);
+              const c = idx % cols;
+              const flippedRow = Math.max(0, rows - 1 - r);
+              const flippedCol = Math.max(0, cols - 1 - c);
+              m.seatIndex = flippedRow * cols + flippedCol;
+            }
+          });
+          if (seatEditMode && ghostAddPos) {
+            const gr = domGhostRect || { x: ghostAddPos.x, y: ghostAddPos.y, w: GHOST_W, h: GHOST_H };
+            ghostAddPos = {
+              x: Math.max(CANVAS_PAD, Math.round(stageW - (gr.x + gr.w))),
+              y: Math.max(CANVAS_PAD, Math.round(stageH - (gr.y + gr.h))),
+            };
+          }
+        }
+        s.uiPrefs.seatingReversed = !s.uiPrefs.seatingReversed;
+      });
 
+      const newRotator = root.querySelector('#seating-rotator');
       let finished = false;
-      const finishFlip = async () => {
+      const finishFlip = () => {
         if (finished) return;
         finished = true;
         clearTimeout(fallbackTimer);
-        if (canvasEl) canvasEl.removeEventListener('animationend', onAnimEnd);
-
-        await store.update((s) => {
-          const active = s.students.filter((x) => !x.trashed);
-          const boxes = ensureGroupLayout(s.groups, active);
-          if (boxes.length > 0) {
-            boxes.forEach((b) => {
-              const g = s.groups.find((x) => x.id === b.id);
-              const rect = domGroupRects.get(b.id) || { x: b.x, y: b.y, w: b.w, h: b.h };
-              if (g) {
-                g.x = Math.max(CANVAS_PAD, Math.round(stageW - (rect.x + rect.w)));
-                g.y = Math.max(CANVAS_PAD, Math.round(stageH - (rect.y + rect.h)));
-              }
-              // 모둠 자체를 2차로 다시 돌리지 않고 180도 점대칭 위치(행·열 모두 반전)로 배치하여 좌우 짝의 원래 위치를 보존하고 글자만 정방향 표시
-              const members = active.filter((m) => m.groupId === b.id);
-              const cols = b.cols;
-              const rows = b.rows;
-              for (const m of members) {
-                const idx = Math.max(0, Math.trunc(Number(m.seatIndex) || 0));
-                const r = Math.floor(idx / cols);
-                const c = idx % cols;
-                const flippedRow = Math.max(0, rows - 1 - r);
-                const flippedCol = Math.max(0, cols - 1 - c);
-                m.seatIndex = flippedRow * cols + flippedCol;
-              }
-            });
-            if (seatEditMode && ghostAddPos) {
-              const gr = domGhostRect || { x: ghostAddPos.x, y: ghostAddPos.y, w: GHOST_W, h: GHOST_H };
-              ghostAddPos = {
-                x: Math.max(CANVAS_PAD, Math.round(stageW - (gr.x + gr.w))),
-                y: Math.max(CANVAS_PAD, Math.round(stageH - (gr.y + gr.h))),
-              };
-            }
-          }
-          s.uiPrefs.seatingReversed = !s.uiPrefs.seatingReversed;
-        });
-
+        if (newRotator) {
+          newRotator.removeEventListener('animationend', onAnimEnd);
+          newRotator.classList.remove('is-rotating-board');
+        }
         seatingFlipping = false;
+        seatingFlipTargetRoot = null;
       };
 
       const onAnimEnd = (e) => {
-        if (e.target === canvasEl && e.animationName === 'seating-canvas-rotate-180') {
+        if (e.target === newRotator && e.animationName === 'seating-board-rotate-180') {
           finishFlip();
         }
       };
-      if (canvasEl) canvasEl.addEventListener('animationend', onAnimEnd);
+      if (newRotator) newRotator.addEventListener('animationend', onAnimEnd);
       const fallbackTimer = setTimeout(finishFlip, 740);
     };
   }

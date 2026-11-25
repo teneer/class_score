@@ -394,9 +394,6 @@
 .seating-stage.is-editing {
   background: #2b2e35;
 }
-.seating-stage.is-editing .seating-floating-bar {
-  background: #2b2e35;
-}
 .seating-stage.is-editing .seat-edit-origin-btn {
   color: #f3f5f8;
 }
@@ -435,11 +432,53 @@
   z-index: 20;
 }
 
-.seating-canvas-scroll {
+.seating-viewport-body {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
   position: relative;
+  overflow: hidden;
+}
+
+/* 좌석 캔버스 + 상하반전(교탁) 버튼 일체형 회전 보드 (내부 요소 개별 회전 애니메이션 없음) */
+.seating-rotator {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+}
+
+.seating-rotator.is-rotating-board {
+  will-change: transform;
+  pointer-events: none;
+  animation:
+    seating-board-rotate-180 0.68s cubic-bezier(0.4, 0, 0.2, 1) forwards,
+    seating-board-scale-dip 0.68s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+}
+
+.seating-rotator.is-rotating-board .group-box,
+.seating-rotator.is-rotating-board .group-ghost-add,
+.seating-rotator.is-rotating-board .seat-slot {
+  transition: none !important;
+}
+
+@keyframes seating-board-rotate-180 {
+  0%   { rotate: -180deg; }
+  100% { rotate: 0deg; }
+}
+
+@keyframes seating-board-scale-dip {
+  0%   { scale: 1; }
+  50%  { scale: 0.84; }
+  100% { scale: 1; }
+}
+
+/* 상·하단 교탁 슬롯(top 6~40px / bottom 10~44px)과 겹치지 않으면서 회전축 중점을 공유하는 좌석 영역 */
+.seating-canvas-scroll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 46px;
+  bottom: 50px;
+  overflow: hidden;
   cursor: default;
 }
 
@@ -453,46 +492,6 @@
 
 .seating-canvas {
   position: relative;
-}
-/* 상하반전 시 자리 캔버스가 180도 회전하며 카드를 추가로 다시 돌리지 않고(좌우 짝 위치 보존) 내부 글자/콘텐츠만 반전 */
-.seating-canvas.is-flipping-180 {
-  will-change: transform;
-  pointer-events: none;
-  animation:
-    seating-canvas-rotate-180 0.68s cubic-bezier(0.4, 0, 0.2, 1) forwards,
-    seating-canvas-scale-dip 0.68s cubic-bezier(0.45, 0, 0.55, 1) forwards;
-}
-.seating-canvas.is-flipping-180 .seat-slot,
-.seating-canvas.is-flipping-180 .group-footer,
-.seating-canvas.is-flipping-180 .group-ghost-add {
-  animation: seating-text-counter-180 0.68s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-@keyframes seating-canvas-rotate-180 {
-  0%   { rotate: 0deg; }
-  100% { rotate: 180deg; }
-}
-@keyframes seating-text-counter-180 {
-  0%   { rotate: 0deg; }
-  100% { rotate: -180deg; }
-}
-@keyframes seating-canvas-scale-dip {
-  0%   { scale: 1; }
-  50%  { scale: 0.84; }
-  100% { scale: 1; }
-}
-.seating-canvas.is-flipping-180 .group-box,
-.seating-canvas.is-flipping-180 .group-ghost-add {
-  transition: none !important;
-}
-
-/* 자리배치 상하반전 버튼도 자리가 돌아가는 것과 함께 위아래로 180도 회전 */
-.seat-flip-pill.is-flipping-btn-180 {
-  pointer-events: none;
-  animation: seating-btn-flip-180 0.68s cubic-bezier(0.4, 0, 0.2, 1);
-}
-@keyframes seating-btn-flip-180 {
-  0%   { transform: rotate(0deg); }
-  100% { transform: rotate(180deg); }
 }
 
 /* 자석 격자 스냅 가이드라인 */
@@ -903,21 +902,26 @@
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
 }
 
-/* 자리배치 내부 하단 도구 바 (3열 고정 Grid — 텍스트 변화에도 버튼 위치 0px 고정) */
+/* 자리배치 내부 하단 고정 도구 바 (좌측 자리배치수정 · 우측 뽑기 고정, 중앙은 교탁 회전 버튼 슬롯) */
 .seating-floating-bar {
-  flex: none;
-  padding: 6px 16px 10px;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 54px;
+  padding: 5px 16px;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  background: var(--bg-cream-deep);
+  background: transparent;
+  pointer-events: none;
   z-index: 25;
 }
 
 /* 원본 민트 원형 '자리배치수정' 버튼 (자리배치 수업화면.png 좌하단) */
 .seat-edit-origin-btn {
-  justify-self: start;
+  pointer-events: auto;
   min-width: 168px;
   display: inline-flex;
   align-items: center;
@@ -949,23 +953,41 @@
   transform: scale(0.86);
 }
 
+/* 상하반전(교탁) 버튼: 교사 시점(앞쪽)일 때는 아래 중앙, 교실 뒤쪽 시점일 때는 위 중앙 */
 .seat-flip-pill {
-  justify-self: center;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 34px;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 18px;
+  padding: 0 18px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #8f887b;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(143, 136, 123, 0.24);
+  box-shadow: 0 2px 7px rgba(74, 66, 53, 0.1);
+  color: #6d6659;
   font-size: 13px;
-  font-weight: 700;
-  transition: background 0.14s, color 0.14s;
+  font-weight: 800;
+  white-space: nowrap;
+  z-index: 30;
+  transition: background 0.14s, color 0.14s, box-shadow 0.14s;
 }
-.seat-flip-pill:hover { background: #fff; color: #4e4538; }
+.seat-flip-pill.is-pos-bottom {
+  bottom: 10px;
+}
+.seat-flip-pill.is-pos-top {
+  top: 6px;
+}
+.seat-flip-pill:hover {
+  background: #fff;
+  color: #3f372b;
+  box-shadow: 0 4px 12px rgba(74, 66, 53, 0.16);
+}
 
 .seat-pick-btn-group {
-  justify-self: end;
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
