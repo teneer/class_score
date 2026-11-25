@@ -25,7 +25,6 @@ let lastSelectedIds = [];
 let attendanceMode = false;
 let seatEditMode = false;
 let seatingFlipping = false;
-let seatingUprighting = false; // 180도 전체 회전 완료 직후 모둠 카드들이 -180deg -> 0deg(시계방향)로 자연스럽게 바로 서는 단계
 let seatingPickRunning = false; // 자리배치 내 그룹 뽑기 / 개인 뽑기 하이라이트 진행 중 플래그
 let ghostAddPos = null; // 편집 모드 중 이동 가능한 1명 크기 점선 '+' 새 모둠 카드 좌표 { x, y }
 let swapSourceStudentId = null; // 편집 모드에서 학생 카드 2개 클릭 자리 교환용 첫 번째 선택 학생 ID
@@ -433,20 +432,27 @@ function applySeatingFit(root) {
   const virtualW = Math.max(Math.ceil(spanW + CANVAS_PAD * 2), Math.round(viewW / fitScale));
   const virtualH = Math.max(Math.ceil(spanH + CANVAS_PAD * 2), Math.round(viewH / fitScale));
 
-  // 확대 시 가상 스테이지(virtualW x virtualH) 경계 밖으로 나간 모둠이 있으면 상대 간격을 유지한 채 안쪽으로 평행 보정
+  // 일반 수업 모드에서는 항상 화면 정중앙 기본 위치에 표시하고, 편집 모드에서는 모둠 드래그 좌표를 보존한 채 경계만 보정
   let shiftX = 0;
   let shiftY = 0;
-  if (maxRight + CANVAS_PAD > virtualW) {
-    shiftX = virtualW - CANVAS_PAD - maxRight;
-  }
-  if (minLeft + shiftX < CANVAS_PAD) {
-    shiftX = CANVAS_PAD - minLeft;
-  }
-  if (maxBottom + CANVAS_PAD > virtualH) {
-    shiftY = virtualH - CANVAS_PAD - maxBottom;
-  }
-  if (minTop + shiftY < CANVAS_PAD) {
-    shiftY = CANVAS_PAD - minTop;
+  if (!seatEditMode) {
+    const targetLeft = Math.max(CANVAS_PAD, Math.round((virtualW - spanW) / 2));
+    const targetTop = Math.max(CANVAS_PAD, Math.round((virtualH - spanH) / 2));
+    shiftX = targetLeft - minLeft;
+    shiftY = targetTop - minTop;
+  } else {
+    if (maxRight + CANVAS_PAD > virtualW) {
+      shiftX = virtualW - CANVAS_PAD - maxRight;
+    }
+    if (minLeft + shiftX < CANVAS_PAD) {
+      shiftX = CANVAS_PAD - minLeft;
+    }
+    if (maxBottom + CANVAS_PAD > virtualH) {
+      shiftY = virtualH - CANVAS_PAD - maxBottom;
+    }
+    if (minTop + shiftY < CANVAS_PAD) {
+      shiftY = CANVAS_PAD - minTop;
+    }
   }
 
   // 화면 표시용 위치만 평행 보정 (원본 state.groups 좌표는 절대 변조하지 않음!)
@@ -612,7 +618,7 @@ export function renderStudentsView(root) {
                   <i class="sp-icon sp-reset-arrow" aria-hidden="true"></i> 점수초기화
                 </button>
                 <button type="button" class="bottom-mini-link" id="btn-manage-students">
-                  <i class="sp-icon sp-gear" style="transform:scale(0.56);width:15px;height:15px;" aria-hidden="true"></i> 학생설정
+                  <i class="sp-icon sp-gear-mini" aria-hidden="true"></i> 학생설정
                 </button>
               </div>
             </div>
@@ -753,7 +759,7 @@ function renderSeatingBody(state, activeStudents, scoreMode) {
     <div class="seating-stage ${seatEditMode ? 'is-editing' : ''}">
       ${seatEditMode ? `
         <div class="seat-edit-banner">
-          <span>🪑 <strong>자리배치 수정 모드</strong> — 학생 카드 <strong>2개를 클릭하면 자리가 교환</strong>되고, 드래그해 빈칸·틈새에 배치할 수 있습니다. (빈 배경 드래그: 전체 이동 / 미배치 <strong>${unassigned.length}명</strong>)</span>
+          <span>🪑 <strong>자리배치 수정 모드</strong> — 학생 카드 <strong>2개를 클릭하면 자리가 교환</strong>되고, 드래그해 빈칸·틈새에 배치할 수 있습니다. (미배치 <strong>${unassigned.length}명</strong>)</span>
           <div style="display:flex;gap:6px;align-items:center;">
             <button type="button" class="btn-outline" id="btn-seat-add-group" style="padding:4px 10px;font-size:12px;">+ 새 모둠 추가</button>
             <button type="button" class="btn-outline" id="btn-seat-recenter" style="padding:4px 10px;font-size:12px;">가운데 정렬</button>
@@ -764,7 +770,7 @@ function renderSeatingBody(state, activeStudents, scoreMode) {
 
       <div class="seating-canvas-scroll" id="seating-canvas-scroll">
         <div class="seating-canvas-fit" id="seating-canvas-fit">
-          <div class="seating-canvas ${seatingUprighting ? 'is-uprighting-stage' : ''}" id="seating-canvas" style="width:${canvasW}px;height:${canvasH}px;">
+          <div class="seating-canvas" id="seating-canvas" style="width:${canvasW}px;height:${canvasH}px;">
             ${displayBoxes.map((box) => {
               const g = box.group;
               const members = activeStudents.filter((s) => s.groupId === g.id);
@@ -1005,7 +1011,7 @@ function bindStudentsEvents(root, state, activeStudents) {
   if (manageStudentsBtn) manageStudentsBtn.onclick = () => openRosterManagerModal();
 }
 
-/** 자유형 자리배치 전용 인터랙션 (전체 드래그 이동 / 모둠 통째 드래그·틈새삽입·자석격자 / 학생 2명 클릭 자리교환 / 점선 '+' 새 모둠) */
+/** 자유형 자리배치 전용 인터랙션 (모둠 통째 드래그·틈새삽입·자석격자 / 학생 2명 클릭 자리교환 / 점선 '+' 새 모둠) */
 function bindSeatingEvents(root, state, activeStudents) {
   const canvas = root.querySelector('#seating-canvas');
   const scrollEl = root.querySelector('#seating-canvas-scroll');
@@ -1013,13 +1019,15 @@ function bindSeatingEvents(root, state, activeStudents) {
   const viewH = scrollEl.clientHeight || Math.max(460, window.innerHeight - 200);
   const baseBoxes = ensureGroupLayout(state.groups, activeStudents, viewW);
 
-  // 빈 배경 드래그 → 전체 모둠 레이아웃 일괄 이동 (일반 모드·편집 모드 공통)
+  // 편집 모드에서 빈 배경 클릭 시 학생 교환 선택 해제 (배경 드래그 좌석 이동은 비활성화하여 기본 위치 유지)
   if (scrollEl) {
     scrollEl.onpointerdown = (ev) => {
       if (ev.button !== 0 || seatingFlipping) return;
       if (ev.target.closest('[data-group-box], #group-ghost-add, button, .seat-slot')) return;
-      ev.preventDefault();
-      startPanAllGroupsDrag(ev, root, canvas, baseBoxes);
+      if (seatEditMode && swapSourceStudentId) {
+        swapSourceStudentId = null;
+        renderStudentsView(root);
+      }
     };
   }
 
@@ -1282,11 +1290,12 @@ function bindSeatingEvents(root, state, activeStudents) {
       seatingFlipping = true;
       swapSourceStudentId = null;
       playSound('confirm');
+      btnFlip.classList.add('is-flipping-btn-180');
       const canvasEl = root.querySelector('#seating-canvas');
       const stageW = canvasEl ? canvasEl.offsetWidth : 1506;
       const stageH = canvasEl ? canvasEl.offsetHeight : 696;
 
-      // 회전 시작 직전 각 모둠·추가카드의 실제 DOM 좌표/크기를 기록해 180도 도착 위치에 그대로 안착
+      // 회전 시작 직전 각 모둠·추가카드의 실제 DOM 좌표/크기를 기록해 180도 점대칭 도착 위치에 그대로 안착
       const domGroupRects = new Map();
       if (canvasEl) {
         canvasEl.querySelectorAll('[data-group-box]').forEach((el) => {
@@ -1315,9 +1324,6 @@ function bindSeatingEvents(root, state, activeStudents) {
         clearTimeout(fallbackTimer);
         if (canvasEl) canvasEl.removeEventListener('animationend', onAnimEnd);
 
-        // 1단계(화면 180도 회전) 완료와 동시에 2단계(각 모둠 카드가 180deg -> 0deg로 자연스럽게 다시 회전해 바로 서기) 시작
-        seatingUprighting = true;
-
         await store.update((s) => {
           const active = s.students.filter((x) => !x.trashed);
           const boxes = ensureGroupLayout(s.groups, active);
@@ -1326,11 +1332,10 @@ function bindSeatingEvents(root, state, activeStudents) {
               const g = s.groups.find((x) => x.id === b.id);
               const rect = domGroupRects.get(b.id) || { x: b.x, y: b.y, w: b.w, h: b.h };
               if (g) {
-                // 회전이 끝나 도착한 위치 그대로 유지 (도로 위쪽으로 이동하지 않음)
                 g.x = Math.max(CANVAS_PAD, Math.round(stageW - (rect.x + rect.w)));
                 g.y = Math.max(CANVAS_PAD, Math.round(stageH - (rect.y + rect.h)));
               }
-              // 모둠 내부 학생 카드 상하 방향 전환
+              // 모둠 자체를 2차로 다시 돌리지 않고 180도 점대칭 위치(행·열 모두 반전)로 배치하여 좌우 짝의 원래 위치를 보존하고 글자만 정방향 표시
               const members = active.filter((m) => m.groupId === b.id);
               const cols = b.cols;
               const rows = b.rows;
@@ -1339,7 +1344,8 @@ function bindSeatingEvents(root, state, activeStudents) {
                 const r = Math.floor(idx / cols);
                 const c = idx % cols;
                 const flippedRow = Math.max(0, rows - 1 - r);
-                m.seatIndex = flippedRow * cols + c;
+                const flippedCol = Math.max(0, cols - 1 - c);
+                m.seatIndex = flippedRow * cols + flippedCol;
               }
             });
             if (seatEditMode && ghostAddPos) {
@@ -1353,12 +1359,7 @@ function bindSeatingEvents(root, state, activeStudents) {
           s.uiPrefs.seatingReversed = !s.uiPrefs.seatingReversed;
         });
 
-        setTimeout(() => {
-          seatingUprighting = false;
-          seatingFlipping = false;
-          const nextCanvas = root.querySelector('#seating-canvas');
-          if (nextCanvas) nextCanvas.classList.remove('is-uprighting-stage');
-        }, 440);
+        seatingFlipping = false;
       };
 
       const onAnimEnd = (e) => {
@@ -1851,96 +1852,6 @@ function renderSnapGuides(canvas, guideX, guideY) {
     ly.style.top = `${guideY}px`;
     canvas.appendChild(ly);
   }
-}
-
-/** 빈 배경 드래그 → 전체 모둠 레이아웃(및 점선 추가 카드) 상대 간격을 유지한 채 일괄 이동 */
-function startPanAllGroupsDrag(ev, root, canvas, baseBoxes) {
-  if (!canvas || baseBoxes.length === 0) return;
-  const scrollEl = root.querySelector('#seating-canvas-scroll');
-  const scale = getSeatingCanvasScale(canvas);
-  const startClientX = ev.clientX;
-  const startClientY = ev.clientY;
-
-  const origBoxes = baseBoxes.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }));
-  const ghostEl = canvas.querySelector('#group-ghost-add');
-  const origGhost =
-    seatEditMode && ghostAddPos
-      ? { x: ghostAddPos.x, y: ghostAddPos.y, w: GHOST_W, h: GHOST_H }
-      : null;
-
-  const allRects = origGhost ? [...origBoxes, origGhost] : origBoxes;
-  const minX = Math.min(...allRects.map((r) => r.x));
-  const minY = Math.min(...allRects.map((r) => r.y));
-  const maxX = Math.max(...allRects.map((r) => r.x + r.w));
-  const maxY = Math.max(...allRects.map((r) => r.y + r.h));
-
-  const logicalW = canvas.offsetWidth || 1506;
-  const logicalH = canvas.offsetHeight || 696;
-  const minDx = CANVAS_PAD - minX;
-  const maxDx = Math.max(minDx, logicalW - CANVAS_PAD - maxX);
-  const minDy = CANVAS_PAD - minY;
-  const maxDy = Math.max(minDy, logicalH - CANVAS_PAD - maxY);
-
-  let appliedDx = 0;
-  let appliedDy = 0;
-  let moved = false;
-
-  if (scrollEl) scrollEl.classList.add('is-panning');
-
-  const onMove = (e) => {
-    const rawDx = (e.clientX - startClientX) / scale;
-    const rawDy = (e.clientY - startClientY) / scale;
-    if (Math.hypot(rawDx, rawDy) > 3) moved = true;
-
-    appliedDx = Math.round(Math.min(maxDx, Math.max(minDx, rawDx)));
-    appliedDy = Math.round(Math.min(maxDy, Math.max(minDy, rawDy)));
-
-    for (const b of origBoxes) {
-      const el = canvas.querySelector(`[data-group-box="${b.id}"]`);
-      if (el) {
-        el.style.left = `${b.x + appliedDx}px`;
-        el.style.top = `${b.y + appliedDy}px`;
-      }
-    }
-    if (origGhost && ghostEl) {
-      ghostEl.style.left = `${origGhost.x + appliedDx}px`;
-      ghostEl.style.top = `${origGhost.y + appliedDy}px`;
-    }
-  };
-
-  const onUp = async () => {
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
-    if (scrollEl) scrollEl.classList.remove('is-panning');
-
-    if (!moved) {
-      if (seatEditMode && swapSourceStudentId) {
-        swapSourceStudentId = null;
-        renderStudentsView(root);
-      }
-      return;
-    }
-
-    if (origGhost) {
-      ghostAddPos = {
-        x: origGhost.x + appliedDx,
-        y: origGhost.y + appliedDy,
-      };
-    }
-
-    await store.update((s) => {
-      for (const b of origBoxes) {
-        const g = s.groups.find((x) => x.id === b.id);
-        if (g) {
-          g.x = b.x + appliedDx;
-          g.y = b.y + appliedDy;
-        }
-      }
-    });
-  };
-
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
 }
 
 /** 모둠 카드 통째 드래그: 자석 격자 + 틈새 삽입 실시간 부드러운 밀림 + 영역 초과 시 자동 비율 축소 */

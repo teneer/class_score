@@ -171,13 +171,13 @@
   z-index: 4;
 }
 
-/* 좌측 아바타: 카드 좌측 영역(폭 74px, 높이 100%) 내 세로 정중앙 배치 & 확대 (영역을 살짝 넘는 귀/발끝만 클리핑, 얼굴 100% 보존) */
+/* 좌측 아바타: 카드 좌측 영역(폭 70px, 높이 100%) 내 세로 정중앙 배치 & 확대 (우측 번호·이름을 가리지 않도록 폭 제한) */
 .card-avatar-wrap {
   position: absolute;
-  left: 3px;
+  left: 2px;
   top: 0;
   bottom: 0;
-  width: 74px;
+  width: 70px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -206,24 +206,24 @@
   position: absolute;
   top: 18px;
   right: 12px;
-  left: 74px;
+  left: 72px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   text-align: right;
-  z-index: 2;
+  z-index: 3;
   min-width: 0;
 }
 .card-score-cell:has(.score-dual) {
   top: 6px;
 }
 
-/* 우측 하단 출석번호 + 이름: 아바타와 겹치지 않는 우측 공간에 선명한 번호 배지와 함께 오른쪽 정렬 */
+/* 우측 하단 출석번호 + 이름: 아바타보다 앞 레이어(z-index: 4)에서 더 위쪽으로 올라와 절대 가려지지 않게 배치 */
 .card-name-row {
   position: absolute;
-  bottom: 10px;
+  bottom: 13px;
   right: 10px;
-  left: 72px;
+  left: 68px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -234,38 +234,59 @@
   color: #363129;
   letter-spacing: -0.04em;
   white-space: nowrap;
+  overflow: visible;
+  z-index: 4;
+}
+.card-name-txt {
   overflow: hidden;
   text-overflow: ellipsis;
-  z-index: 2;
+  white-space: nowrap;
 }
 
-/* 아바타 숨김 시: 점수는 우측 상단 그대로 유지, 이름은 카드 중앙으로 이동 + 크기 확대 */
+/* 아바타 숨김 시: 점수는 살짝 더 커지고 왼쪽으로 조금 더 이동, (번호) 이름은 가로 중간 정렬로 지금보다 살짝 아래쪽에 배치 */
 .hide-avatars .card-avatar-wrap {
   display: none;
 }
 .hide-avatars .card-score-cell {
-  top: 15px;
-  right: 12px;
+  top: 16px;
+  right: 20px;
   left: 12px;
 }
+.hide-avatars .card-score-cell:has(.score-dual) {
+  top: 7px;
+  right: 20px;
+}
+.hide-avatars .card-score-cell .score-val {
+  font-size: 33px;
+}
+.hide-avatars .card-score-cell .score-dual-pos,
+.hide-avatars .card-score-cell .score-dual-neg {
+  font-size: 29px;
+}
 .hide-avatars .card-name-row {
-  inset: 18px 10px 8px;
+  top: auto;
+  bottom: 18px;
+  left: 8px;
+  right: 8px;
   align-items: center;
   justify-content: center;
   text-align: center;
   font-size: 24px;
   font-weight: 900;
   gap: 6px;
-  z-index: 1;
+  z-index: 3;
 }
 .hide-avatars .card-num {
   min-width: 26px;
   height: 24px;
   font-size: 14px;
+  transform: none;
 }
 
-/* 출석번호 배지: 아바타와 분리되어 한눈에 식별되도록 고대비 앰버 필 스타일 적용 */
+/* 출석번호 배지: 아바타에 절대 가려지지 않도록 상위 레이어 + 살짝 위로 배치 */
 .card-num {
+  position: relative;
+  z-index: 5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -281,6 +302,8 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
+  transform: translateY(-2px);
+  box-shadow: 0 1px 3px rgba(74, 54, 38, 0.12);
 }
 .hide-numbers .card-num {
   display: none;
@@ -417,14 +440,7 @@
   min-height: 0;
   overflow: hidden;
   position: relative;
-  cursor: grab;
-}
-.seating-canvas-scroll.is-panning {
-  cursor: grabbing;
-}
-.seating-canvas-scroll.is-panning .group-box,
-.seating-canvas-scroll.is-panning .group-ghost-add {
-  transition: none !important;
+  cursor: default;
 }
 
 /* 화면 영역 초과 시 스크롤바 없이 가로세로 비율 유지 축소 래퍼 */
@@ -438,7 +454,7 @@
 .seating-canvas {
   position: relative;
 }
-/* 상하반전 시 내부 화면 전체가 자연스럽게 180도 회전 후 도착과 동시에 방향 전환 */
+/* 상하반전 시 자리 캔버스가 180도 회전하며 카드를 추가로 다시 돌리지 않고(좌우 짝 위치 보존) 내부 글자/콘텐츠만 반전 */
 .seating-canvas.is-flipping-180 {
   will-change: transform;
   pointer-events: none;
@@ -446,9 +462,18 @@
     seating-canvas-rotate-180 0.68s cubic-bezier(0.4, 0, 0.2, 1) forwards,
     seating-canvas-scale-dip 0.68s cubic-bezier(0.45, 0, 0.55, 1) forwards;
 }
+.seating-canvas.is-flipping-180 .seat-slot,
+.seating-canvas.is-flipping-180 .group-footer,
+.seating-canvas.is-flipping-180 .group-ghost-add {
+  animation: seating-text-counter-180 0.68s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
 @keyframes seating-canvas-rotate-180 {
   0%   { rotate: 0deg; }
   100% { rotate: 180deg; }
+}
+@keyframes seating-text-counter-180 {
+  0%   { rotate: 0deg; }
+  100% { rotate: -180deg; }
 }
 @keyframes seating-canvas-scale-dip {
   0%   { scale: 1; }
@@ -459,17 +484,15 @@
 .seating-canvas.is-flipping-180 .group-ghost-add {
   transition: none !important;
 }
-/* 180도 전체 회전(시계방향) 도착 직후 각 모둠 카드가 시계방향으로 180도 더 돌아(-180deg -> 0deg) 자연스럽게 바른 방향으로 안착 */
-.seating-canvas.is-uprighting-stage .group-box,
-.seating-canvas.is-uprighting-stage .group-ghost-add {
-  will-change: transform;
-  transform-origin: center center;
-  transition: none !important;
-  animation: seating-card-upright-180 0.42s cubic-bezier(0.25, 1, 0.35, 1) forwards;
+
+/* 자리배치 상하반전 버튼도 자리가 돌아가는 것과 함께 위아래로 180도 회전 */
+.seat-flip-pill.is-flipping-btn-180 {
+  pointer-events: none;
+  animation: seating-btn-flip-180 0.68s cubic-bezier(0.4, 0, 0.2, 1);
 }
-@keyframes seating-card-upright-180 {
-  0%   { rotate: -180deg; }
-  100% { rotate: 0deg; }
+@keyframes seating-btn-flip-180 {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(180deg); }
 }
 
 /* 자석 격자 스냅 가이드라인 */
@@ -654,55 +677,86 @@
   transform: translateY(-8.5%) scale(1.42);
 }
 
+/* 자리배치 번호 표시 OFF 시: 원래 번호 영역(22px) 절반(11px)은 여백으로 남기고 아바타 영역을 넓혀 아바타가 잘리지 않고 전부 보이게 처리 */
+.hide-numbers .seat-slot.has-avatar .seat-avatar-wrap {
+  margin-left: 11px;
+  width: 63px;
+}
+.hide-numbers .seat-slot.has-avatar .seat-avatar,
+.hide-numbers .seat-slot.has-avatar .seat-avatar-fx {
+  width: 60px;
+  height: 75px;
+  transform: translateY(-4%) scale(1.06);
+}
+
+/* 자리배치 이름·점수 영역: 아바타 OFF나 으쓱+머쓱 표시일 때도 위아래로 멀리 벌어지지 않고 적당히 모이도록 정렬 */
 .seat-info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 6px 7px 5px 6px;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
 }
 .seat-slot.has-avatar .seat-info {
   justify-content: center;
   align-items: flex-end;
-  gap: 2px;
+  gap: 3px;
   padding: 4px 7px 4px 2px;
 }
 .seat-slot:has(.score-dual) .seat-info {
-  justify-content: space-between;
-  padding: 3px 7px 2px 2px;
-  gap: 0;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px 7px 2px 2px;
+}
+.seat-slot:not(.has-avatar):has(.score-dual) .seat-info {
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
 }
 .seat-name {
-  font-size: 19px;
+  font-size: 21px;
   font-weight: 900;
   line-height: 1.05;
   color: #2f2a22;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 .seat-slot.has-avatar .seat-name {
   font-size: 17px;
 }
 .seat-score {
-  align-self: flex-end;
   display: flex;
   align-items: center;
+  justify-content: center;
+}
+.seat-slot.has-avatar .seat-score {
+  align-self: flex-end;
   justify-content: flex-end;
 }
 .seat-score .score-val {
+  font-size: 26px;
+  min-width: 0;
+}
+.seat-slot.has-avatar .seat-score .score-val {
   font-size: 22px;
 }
 .seat-score .score-dual {
+  align-items: center;
+  line-height: 0.92;
+  gap: 1px;
+}
+.seat-slot.has-avatar .seat-score .score-dual {
   align-items: flex-end;
-  line-height: 0.9;
-  gap: 0;
 }
 .seat-score .score-dual-pos,
 .seat-score .score-dual-neg {
-  font-size: 22px;
-  line-height: 0.9;
+  font-size: 21px;
+  line-height: 0.92;
   letter-spacing: -0.04em;
 }
 
@@ -941,13 +995,13 @@
   box-shadow: 0 0 0 3px rgba(245, 184, 0, 0.35);
 }
 
-/* 개인 뽑기용 초록 클로버 아이콘 (sp_board_layout.png 원본 클로버 스프라이트 정밀 축소, 갈색 클로버와 1:1 매칭) */
+/* 개인 뽑기용 초록 클로버 아이콘 (sp_board_layout.png 원본 클로버 스프라이트 정밀 중앙 정렬) */
 .sp-clover-green-mini {
   width: 18px;
   height: 18px;
   background-image: url('../assets/visuals/sp_board_layout.png');
   background-size: 183.2px 274.8px;
-  background-position: -53.4px -50.8px;
+  background-position: -50.8px -50.8px;
 }
 
 /* 자리배치 화면 내 그룹 뽑기 / 개인 뽑기 랜덤 하이라이트 이동 연출 */
@@ -1528,6 +1582,9 @@
   gap: 2px;
 }
 .bottom-mini-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   text-align: left;
   padding: 2px 6px;
   border-radius: 4px;

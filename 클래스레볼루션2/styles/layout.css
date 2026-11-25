@@ -274,15 +274,15 @@ body.is-whiteboard-fullscreen .fx-stage {
   background: #fff;
 }
 
-/* 좌측 사이드바 — 최상단 바 제거 후 9개 메뉴 + 하단 유틸 3개가 모든 해상도에서 스크롤 없이 한 화면에 표시 */
+/* 좌측 사이드바 — 상단에 여유 마진을 확보하고 9개 메뉴 + 하단 유틸 3개가 모든 해상도에서 스크롤 없이 한 화면에 표시 */
 .side-rail {
   width: var(--rail-w);
   flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: clamp(4px, 0.7vh, 8px) 4px clamp(4px, 0.7vh, 6px);
+  justify-content: flex-start;
+  padding: clamp(14px, 2.2vh, 24px) 4px clamp(8px, 1.2vh, 14px);
   background: #fff;
   border-right: 1px solid #ece8de;
   overflow-x: hidden;
@@ -299,9 +299,9 @@ body.is-whiteboard-fullscreen .fx-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(1px, 0.3vh, 3px);
-  padding-bottom: clamp(3px, 0.6vh, 7px);
-  margin-bottom: clamp(2px, 0.4vh, 5px);
+  gap: clamp(2px, 0.45vh, 5px);
+  padding-bottom: clamp(5px, 0.9vh, 10px);
+  margin-bottom: clamp(4px, 0.8vh, 9px);
   border-bottom: 1px solid #f0ede4;
 }
 .rail-group:last-of-type {

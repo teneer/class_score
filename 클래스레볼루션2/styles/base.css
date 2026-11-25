@@ -356,27 +356,34 @@ button:disabled {
   background-position: -301px -11px;
   transform: scale(0.76);
 }
+.sp-gear-mini {
+  width: 15px;
+  height: 15px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 228px 342px;
+  background-position: -180.6px -6.6px;
+}
 .sp-grid {
   width: 28px;
   height: 28px;
   background-image: url('../assets/visuals/sp_board_layout.png');
   background-size: 285px 427.5px;
-  background-position: -7px -118px;
+  background-position: -4px -116.5px;
 }
 .rail-btn.is-active .sp-grid,
 .rail-btn:hover .sp-grid {
-  background-position: -45px -118px;
+  background-position: -41.5px -116.5px;
 }
 .sp-egg-nav {
   width: 28px;
   height: 28px;
   background-image: url('../assets/visuals/sp_board_layout.png');
   background-size: 285px 427.5px;
-  background-position: -7px -79px;
+  background-position: -4px -78.6px;
 }
 .rail-btn.is-active .sp-egg-nav,
 .rail-btn:hover .sp-egg-nav {
-  background-position: -45px -79px;
+  background-position: -41.5px -78.6px;
 }
 .sp-hourglass {
   width: 26px;
@@ -394,33 +401,33 @@ button:disabled {
   height: 28px;
   background-image: url('../assets/visuals/sp_board_layout.png');
   background-size: 285px 427.5px;
-  background-position: -83px -79px;
+  background-position: -79px -79px;
 }
 .rail-btn.is-active .sp-clover,
 .rail-btn:hover .sp-clover {
-  background-position: -119px -5px;
+  background-position: -116.5px -4px;
 }
 .sp-checklist {
   width: 28px;
   height: 28px;
   background-image: url('../assets/visuals/sp_board_layout.png');
   background-size: 266px 399px;
-  background-position: -6px -238px;
+  background-position: -3.1px -233.8px;
 }
 .rail-btn.is-active .sp-checklist,
 .rail-btn:hover .sp-checklist {
-  background-position: -41px -207px;
+  background-position: -38.1px -205.8px;
 }
 .sp-sprout-green {
   width: 28px;
   height: 26px;
   background-image: url('../assets/visuals/sp_board_layout.png');
   background-size: 266px 399px;
-  background-position: -105px -42px;
+  background-position: -107.8px -39.1px;
 }
 .rail-btn.is-active .sp-sprout-green,
 .rail-btn:hover .sp-sprout-green {
-  background-position: -105px -74px;
+  background-position: -107.8px -74.1px;
 }
 .sp-sprout-white {
   width: 22px;
@@ -578,7 +585,7 @@ button:disabled {
   height: 16px;
   background-image: url('../assets/visuals/sp_board_buttons.png');
   background-size: 500px 296px;
-  background-position: -194px -20px;
+  background-position: -193px -17.6px;
 }
 .sp-clover-brown {
   width: 18px;
