@@ -499,7 +499,7 @@
   bottom: var(--egg-bottom, 4%);
   transform: translate(-50%, 50%);
   width: 52px;
-  height: 56px;
+  height: 52px;
   display: grid;
   place-items: center;
   transition: bottom 0.28s cubic-bezier(0.25, 0.8, 0.25, 1);

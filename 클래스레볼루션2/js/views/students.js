@@ -197,7 +197,9 @@ function measureGroupBox(group, members) {
   const seatMap = buildGroupSeatMap(members);
   const cols = Math.max(1, Number(group.cols) || (members.length <= 1 ? 1 : 2));
   const maxSeatIdx = seatMap.size > 0 ? Math.max(...seatMap.keys()) : 0;
-  const rows = Math.max(1, Math.ceil((maxSeatIdx + 1) / cols));
+  const minRows = Math.max(1, Math.ceil((maxSeatIdx + 1) / cols));
+  const savedRows = Math.trunc(Number(group.rows) || 0);
+  const rows = Math.max(minRows, savedRows || minRows);
   const totalSlots = rows * cols;
   const w = cols * SEAT_W + (cols - 1) * SEAT_GAP + GROUP_PAD_X;
   const h = rows * SEAT_H + (rows - 1) * SEAT_GAP + GROUP_PAD_Y + FOOTER_H;
@@ -771,7 +773,7 @@ function renderSeatingBody(state, activeStudents, scoreMode, root) {
     <div class="seating-stage ${seatEditMode ? 'is-editing' : ''}">
       ${seatEditMode ? `
         <div class="seat-edit-banner">
-          <span>🪑 <strong>자리배치 수정 모드</strong> — 학생 카드 <strong>2개를 클릭하면 자리가 교환</strong>되고, 드래그해 빈칸·틈새에 배치할 수 있습니다. (미배치 <strong>${unassigned.length}명</strong>)</span>
+          <span>🪑 <strong>자리배치 수정 모드</strong> — 모둠 <strong>테두리를 드래그해 한 칸 단위로 크기 조절</strong>, 학생 카드 2개 클릭 교환·드래그 배치가 가능합니다. (미배치 <strong>${unassigned.length}명</strong>)</span>
           <div style="display:flex;gap:6px;align-items:center;">
             <button type="button" class="btn-outline" id="btn-seat-add-group" style="padding:4px 10px;font-size:12px;">+ 새 모둠 추가</button>
             <button type="button" class="btn-outline" id="btn-seat-recenter" style="padding:4px 10px;font-size:12px;">가운데 정렬</button>
@@ -831,8 +833,6 @@ function renderSeatingBody(state, activeStudents, scoreMode, root) {
                         <button type="button" class="group-name-btn" data-select-group="${g.id}" title="${seatEditMode ? '드래그하여 모둠 통째 이동' : '클릭하면 모둠원 전체 선택'}">${escapeHtml(g.name)}</button>
                         ${seatEditMode ? `
                           <div class="group-edit-actions">
-                            <button type="button" class="group-mini-btn" data-cols-dec="${g.id}" title="가로 열 줄이기">열−</button>
-                            <button type="button" class="group-mini-btn" data-cols-inc="${g.id}" title="가로 열 늘리기">열+</button>
                             <button type="button" class="group-mini-btn" data-rename-group="${g.id}">이름</button>
                             <button type="button" class="group-mini-btn" data-delete-group="${g.id}">삭제</button>
                           </div>
@@ -843,6 +843,16 @@ function renderSeatingBody(state, activeStudents, scoreMode, root) {
                           </span>
                         `}
                       </div>
+                      ${seatEditMode ? `
+                        <div class="group-resize-handle" data-resize-group="${g.id}" data-resize-dir="e" title="오른쪽 테두리 드래그 (가로 1칸 단위)"></div>
+                        <div class="group-resize-handle" data-resize-group="${g.id}" data-resize-dir="w" title="왼쪽 테두리 드래그 (가로 1칸 단위)"></div>
+                        <div class="group-resize-handle" data-resize-group="${g.id}" data-resize-dir="s" title="아래쪽 테두리 드래그 (세로 1칸 단위)"></div>
+                        <div class="group-resize-handle" data-resize-group="${g.id}" data-resize-dir="n" title="위쪽 테두리 드래그 (세로 1칸 단위)"></div>
+                        <div class="group-resize-handle" data-resize-group="${g.id}" data-resize-dir="se" title="모서리 드래그 (가로·세로 1칸 단위)"></div>
+                        <div class="group-resize-handle" data-resize-group="${g.id}" data-resize-dir="sw" title="모서리 드래그 (가로·세로 1칸 단위)"></div>
+                        <div class="group-resize-handle" data-resize-group="${g.id}" data-resize-dir="ne" title="모서리 드래그 (가로·세로 1칸 단위)"></div>
+                        <div class="group-resize-handle" data-resize-group="${g.id}" data-resize-dir="nw" title="모서리 드래그 (가로·세로 1칸 단위)"></div>
+                      ` : ''}
                     </div>
                   `;
                 }).join('')}
@@ -1118,21 +1128,7 @@ function bindSeatingEvents(root, state, activeStudents) {
       };
     });
 
-    // 2. 모둠 가로 열 수 조정 / 이름 변경 / 삭제
-    root.querySelectorAll('[data-cols-inc]').forEach((b) => {
-      b.onpointerdown = (e) => e.stopPropagation();
-      b.onclick = (e) => {
-        e.stopPropagation();
-        adjustGroupCols(b.dataset.colsInc, 1);
-      };
-    });
-    root.querySelectorAll('[data-cols-dec]').forEach((b) => {
-      b.onpointerdown = (e) => e.stopPropagation();
-      b.onclick = (e) => {
-        e.stopPropagation();
-        adjustGroupCols(b.dataset.colsDec, -1);
-      };
-    });
+    // 2. 모둠 이름 변경 / 삭제 및 테두리 1칸 단위 리사이즈
     root.querySelectorAll('[data-rename-group]').forEach((b) => {
       b.onpointerdown = (e) => e.stopPropagation();
       b.onclick = (e) => {
@@ -1165,12 +1161,20 @@ function bindSeatingEvents(root, state, activeStudents) {
         });
       };
     });
+    root.querySelectorAll('[data-resize-group]').forEach((handleEl) => {
+      handleEl.onpointerdown = (ev) => {
+        if (ev.button !== 0) return;
+        ev.stopPropagation();
+        ev.preventDefault();
+        startGroupResize(ev, handleEl.dataset.resizeGroup, handleEl.dataset.resizeDir, handleEl, canvas, baseBoxes);
+      };
+    });
 
-    // 3. 모둠 카드 통째 드래그 (푸터 및 모둠 내부 여백/테두리 어디든 드래그 가능, 자석 격자 스냅 + 실시간 틈새 밀림)
+    // 3. 모둠 카드 통째 드래그 (푸터 및 모둠 내부 여백 어디든 드래그 가능, 자석 격자 스냅 + 실시간 틈새 밀림)
     root.querySelectorAll('[data-group-box]').forEach((boxEl) => {
       boxEl.onpointerdown = (ev) => {
         if (ev.button !== 0) return;
-        if (ev.target.closest('.seat-slot, .group-mini-btn, .seat-unassign-btn')) return;
+        if (ev.target.closest('.seat-slot, .group-mini-btn, .seat-unassign-btn, .group-resize-handle')) return;
         if (swapSourceStudentId && ev.target.closest('.seat-cell-empty')) return;
         ev.preventDefault();
         startGroupDrag(ev, boxEl.dataset.groupBox, canvas, baseBoxes);
@@ -2232,32 +2236,145 @@ async function placeOrInsertStudentAtSlot(studentId, targetGroupId, targetSlotId
   });
 }
 
-/** 모둠 가로 열 수 수동 조절 (제한 없음, 기존 행·열 위치 유지로 중간 빈칸 생성 가능) */
-async function adjustGroupCols(groupId, delta) {
+/** 모둠 테두리 드래그 리사이즈 (가로·세로 모두 학생카드 1칸 단위로 증감) */
+function startGroupResize(ev, groupId, dir, handleEl, canvas, baseBoxes) {
+  const boxEl = canvas.querySelector(`[data-group-box="${groupId}"]`);
+  const orig = baseBoxes.find((b) => b.id === groupId);
+  if (!boxEl || !orig) return;
+
+  const scale = getSeatingCanvasScale(canvas);
+  const STEP_X = SEAT_W + SEAT_GAP;
+  const STEP_Y = SEAT_H + SEAT_GAP;
+  const memberCount = orig.seatMap ? orig.seatMap.size : 0;
+
+  const hasE = dir.includes('e');
+  const hasW = dir.includes('w');
+  const hasS = dir.includes('s');
+  const hasN = dir.includes('n');
+
+  const startClientX = ev.clientX;
+  const startClientY = ev.clientY;
+
+  let curCols = orig.cols;
+  let curRows = orig.rows;
+  let curX = orig.x;
+  let curY = orig.y;
+
+  boxEl.classList.add('is-resizing');
+  handleEl.classList.add('is-active');
+
+  // 실시간 열×행 크기 배지
+  const badge = document.createElement('div');
+  badge.className = 'group-resize-badge';
+  badge.textContent = `${curCols}열 × ${curRows}행`;
+  boxEl.appendChild(badge);
+
+  const calcBoxW = (c) => c * SEAT_W + (c - 1) * SEAT_GAP + GROUP_PAD_X;
+  const calcBoxH = (r) => r * SEAT_H + (r - 1) * SEAT_GAP + GROUP_PAD_Y + FOOTER_H;
+
+  boxEl.style.width = `${calcBoxW(curCols)}px`;
+  boxEl.style.height = `${calcBoxH(curRows)}px`;
+
+  const onMove = (e) => {
+    const dx = (e.clientX - startClientX) / scale;
+    const dy = (e.clientY - startClientY) / scale;
+
+    const rawDeltaCols = hasE ? Math.round(dx / STEP_X) : hasW ? Math.round(-dx / STEP_X) : 0;
+    const rawDeltaRows = hasS ? Math.round(dy / STEP_Y) : hasN ? Math.round(-dy / STEP_Y) : 0;
+
+    let nextCols = Math.max(1, orig.cols + rawDeltaCols);
+    // 왼쪽 테두리로 늘릴 때 캔버스 좌측 여백을 넘지 않도록 보정
+    if (hasW && nextCols > orig.cols) {
+      const maxLeftExpand = Math.max(0, Math.floor((orig.x - CANVAS_PAD) / STEP_X));
+      nextCols = Math.min(nextCols, orig.cols + maxLeftExpand);
+    }
+
+    const minRowsForMembers = Math.max(1, Math.ceil(memberCount / nextCols));
+    let nextRows = Math.max(minRowsForMembers, orig.rows + rawDeltaRows);
+    // 위쪽 테두리로 늘릴 때 캔버스 상단 여백을 넘지 않도록 보정
+    if (hasN && nextRows > orig.rows) {
+      const maxTopExpand = Math.max(0, Math.floor((orig.y - CANVAS_PAD) / STEP_Y));
+      nextRows = Math.min(nextRows, orig.rows + maxTopExpand);
+    }
+
+    const deltaCols = nextCols - orig.cols;
+    const deltaRows = nextRows - orig.rows;
+    const nextX = hasW ? Math.max(CANVAS_PAD, orig.x - deltaCols * STEP_X) : orig.x;
+    const nextY = hasN ? Math.max(CANVAS_PAD, orig.y - deltaRows * STEP_Y) : orig.y;
+
+    if (nextCols !== curCols || nextRows !== curRows || nextX !== curX || nextY !== curY) {
+      curCols = nextCols;
+      curRows = nextRows;
+      curX = nextX;
+      curY = nextY;
+
+      boxEl.style.left = `${curX}px`;
+      boxEl.style.top = `${curY}px`;
+      boxEl.style.width = `${calcBoxW(curCols)}px`;
+      boxEl.style.height = `${calcBoxH(curRows)}px`;
+      badge.textContent = `${curCols}열 × ${curRows}행`;
+    }
+  };
+
+  const onUp = async () => {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    boxEl.classList.remove('is-resizing');
+    handleEl.classList.remove('is-active');
+    badge.remove();
+
+    if (curCols === orig.cols && curRows === orig.rows && curX === orig.x && curY === orig.y) {
+      boxEl.style.height = '';
+      return;
+    }
+
+    const shiftCol = hasW ? curCols - orig.cols : 0;
+    const shiftRow = hasN ? curRows - orig.rows : 0;
+    await applyGroupGridResize(groupId, curCols, curRows, {
+      shiftCol,
+      shiftRow,
+      nextX: curX,
+      nextY: curY,
+      preferAxis: (hasE || hasW) && !(hasS || hasN) ? 'x' : (hasS || hasN) && !(hasE || hasW) ? 'y' : 'auto',
+    });
+    playSound('confirm');
+  };
+
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+/** 모둠 가로·세로 칸 수 적용 (학생 유실 없이 기존 좌표 유지 + 범위 밖 학생 빈칸 재배치 + 충돌 밀림) */
+async function applyGroupGridResize(groupId, newCols, newRows, opts = {}) {
+  const { shiftCol = 0, shiftRow = 0, nextX, nextY, preferAxis = 'auto' } = opts;
   await store.update((s) => {
     const g = s.groups.find((x) => x.id === groupId);
     if (!g) return;
     const members = s.students.filter((x) => !x.trashed && x.groupId === groupId);
     const oldCols = Math.max(1, Number(g.cols) || (members.length <= 1 ? 1 : 2));
-    const newCols = Math.max(1, oldCols + delta);
-    if (newCols === oldCols) return;
+    const finalCols = Math.max(1, Math.trunc(Number(newCols) || oldCols));
+    const minRowsForMembers = Math.max(1, Math.ceil(members.length / finalCols));
+    const finalRows = Math.max(minRowsForMembers, Math.trunc(Number(newRows) || 1));
 
-    // 기존 (row, col) 유지해 새 열 수에 맞게 재배치 (예: 2열→3열 시 각 행의 3번째 칸이 빈칸으로 열림!)
     const used = new Set();
     const sorted = [...members].sort((a, b) => (Number(a.seatIndex) || 0) - (Number(b.seatIndex) || 0));
     const overflow = [];
+
     for (const m of sorted) {
       const oldIdx = Math.max(0, Math.trunc(Number(m.seatIndex) || 0));
-      const r = Math.floor(oldIdx / oldCols);
-      const c = oldIdx % oldCols;
-      if (c < newCols) {
-        const nextIdx = r * newCols + c;
-        m.seatIndex = nextIdx;
-        used.add(nextIdx);
-      } else {
-        overflow.push(m);
+      const r = Math.floor(oldIdx / oldCols) + shiftRow;
+      const c = (oldIdx % oldCols) + shiftCol;
+      if (r >= 0 && r < finalRows && c >= 0 && c < finalCols) {
+        const nextIdx = r * finalCols + c;
+        if (!used.has(nextIdx)) {
+          m.seatIndex = nextIdx;
+          used.add(nextIdx);
+          continue;
+        }
       }
+      overflow.push(m);
     }
+
     for (const m of overflow) {
       let idx = 0;
       while (used.has(idx)) idx++;
@@ -2265,11 +2382,14 @@ async function adjustGroupCols(groupId, delta) {
       used.add(idx);
     }
 
-    g.cols = newCols;
+    g.cols = finalCols;
+    g.rows = finalRows;
+    if (Number.isFinite(nextX)) g.x = Math.max(CANVAS_PAD, Math.round(nextX));
+    if (Number.isFinite(nextY)) g.y = Math.max(CANVAS_PAD, Math.round(nextY));
 
     const active = s.students.filter((x) => !x.trashed);
     const updatedBoxes = ensureGroupLayout(s.groups, active);
-    const resolved = resolveBoxCollisions(updatedBoxes, groupId, delta > 0 ? 'x' : 'y');
+    const resolved = resolveBoxCollisions(updatedBoxes, groupId, preferAxis);
     resolved.forEach((b) => {
       const grp = s.groups.find((x) => x.id === b.id);
       if (grp) {

@@ -517,6 +517,8 @@
 /* 원본 갈색 모둠 박스 (자유 절대좌표 + 부드러운 밀림 애니메이션) */
 .group-box {
   position: absolute;
+  display: flex;
+  flex-direction: column;
   background: var(--brown-group);
   border: 3px solid var(--brown-group);
   border-radius: 12px;
@@ -531,6 +533,147 @@
   opacity: 0.94;
   box-shadow: 0 16px 36px rgba(40, 26, 14, 0.34);
   cursor: grabbing;
+}
+.group-box.is-resizing {
+  transition: none !important;
+  z-index: 55;
+  border-color: #2396d4;
+  box-shadow: 0 0 0 3px rgba(35, 150, 212, 0.32), 0 12px 28px rgba(24, 34, 48, 0.35);
+}
+
+/* 편집 모드 모둠 테두리 리사이즈 핸들 (학생카드 1칸 단위 가로/세로 조절) */
+.group-resize-handle {
+  position: absolute;
+  z-index: 12;
+  touch-action: none;
+}
+.group-resize-handle::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(255, 222, 89, 0);
+  transition: background 0.14s ease, transform 0.14s ease;
+}
+.group-resize-handle:hover::after,
+.group-box.is-resizing .group-resize-handle.is-active::after {
+  background: #ffe347;
+  box-shadow: 0 0 6px rgba(255, 227, 71, 0.65);
+}
+.group-resize-handle[data-resize-dir="e"] {
+  top: 12px;
+  bottom: 12px;
+  right: -8px;
+  width: 14px;
+  cursor: ew-resize;
+}
+.group-resize-handle[data-resize-dir="e"]::after {
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+}
+.group-resize-handle[data-resize-dir="w"] {
+  top: 12px;
+  bottom: 12px;
+  left: -8px;
+  width: 14px;
+  cursor: ew-resize;
+}
+.group-resize-handle[data-resize-dir="w"]::after {
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+}
+.group-resize-handle[data-resize-dir="s"] {
+  left: 12px;
+  right: 12px;
+  bottom: -8px;
+  height: 14px;
+  cursor: ns-resize;
+}
+.group-resize-handle[data-resize-dir="s"]::after {
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+}
+.group-resize-handle[data-resize-dir="n"] {
+  left: 12px;
+  right: 12px;
+  top: -8px;
+  height: 14px;
+  cursor: ns-resize;
+}
+.group-resize-handle[data-resize-dir="n"]::after {
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+}
+.group-resize-handle[data-resize-dir="se"],
+.group-resize-handle[data-resize-dir="sw"],
+.group-resize-handle[data-resize-dir="ne"],
+.group-resize-handle[data-resize-dir="nw"] {
+  width: 16px;
+  height: 16px;
+  z-index: 14;
+}
+.group-resize-handle[data-resize-dir="se"] {
+  right: -8px;
+  bottom: -8px;
+  cursor: nwse-resize;
+}
+.group-resize-handle[data-resize-dir="sw"] {
+  left: -8px;
+  bottom: -8px;
+  cursor: nesw-resize;
+}
+.group-resize-handle[data-resize-dir="ne"] {
+  right: -8px;
+  top: -8px;
+  cursor: nesw-resize;
+}
+.group-resize-handle[data-resize-dir="nw"] {
+  left: -8px;
+  top: -8px;
+  cursor: nwse-resize;
+}
+.group-resize-handle[data-resize-dir="se"]::after {
+  right: 4px;
+  bottom: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  border-right: 3px solid rgba(255, 227, 71, 0.78);
+  border-bottom: 3px solid rgba(255, 227, 71, 0.78);
+  background: transparent;
+}
+.group-resize-handle[data-resize-dir="se"]:hover::after,
+.group-box.is-resizing .group-resize-handle[data-resize-dir="se"].is-active::after {
+  border-color: #ffe347;
+  background: transparent;
+  box-shadow: none;
+  transform: scale(1.15);
+}
+.group-resize-badge {
+  position: absolute;
+  top: -28px;
+  right: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #1285d8;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+  z-index: 20;
 }
 .group-box.is-group-selected {
   background: #f5c928;
@@ -555,7 +698,9 @@
 }
 
 .group-seats {
+  flex: 1;
   display: grid;
+  align-content: start;
   gap: 6px;
   padding: 6px;
   background: #fff;
@@ -789,6 +934,10 @@
   border: 2px dashed transparent;
   background: transparent;
   transition: background 0.12s, border-color 0.12s;
+}
+.group-box.is-editable .seat-cell-empty {
+  border-color: rgba(126, 92, 68, 0.24);
+  background: rgba(126, 92, 68, 0.04);
 }
 .seat-cell-empty.is-drop-cell {
   border-color: #198bd2;
