@@ -15,9 +15,6 @@ import { isCloudConnected, syncTeacherStateToCloud } from './cloud-sync.js';
 
 const LAST_MODE_STORAGE_KEY = 'class123_last_mode';
 
-let currentMode = 'students'; // 'students' | 'seats' | 'growth' | 'checklist' | 'picker' | 'timer' | 'bulk' | 'whiteboard' | 'assignments' | 'cyber'
-let previousModeBeforeWhiteboard = 'students';
-
 const VIEW_CONTAINERS = {
   students: () => document.getElementById('view-students'),
   seats: () => document.getElementById('view-students'),
@@ -30,6 +27,18 @@ const VIEW_CONTAINERS = {
   assignments: () => document.getElementById('view-assignments'),
   cyber: () => document.getElementById('view-cyber'),
 };
+
+function readInitialMode() {
+  try {
+    const saved = localStorage.getItem(LAST_MODE_STORAGE_KEY);
+    if (saved && VIEW_CONTAINERS[saved]) return saved;
+  } catch (_) {}
+  return 'students';
+}
+
+let currentMode = readInitialMode(); // 'students' | 'seats' | 'growth' | 'checklist' | 'picker' | 'timer' | 'bulk' | 'whiteboard' | 'assignments' | 'cyber'
+let previousModeBeforeWhiteboard = currentMode === 'whiteboard' ? 'students' : currentMode;
+if (currentMode === 'seats') setStudentsSubView('seats');
 
 function switchMode(mode, options = {}) {
   if (!VIEW_CONTAINERS[mode]) return;
@@ -329,12 +338,7 @@ async function bootstrap() {
   }, true);
 
   renderChrome();
-  let initialMode = 'students';
-  try {
-    const savedMode = localStorage.getItem(LAST_MODE_STORAGE_KEY);
-    if (savedMode && VIEW_CONTAINERS[savedMode]) initialMode = savedMode;
-  } catch (_) {}
-  switchMode(initialMode);
+  switchMode(currentMode);
 }
 
 bootstrap();

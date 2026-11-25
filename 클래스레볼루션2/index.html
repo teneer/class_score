@@ -6,36 +6,36 @@
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#efeee3">
   <title>Class123 - 클래스123 복원 웹</title>
-  <link rel="stylesheet" href="styles/base.css?v=20261126b">
-  <link rel="stylesheet" href="styles/layout.css?v=20261126b">
-  <link rel="stylesheet" href="styles/students.css?v=20261126b">
-  <link rel="stylesheet" href="styles/growth.css?v=20261126b">
-  <link rel="stylesheet" href="styles/checklist.css?v=20261126b">
-  <link rel="stylesheet" href="styles/tools.css?v=20261126b">
-  <link rel="stylesheet" href="styles/whiteboard.css?v=20261126b">
-  <link rel="stylesheet" href="styles/assignments.css?v=20261126b">
-  <link rel="stylesheet" href="styles/cyber.css?v=20261126b">
-  <link rel="stylesheet" href="styles/effects.css?v=20261126b">
+  <link rel="stylesheet" href="styles/base.css?v=20261126c">
+  <link rel="stylesheet" href="styles/layout.css?v=20261126c">
+  <link rel="stylesheet" href="styles/students.css?v=20261126c">
+  <link rel="stylesheet" href="styles/growth.css?v=20261126c">
+  <link rel="stylesheet" href="styles/checklist.css?v=20261126c">
+  <link rel="stylesheet" href="styles/tools.css?v=20261126c">
+  <link rel="stylesheet" href="styles/whiteboard.css?v=20261126c">
+  <link rel="stylesheet" href="styles/assignments.css?v=20261126c">
+  <link rel="stylesheet" href="styles/cyber.css?v=20261126c">
+  <link rel="stylesheet" href="styles/effects.css?v=20261126c">
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=20261126b",
-      "./js/audio.js": "./js/audio.js?v=20261126b",
-      "./js/cloud-sync.js": "./js/cloud-sync.js?v=20261126b",
-      "./js/doc-importer.js": "./js/doc-importer.js?v=20261126b",
-      "./js/effects.js": "./js/effects.js?v=20261126b",
-      "./js/quiz-csv.js": "./js/quiz-csv.js?v=20261126b",
-      "./js/score-engine.js": "./js/score-engine.js?v=20261126b",
-      "./js/store.js": "./js/store.js?v=20261126b",
-      "./js/worksheet-renderer.js": "./js/worksheet-renderer.js?v=20261126b",
-      "./js/views/assignments.js": "./js/views/assignments.js?v=20261126b",
-      "./js/views/bulk-score.js": "./js/views/bulk-score.js?v=20261126b",
-      "./js/views/checklist.js": "./js/views/checklist.js?v=20261126b",
-      "./js/views/cyber.js": "./js/views/cyber.js?v=20261126b",
-      "./js/views/growth.js": "./js/views/growth.js?v=20261126b",
-      "./js/views/students.js": "./js/views/students.js?v=20261126b",
-      "./js/views/tools.js": "./js/views/tools.js?v=20261126b",
-      "./js/views/whiteboard.js": "./js/views/whiteboard.js?v=20261126b"
+      "./js/app.js": "./js/app.js?v=20261126c",
+      "./js/audio.js": "./js/audio.js?v=20261126c",
+      "./js/cloud-sync.js": "./js/cloud-sync.js?v=20261126c",
+      "./js/doc-importer.js": "./js/doc-importer.js?v=20261126c",
+      "./js/effects.js": "./js/effects.js?v=20261126c",
+      "./js/quiz-csv.js": "./js/quiz-csv.js?v=20261126c",
+      "./js/score-engine.js": "./js/score-engine.js?v=20261126c",
+      "./js/store.js": "./js/store.js?v=20261126c",
+      "./js/worksheet-renderer.js": "./js/worksheet-renderer.js?v=20261126c",
+      "./js/views/assignments.js": "./js/views/assignments.js?v=20261126c",
+      "./js/views/bulk-score.js": "./js/views/bulk-score.js?v=20261126c",
+      "./js/views/checklist.js": "./js/views/checklist.js?v=20261126c",
+      "./js/views/cyber.js": "./js/views/cyber.js?v=20261126c",
+      "./js/views/growth.js": "./js/views/growth.js?v=20261126c",
+      "./js/views/students.js": "./js/views/students.js?v=20261126c",
+      "./js/views/tools.js": "./js/views/tools.js?v=20261126c",
+      "./js/views/whiteboard.js": "./js/views/whiteboard.js?v=20261126c"
     }
   }
   </script>
@@ -49,7 +49,7 @@
           <aside class="side-rail" aria-label="수업 도구 메뉴">
             <div class="rail-group">
               <span class="rail-caption">화면보기</span>
-              <button class="rail-btn rail-btn-students is-active" type="button" data-mode="students" title="학생화면 (목록보기)">
+              <button class="rail-btn rail-btn-students" type="button" data-mode="students" title="학생화면 (목록보기)">
                 <span class="award-circle"><i class="sp-icon sp-sprout-white" aria-hidden="true"></i></span>
                 <span class="rail-label">학생화면</span>
               </button>
@@ -107,7 +107,7 @@
 
           <!-- 메인 전체화면 워크스페이스 (모드 전환 방식) -->
           <main class="main-workspace" id="main-workspace">
-            <section class="mode-view is-active" id="view-students" aria-label="학생 목록 및 자리배치"></section>
+            <section class="mode-view" id="view-students" aria-label="학생 목록 및 자리배치"></section>
             <section class="mode-view" id="view-growth" aria-label="학급점수 황금알"></section>
             <section class="mode-view" id="view-checklist" aria-label="체크표"></section>
             <section class="mode-view" id="view-picker" aria-label="수업도구 뽑기"></section>
@@ -193,6 +193,29 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20261126b"></script>
+  <script>
+    (function () {
+      var map = {
+        students: 'view-students', seats: 'view-students', growth: 'view-growth',
+        checklist: 'view-checklist', picker: 'view-picker', timer: 'view-timer',
+        bulk: 'view-bulk', whiteboard: 'view-whiteboard', assignments: 'view-assignments', cyber: 'view-cyber'
+      };
+      var mode = 'students';
+      try {
+        var saved = localStorage.getItem('class123_last_mode');
+        if (saved && map[saved]) mode = saved;
+      } catch (e) {}
+      var viewEl = document.getElementById(map[mode]);
+      if (viewEl) viewEl.classList.add('is-active');
+      var railBtn = document.querySelector('.rail-btn[data-mode="' + mode + '"]');
+      if (railBtn) railBtn.classList.add('is-active');
+      if (mode === 'whiteboard') {
+        var shell = document.querySelector('.app-shell');
+        if (shell) shell.classList.add('is-whiteboard-fullscreen');
+        document.body.classList.add('is-whiteboard-fullscreen');
+      }
+    })();
+  </script>
+  <script type="module" src="js/app.js?v=20261126c"></script>
 </body>
 </html>
