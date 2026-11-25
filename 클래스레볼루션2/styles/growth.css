@@ -1,111 +1,109 @@
-/* 학급점수 화면 — 16:9(1600x900) 고정 비율 원본 충실 복원 */
+/* 학급점수 화면 — 원본 비율 복원 + 10점 단위 페이지 통째 스크롤(100점 단위 배경·나뭇가지 루프) + 일체형 황금알 입력 팝업 */
+
 .growth-world {
-  --tree-w: 160px;
+  --tree-w: 132px;
+  --track-top: 138px;
+  --track-right: 28px;
+  --track-w: 18px;
   position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #44d6ed;
-  transition: background-color 0.85s ease;
+  background: #38d3f2;
 }
 
-/* 1. 다층 패럴랙스 하늘 배경 · 연속 구름 · 하늘 오브젝트 · 0~9점 마을 땅 레이어 (z-index: 0) */
+/* ============================================================
+   1. 스크롤되는 월드 페이지 뷰포트 & 트랙 (하늘·오브젝트·기둥·나뭇가지·별눈금·초록줄기 일체형)
+   ============================================================ */
+.growth-pages-viewport {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.growth-page-track {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+  transform: translate3d(0, 0%, 0);
+}
+
+/* 상승 시 화면이 위에서 아래로 '털썩' 내려가는 바운스 전환 */
+.growth-page-track.is-scrolling-down {
+  animation: growth-page-drop-thud 0.66s forwards;
+}
+
+@keyframes growth-page-drop-thud {
+  0%   { transform: translate3d(0, 0%, 0); animation-timing-function: cubic-bezier(0.32, 0, 0.68, 0.36); }
+  66%  { transform: translate3d(0, 100%, 0); animation-timing-function: cubic-bezier(0.2, 0.8, 0.4, 1); }
+  80%  { transform: translate3d(0, 102.8%, 0); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  91%  { transform: translate3d(0, 99.3%, 0); animation-timing-function: ease-out; }
+  100% { transform: translate3d(0, 100%, 0); }
+}
+
+/* 하강 시 화면이 아래에서 위로 '쑥' 올라가는 전환 */
+.growth-page-track.is-scrolling-up {
+  animation: growth-page-rise-whoosh 0.54s cubic-bezier(0.18, 0.88, 0.26, 1) forwards;
+}
+
+@keyframes growth-page-rise-whoosh {
+  0%   { transform: translate3d(0, 0%, 0); }
+  100% { transform: translate3d(0, -100%, 0); }
+}
+
+.growth-page-slide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+}
+.growth-page-slide.is-curr {
+  top: 0;
+}
+.growth-page-slide.is-above {
+  top: -100%;
+}
+.growth-page-slide.is-below {
+  top: 100%;
+}
+
+/* 페이지 내 하늘 배경 레이어 (평상시 정지, 100점 단위 century 테마 루프) */
 .growth-bg-layer {
   position: absolute;
   inset: 0 var(--tree-w) 0 0;
   pointer-events: none;
   z-index: 0;
   overflow: hidden;
-  background-color: var(--sky-color, #44d6ed);
-  transition: background-color 0.85s ease;
+  background-color: var(--sky-color, #38d3f2);
 }
 
-/* 고도감을 주는 연속 하늘 대기층 밴드 (올라갈 때 위에서 새 하늘 결이 이어서 내려옴) */
-.growth-sky-band {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(ellipse 65% 22% at 22% 18%, rgba(255, 255, 255, 0.16) 0%, transparent 72%),
-    radial-gradient(ellipse 58% 20% at 78% 64%, rgba(255, 255, 255, 0.14) 0%, transparent 72%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 48%, rgba(255, 255, 255, 0.09) 100%);
-  background-repeat: repeat-y;
-  background-size: 100% 760px;
-  background-position: 0 var(--sky-band-y, 0px);
-  transition: background-position 0.42s cubic-bezier(0.32, 0.08, 0.24, 1);
+/* 털썩 바운스 오버슈트 순간에도 상단 경계 틈이 절대 비치지 않도록 위쪽 페이지 블리드 확장 */
+.growth-page-slide.is-above .growth-bg-layer,
+.growth-page-slide.is-above .growth-tree-trunk {
+  top: -48px;
 }
-.growth-world.is-camera-panning .growth-sky-band {
-  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1);
+.growth-page-slide.is-below .growth-bg-layer,
+.growth-page-slide.is-below .growth-tree-trunk {
+  bottom: -48px;
 }
 
-/* 원경·근경 심리스 구름 패럴랙스 (평상시 잔잔한 수평 흐름 + 상승 시 위에서 새 구름이 연속 하강) */
-.growth-cloud-drift {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -1400px;
-  width: calc(100% + 1400px);
-  pointer-events: none;
-  will-change: transform;
-  transition: opacity 0.7s ease;
-}
-.growth-cloud-drift.is-far {
-  animation: growth-cloud-drift-x 68s linear infinite;
-}
-.growth-cloud-drift.is-near {
-  animation: growth-cloud-drift-x 42s linear infinite;
-}
-@keyframes growth-cloud-drift-x {
-  from { transform: translate3d(0, 0, 0); }
-  to   { transform: translate3d(1400px, 0, 0); }
-}
-
-.growth-cloud-sheet {
-  width: 100%;
-  height: 100%;
-  background-repeat: repeat;
-  transition: background-position 0.42s cubic-bezier(0.32, 0.08, 0.24, 1);
-}
-.growth-world.is-camera-panning .growth-cloud-sheet {
-  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* 원경 구름 (부드러운 반투명 구름 타일 1400x840) */
-.growth-cloud-sheet.is-far {
-  opacity: 0.48;
-  background-size: 1400px 840px;
-  background-position: 0 var(--cloud-far-y, 0px);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1400' height='840' viewBox='0 0 1400 840'%3E%3Cg fill='%23ffffff'%3E%3Cg opacity='0.75' transform='translate(70,85)'%3E%3Crect x='22' y='34' width='146' height='38' rx='19'/%3E%3Ccircle cx='58' cy='38' r='26'/%3E%3Ccircle cx='98' cy='28' r='34'/%3E%3Ccircle cx='136' cy='40' r='22'/%3E%3C/g%3E%3Cg opacity='0.65' transform='translate(1060,150)'%3E%3Crect x='18' y='30' width='168' height='42' rx='21'/%3E%3Ccircle cx='56' cy='36' r='28'/%3E%3Ccircle cx='104' cy='24' r='36'/%3E%3Ccircle cx='148' cy='38' r='25'/%3E%3C/g%3E%3Cg opacity='0.7' transform='translate(520,360)'%3E%3Crect x='16' y='26' width='132' height='34' rx='17'/%3E%3Ccircle cx='48' cy='30' r='22'/%3E%3Ccircle cx='84' cy='22' r='29'/%3E%3Ccircle cx='118' cy='32' r='20'/%3E%3C/g%3E%3Cg opacity='0.68' transform='translate(190,610)'%3E%3Crect x='20' y='32' width='154' height='40' rx='20'/%3E%3Ccircle cx='58' cy='36' r='27'/%3E%3Ccircle cx='100' cy='26' r='35'/%3E%3Ccircle cx='140' cy='38' r='24'/%3E%3C/g%3E%3Cg opacity='0.72' transform='translate(920,650)'%3E%3Crect x='16' y='28' width='138' height='36' rx='18'/%3E%3Ccircle cx='50' cy='32' r='24'/%3E%3Ccircle cx='88' cy='22' r='31'/%3E%3Ccircle cx='124' cy='34' r='21'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-}
-
-/* 근경 뭉게구름 (별길 좌·우·상·하에 선명하게 보이는 큰 플랫 구름 타일 1400x920) */
-.growth-cloud-sheet.is-near {
-  opacity: 0.78;
-  background-size: 1400px 920px;
-  background-position: 0 var(--cloud-near-y, 0px);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1400' height='920' viewBox='0 0 1400 920'%3E%3Cg fill='%23ffffff'%3E%3Cg opacity='0.92' transform='translate(28,190)'%3E%3Crect x='24' y='44' width='210' height='52' rx='26'/%3E%3Ccircle cx='72' cy='50' r='36'/%3E%3Ccircle cx='128' cy='34' r='48'/%3E%3Ccircle cx='184' cy='50' r='34'/%3E%3C/g%3E%3Cg opacity='0.88' transform='translate(1110,70)'%3E%3Crect x='22' y='40' width='196' height='48' rx='24'/%3E%3Ccircle cx='68' cy='46' r='33'/%3E%3Ccircle cx='120' cy='30' r='44'/%3E%3Ccircle cx='172' cy='46' r='31'/%3E%3C/g%3E%3Cg opacity='0.82' transform='translate(770,450)'%3E%3Crect x='18' y='34' width='164' height='42' rx='21'/%3E%3Ccircle cx='58' cy='38' r='28'/%3E%3Ccircle cx='102' cy='26' r='38'/%3E%3Ccircle cx='146' cy='40' r='26'/%3E%3C/g%3E%3Cg opacity='0.9' transform='translate(95,710)'%3E%3Crect x='20' y='38' width='182' height='46' rx='23'/%3E%3Ccircle cx='64' cy='42' r='31'/%3E%3Ccircle cx='114' cy='28' r='42'/%3E%3Ccircle cx='160' cy='44' r='29'/%3E%3C/g%3E%3Cg opacity='0.86' transform='translate(1060,640)'%3E%3Crect x='24' y='42' width='204' height='50' rx='25'/%3E%3Ccircle cx='70' cy='48' r='35'/%3E%3Ccircle cx='126' cy='32' r='46'/%3E%3Ccircle cx='180' cy='48' r='32'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-}
-
-/* 고도별 하늘 오브젝트 (새 · 열기구 · 비행기 · 우주선 · 밤하늘 별 — repeat-y 무한 하강) */
 .growth-sky-sheet {
   position: absolute;
-  inset: 0;
-  background-repeat: repeat-y;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  background-repeat: no-repeat;
   background-size: 100% auto;
-  background-position: center var(--sky-scroll-y, 0px);
-  transition: background-position 0.42s cubic-bezier(0.32, 0.08, 0.24, 1), opacity 0.6s ease;
-}
-.growth-world.is-camera-panning .growth-sky-sheet {
-  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
+  background-position: center 38%;
 }
 
-.growth-bg-layer[data-dark-space="true"] .growth-cloud-drift.is-near {
-  opacity: 0.16;
-}
-.growth-bg-layer[data-dark-space="true"] .growth-cloud-drift.is-far {
-  opacity: 0.22;
-}
-
-/* 0점 미만 땅속 배경 — 내려갈 때 지층이 아래에서 위로 연속 이동 */
+/* 0점 미만 땅속 배경 */
 .growth-bg-layer[data-underground="true"] {
   background-color: #5b3a24 !important;
   background-image:
@@ -116,95 +114,173 @@
     radial-gradient(ellipse 18px 12px at 48% 16%, rgba(36, 20, 10, 0.45) 0 98%, transparent 100%),
     radial-gradient(ellipse 38px 22px at 22% 86%, rgba(42, 24, 13, 0.4) 0 98%, transparent 100%),
     linear-gradient(180deg, #52331f 0%, #5e3d26 36%, #4e301d 70%, #5c3b24 100%);
-  background-repeat: repeat-y;
   background-size: 100% 420px;
-  background-position: 0 var(--underground-y, 0px);
-  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.6s ease;
 }
-.growth-bg-layer[data-underground="true"] .growth-sky-sheet,
-.growth-bg-layer[data-underground="true"] .growth-sky-band,
-.growth-bg-layer[data-underground="true"] .growth-cloud-drift {
-  opacity: 0 !important;
+.growth-bg-layer[data-underground="true"] .growth-sky-sheet {
+  display: none;
 }
 
-/* 땅속에서는 초록 잎 나뭇가지 대신 갈색 땅속 뿌리 톤 유지 */
-.growth-world[data-underground="true"] .tree-branch-strip {
-  filter: sepia(0.85) hue-rotate(-32deg) saturate(1.2) brightness(0.68);
-}
-.growth-world[data-underground="true"] .growth-tree-trunk {
-  background-color: #7c4e30;
-}
-
-/* 마을은 0~9점(decade === 0) 땅에 위치하며 상승 시 나무와 동일한 픽셀 속도로 화면 아래로 내려감 */
+/* 0~9점(decade === 0) 페이지 전용 마을 땅 */
 .growth-village-ground {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 220px;
+  height: 196px;
   background: url('../assets/visuals/sp_board_sky_village.png') center bottom / 100% auto no-repeat;
-  transform: translate3d(0, var(--village-shift, 0px), 0);
-  transition: transform 0.70s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.55s ease;
   pointer-events: none;
 }
-.growth-village-ground.is-below-view {
-  opacity: 0;
-}
 
-/* 2. 우측 나무 기둥 배경 (z-index: 3 — 은은한 수직 나무결이 나뭇가지·줄기와 1:1 동일 속도로 함께 하강) */
+/* 페이지 내 우측 나무 기둥 배경 (원본 슬림 비율 132px, z-index: 3) */
 .growth-tree-trunk {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
   width: var(--tree-w);
-  background-color: #915f3c;
-  background-image:
-    radial-gradient(ellipse 9px 44px at 26% 24%, rgba(114, 72, 43, 0.28) 0%, transparent 100%),
-    radial-gradient(ellipse 8px 52px at 52% 72%, rgba(114, 72, 43, 0.24) 0%, transparent 100%),
-    radial-gradient(ellipse 7px 36px at 18% 80%, rgba(168, 114, 76, 0.18) 0%, transparent 100%),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 0%, transparent 14%, transparent 82%, rgba(0, 0, 0, 0.08) 100%);
-  background-repeat: repeat-y;
-  background-size: 160px 320px;
-  background-position: 0 var(--tree-scroll-y, 0px);
-  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.6s ease;
+  background: #915f3c;
+  pointer-events: auto;
   z-index: 3;
 }
+.growth-page-slide[data-underground="true"] .growth-tree-trunk {
+  background: #7c4e30;
+}
 
-/* 3. 원본 비율(370x1080 → 296x864) 나뭇가지 오버레이 (z-index: 4)
- *    나무 줄기·황금알 하강 거리(+trackH)와 1px 오차 없이 함께 내려가며 위에서 새 나뭇가지가 무한히 이어서 내려옴 */
+/* 페이지 내 나뭇가지 오버레이 (원본 비율 0.50배 = 185x540, 기둥 좌측 경계 132px에 0px 오차 밀착, z-index: 4) */
 .tree-branch-overlay {
   position: absolute;
   top: 0;
-  right: 0;
+  right: 31.5px;
   bottom: 0;
-  width: 296px;
+  width: 185px;
   overflow: hidden;
   pointer-events: none;
   z-index: 4;
 }
 .tree-branch-strip {
   position: absolute;
-  inset: 0;
-  width: 296px;
+  right: 0;
+  bottom: 0;
+  width: 185px;
   height: 100%;
   background-repeat: repeat-y;
-  background-position: right var(--tree-scroll-y, 0px);
-  background-size: 296px 864px;
-  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.55s ease;
+  background-position: right bottom;
+  background-size: 185px 540px;
+}
+.growth-page-slide[data-underground="true"] .tree-branch-strip {
+  filter: sepia(0.85) hue-rotate(-32deg) saturate(1.2) brightness(0.68);
 }
 
-/* 4. 좌측 하늘/별길 영역 (z-index: 5 — 큰 황금알과 총점이 나뭇가지에 가리지 않음) */
+/* 페이지 내 얇은 갈색 별 눈금 홈 + 작은 별 + 목표 동그란 별 코인 + 얇은 초록 줄기 (z-index: 6) */
+.page-tree-groove {
+  position: absolute;
+  top: var(--track-top);
+  right: var(--track-right);
+  bottom: 0;
+  width: var(--track-w);
+  z-index: 6;
+  background: #764d31;
+  pointer-events: auto;
+}
+/* 스크롤 전환 중 위·아래 페이지 경계(0 ~ track-top 구간)에서도 갈색 홈이 끊기지 않고 하나로 이어지게 연장 */
+.page-tree-groove::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(-1 * var(--track-top) - 48px);
+  bottom: -48px;
+  background: #764d31;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.page-fill-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 9px 9px 0 0;
+  z-index: 2;
+}
+
+/* 초록 줄기 (원본 실측 #8dd50f, 폭 18px로 슬림화, 지나간 별을 자연스럽게 덮음) */
+.page-tree-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  height: var(--fill-h, 4%);
+  background: #8dd50f;
+  border-radius: 9px 9px 0 0;
+  transition: height 0.28s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.page-stars-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* 작고 단정한 원본 비율 별 눈금 (sp_board_tree.png x=10, y=11, w=23, h=22 → 0.565배 13x12.5px) */
+.tree-tick-star {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  width: 13px;
+  height: 12.5px;
+  background-image: url('../assets/visuals/sp_board_tree.png');
+  background-size: 361.7px 316.5px;
+  background-position: -5.65px -6.22px;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 1;
+}
+.tree-tick-star.is-covered {
+  opacity: 0;
+}
+
+/* 학급 목표가 걸려 있는 눈금의 동그란 별 코인 장식 (sp_board_tree.png x=0, y=100, w=42, h=46 → 0.62배 26x28.5px) */
+.tree-tick-goal-coin {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  width: 26px;
+  height: 28.5px;
+  background-image: url('../assets/visuals/sp_board_tree.png');
+  background-size: 396.8px 347.2px;
+  background-position: 0 -62px;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 0.16s ease;
+}
+.tree-tick-goal-coin.is-covered {
+  opacity: 0;
+}
+
+/* ============================================================
+   2. 스크롤되지 않는 고정 UI 레이어 (별길 · 큰 황금알 · 제목 · 작은 황금알 · 나뭇잎 배너)
+   ============================================================ */
+
+/* 좌측 하늘 위 고정 UI 영역 (한마디 + 별길 + 큰 황금알 + 으쓱/머쓱 점수, z-index: 10) */
 .growth-sky-area {
   position: absolute;
   inset: 0 var(--tree-w) 0 0;
-  z-index: 5;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 78px 86px 52px 42px;
+  padding: 78px 76px 56px 40px;
   overflow: hidden;
+  pointer-events: none;
+}
+
+.motto-bar,
+.star-way-board,
+.big-egg-btn {
+  pointer-events: auto;
 }
 
 /* 상단 우리 반의 한 마디 */
@@ -216,18 +292,18 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  width: min(600px, calc(100% - 140px));
+  width: min(560px, calc(100% - 140px));
   z-index: 4;
 }
 
 .motto-display {
   flex: 1;
   min-width: 0;
-  padding: 12px 24px;
-  border-radius: 8px;
+  padding: 10px 22px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.36);
   color: #1c5566;
-  font-size: 21px;
+  font-size: 19px;
   font-weight: 700;
   text-align: center;
   overflow: hidden;
@@ -244,18 +320,18 @@
 .motto-input {
   flex: 1;
   min-width: 0;
-  padding: 11px 18px;
-  border-radius: 8px;
+  padding: 10px 18px;
+  border-radius: 7px;
   border: 2px solid #fff;
   background: rgba(255, 255, 255, 0.92);
   color: #1a4757;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
   text-align: center;
   outline: none;
 }
 
-/* 중앙 별길 보드 (bg-class-clouds-way.png 1500x660 원본 비율 고정 + 뷰포트 반응형 스케일) */
+/* 중앙 별길 보드 (bg-class-clouds-way.png 1500x660 원본 비율 고정 + 여유 있는 스케일) */
 .star-way-wrap {
   position: relative;
   width: 1120px;
@@ -317,14 +393,14 @@
   to { opacity: 1; transform: translate(-50%, -62%) scale(1); }
 }
 
-/* 우하단 대형 황금알 (클릭 시 황금알 직접 부여 팝업) */
+/* 우하단 대형 황금알 & 원본 비율에 맞춘 내부 점수 숫자 */
 .big-egg-btn {
   position: absolute;
   left: 91.9%;
   top: 75.2%;
   transform: translate(-50%, -48%);
-  width: 152px;
-  height: 184px;
+  width: 158px;
+  height: 192px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -335,18 +411,22 @@
 .big-egg-btn:hover { transform: translate(-50%, -50%) scale(1.04); }
 
 .big-egg-num {
-  color: #6b4308;
-  font-size: 48px;
+  color: #693f06;
+  font-size: 62px;
   font-weight: 900;
   line-height: 1;
+  margin-top: 14px;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
   letter-spacing: -0.03em;
 }
+.big-egg-num[data-long="true"] {
+  font-size: 48px;
+}
 
 .big-egg-plus {
   position: absolute;
-  right: -2px;
+  right: 0px;
   bottom: 8px;
   width: 40px;
   height: 40px;
@@ -362,149 +442,99 @@
   width: 22px;
   height: 22px;
   background-image: url('../assets/visuals/sp_board_tree.png');
-  /* 640x560 원본에서 주황 '+' 위치: x=520..549(30px), y=140..169(30px) → 0.733배 */
   background-size: 469px 410.7px;
   background-position: -381.3px -102.7px;
   background-repeat: no-repeat;
 }
 
-/* 황금알 아래 총 상점/감점 집계 */
+/* 큰 황금알 아래 으쓱(파란 별) · 머쓱(빨간 구름) 집계 — 원본 실측 비율(원형 42px + 숫자 32px) */
 .growth-totals-row {
   position: absolute;
-  right: 14px;
-  bottom: -58px;
+  right: 8px;
+  bottom: -62px;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 22px;
 }
 
 .total-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 26px;
-  font-weight: 900;
+  gap: 10px;
+  font-size: 32px;
+  font-weight: 800;
   color: #fff;
-  text-shadow: 0 2px 6px rgba(15, 62, 82, 0.28);
+  text-shadow: 0 2px 5px rgba(15, 62, 82, 0.25);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-/* 5. 나무 안 진한 갈색 막대 + 원본 별 스프라이트 + 새싹 황금알 (z-index: 6)
- *    나무.png 실측: 160px 기둥에서 우측 36px 여백, 폭 26px, 색 #6e482e */
-.tree-track-viewport {
+.growth-totals-row .sp-star-blue {
+  width: 42px;
+  height: 42px;
+  background-size: 1072.6px 374.8px;
+  background-position: -904.6px -45.2px;
+}
+.growth-totals-row .sp-cloud-red {
+  width: 42px;
+  height: 42px;
+  background-size: 1072.6px 374.8px;
+  background-position: -975.7px -32.3px;
+}
+
+/* 고정 UI: 나무 트랙 위를 매끄럽게 오르내리는 작은 새싹황금알 (개별 별 바운스 제거, z-index: 11) */
+.tree-climber-layer {
   position: absolute;
-  top: 158px;
-  right: 36px;
+  top: var(--track-top);
+  right: var(--track-right);
   bottom: 0;
-  width: 26px;
-  z-index: 6;
-  background: #6e482e;
-  border-radius: 13px 13px 0 0;
-  overflow: visible;
-}
-
-.tree-ticks-scroll-clip {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: 13px 13px 0 0;
-}
-
-.tree-ticks-strip {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  transform: translate3d(0, var(--ticks-shift, 0%), 0);
-  transition: none;
-}
-.growth-world.is-camera-panning .tree-ticks-strip {
-  transition: transform 0.70s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* 초록 줄기가 올라오면 지나간 별(z-index: 1)을 원본과 동일하게 자연스럽게 덮음 (z-index: 2) */
-.tree-fill-bar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  height: var(--egg-bottom, 5%);
-  background: linear-gradient(180deg, #8fd924 0%, #65b618 100%);
-  border-radius: 13px 13px 0 0;
-  transition: height 0.42s cubic-bezier(0.32, 0.08, 0.24, 1);
-}
-.growth-world.is-camera-panning .tree-fill-bar {
-  transition: height 0.70s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* 진한 갈색 막대 속 원본 별 스프라이트 (sp_board_tree.png 좌상단 x=10, y=11, w=23, h=22) */
-.tree-tick-star {
-  position: absolute;
-  left: 50%;
-  transform: translate(-50%, 50%);
-  width: 23px;
-  height: 22px;
-  background-image: url('../assets/visuals/sp_board_tree.png');
-  background-size: 640px 560px;
-  background-position: -10px -11px;
-  background-repeat: no-repeat;
+  width: var(--track-w);
   pointer-events: none;
-  z-index: 1;
+  z-index: 11;
 }
 
-/* 새싹황금알 (sp_board_tree.png x=50, y=0, w=88, h=88 → 64x64) */
 .tree-climber-egg {
   position: absolute;
   left: 50%;
-  bottom: var(--egg-bottom, 5%);
+  bottom: var(--egg-bottom, 4%);
   transform: translate(-50%, 50%);
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 56px;
   display: grid;
   place-items: center;
-  z-index: 7;
-  transition: bottom 0.42s cubic-bezier(0.32, 0.08, 0.24, 1);
+  transition: bottom 0.28s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
-.growth-world.is-camera-panning .tree-climber-egg {
-  transition: bottom 0.70s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.tree-climber-egg.is-landing {
-  animation: egg-star-bounce 0.26s cubic-bezier(0.32, 0.08, 0.24, 1);
-}
-@keyframes egg-star-bounce {
-  0%   { transform: translate(-50%, 50%) scale(1, 1); }
-  28%  { transform: translate(-50%, 34%) scale(0.95, 1.07); }
-  58%  { transform: translate(-50%, 58%) scale(1.06, 0.93); }
-  80%  { transform: translate(-50%, 45%) scale(0.98, 1.02); }
-  100% { transform: translate(-50%, 50%) scale(1, 1); }
+.tree-climber-egg.is-instant {
+  transition: none !important;
 }
 .tree-climber-egg::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: url('../assets/visuals/sp_board_tree.png') -36.4px 0 / 465.5px 407.3px no-repeat;
+  /* sp_board_tree.png x=50, y=0, w=88, h=96 → 0.5909배 (52x56.7) */
+  background: url('../assets/visuals/sp_board_tree.png') -29.55px 0 / 378.2px 330.9px no-repeat;
 }
 .tree-climber-num {
   position: relative;
   z-index: 1;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 900;
   color: #5f3905;
   margin-top: -6px;
   font-variant-numeric: tabular-nums;
 }
 
-/* 6. 우측 상단 초록 잎사귀 목표 배너 (sp_board_tree.png 원본 반원 형태 · 내부 요소 세로 중앙 정렬, z-index: 8) */
+/* 고정 UI: 우상단 초록 나뭇잎 목표 배너 (원본처럼 위쪽이 살짝 잘린 배치 top: -22px, z-index: 12) */
 .goal-leaf-banner {
   position: absolute;
-  top: 0;
+  top: -22px;
   right: 0;
-  z-index: 8;
-  width: 286px;
-  height: 178px;
-  padding: 0 16px 8px 48px;
-  background: url('../assets/visuals/sp_board_tree.png') -111.5px 0 / 498.8px 436.4px no-repeat;
+  z-index: 12;
+  width: 257px;
+  height: 162px;
+  padding: 22px 15px 8px 42px;
+  /* sp_board_tree.png leafBanner x=143, y=0, w=367, h=231 → 0.70배 (256.9x161.7) */
+  background: url('../assets/visuals/sp_board_tree.png') -100.1px 0 / 448px 392px no-repeat;
   color: #fff;
   text-align: right;
   display: flex;
@@ -512,6 +542,7 @@
   align-items: flex-end;
   justify-content: center;
   cursor: pointer;
+  pointer-events: auto;
   transition: filter 0.15s;
 }
 .goal-leaf-banner:hover { filter: brightness(1.03); }
@@ -521,7 +552,7 @@
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
 }
 
@@ -529,42 +560,41 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
-  font-size: 16px;
+  gap: 5px;
+  font-size: 15px;
   font-weight: 700;
   color: #b7dd69;
   white-space: nowrap;
   line-height: 1;
 }
 .goal-leaf-sub strong {
-  font-size: 31px;
+  font-size: 28px;
   font-weight: 900;
   color: #e4ea36;
   line-height: 1;
-  margin: -2px 1px 0 2px;
+  margin: -1px 1px 0 2px;
   font-variant-numeric: tabular-nums;
 }
 
-/* sp_board_tree.png (640x560) 내 첫 줄 다음목표 전용 황금알 원본 스프라이트 (x=0, y=50, w=38, h=44 -> 0.7368배 28x32.5px) */
+/* sp_board_tree.png 내 첫 줄 다음목표 전용 황금알 스프라이트 (x=0, y=50, w=38, h=44 → 0.66배 25x29px) */
 .sp-goal-next-egg {
   display: inline-block;
-  width: 28px;
-  height: 32.5px;
+  width: 25px;
+  height: 29px;
   flex-shrink: 0;
   background-image: url('../assets/visuals/sp_board_tree.png');
-  background-size: 471.6px 412.6px;
-  background-position: 0 -36.8px;
+  background-size: 422.4px 369.6px;
+  background-position: 0 -33px;
   background-repeat: no-repeat;
 }
 
-/* 두 번째 줄 목표 텍스트: 우측 정렬, 길면 2줄 표시, 2줄 초과 시 끝에 ... 말줄임표 */
 .goal-leaf-reward {
-  max-width: 214px;
-  font-size: 20px;
+  max-width: 196px;
+  font-size: 18px;
   font-weight: 800;
   color: #d9ee9a;
   text-align: right;
-  line-height: 1.32;
+  line-height: 1.3;
   letter-spacing: -0.02em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -573,16 +603,16 @@
   text-overflow: ellipsis;
   word-break: keep-all;
   overflow-wrap: break-word;
-  max-height: calc(1.32em * 2);
+  max-height: calc(1.3em * 2);
 }
 
-/* 배너 호버 또는 클릭 시 원본 2줄 메뉴 전환 (우측 사이드바 설정 + 온도계 목표설정, 세로 중앙 정렬) */
+/* 배너 호버 또는 클릭 시 원본 2줄 메뉴 전환 */
 .goal-leaf-menu {
   display: none;
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
   padding-right: 2px;
 }
@@ -598,9 +628,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 9px;
+  gap: 8px;
   color: #fff;
-  font-size: 17px;
+  font-size: 15.5px;
   font-weight: 800;
   padding: 2px 0;
   text-align: right;
@@ -612,31 +642,31 @@
   transform: translateX(-2px);
 }
 
-/* sp_board_tree.png (640x560) 원본 흰색 톱니바퀴 스프라이트 (x=459, y=249, w=34, h=34 -> 25x25px) */
 .sp-leaf-gear-orig {
   display: inline-block;
-  width: 25px;
-  height: 25px;
+  width: 23px;
+  height: 23px;
   flex-shrink: 0;
   background-image: url('../assets/visuals/sp_board_tree.png');
-  background-size: 470.6px 411.8px;
-  background-position: -337.5px -183.1px;
+  background-size: 432.9px 378.8px;
+  background-position: -310.5px -168.5px;
   background-repeat: no-repeat;
 }
 
-/* sp_board_tree.png (640x560) 원본 흰색 연필 스프라이트 (x=60, y=139, w=32, h=32 -> 24x24px) */
 .sp-leaf-pencil-orig {
   display: inline-block;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   background-image: url('../assets/visuals/sp_board_tree.png');
-  background-size: 480px 420px;
-  background-position: -45px -104.25px;
+  background-size: 440px 385px;
+  background-position: -41.25px -95.56px;
   background-repeat: no-repeat;
 }
 
-/* 황금알 직접 부여 팝업 (원본 황금알 부여하기.png + 1학생화면.mp4 00:00~00:35) */
+/* ============================================================
+   3. 황금알 직접 부여 팝업 (+ / 숫자 / - 수직 중심선 일치 + 테두리 없는 일체형 키보드 입력)
+   ============================================================ */
 .egg-popup-backdrop {
   position: absolute;
   inset: 0;
@@ -646,13 +676,13 @@
 }
 .egg-adjust-popup {
   position: absolute;
-  right: 92px;
+  right: 76px;
   bottom: 18px;
   width: 318px;
   background: #fff;
   border-radius: 6px;
   box-shadow: var(--shadow-lg);
-  padding: 32px 26px 26px;
+  padding: 32px 24px 26px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -669,58 +699,92 @@
 .egg-popup-close:hover { color: #544b3d; }
 
 .egg-stepper-btn {
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
+  background: #ebebeb;
   display: grid;
   place-items: center;
-  transition: transform 0.1s, filter 0.12s;
+  transition: transform 0.1s, background 0.12s;
 }
-.egg-stepper-btn:hover { filter: brightness(0.95); transform: scale(1.06); }
+.egg-stepper-btn:hover { background: #dfdfdf; transform: scale(1.05); }
 .egg-stepper-btn:active { transform: scale(0.96); }
-.egg-stepper-btn.plus { background: #e3effa; }
-.egg-stepper-btn.minus { background: #f6e8eb; }
 
+/* sp_board_tree.png 실측: popupPlus(1,201,30,30), popupMinus(85,201,36,10) → 0.84배 */
 .egg-stepper-btn.plus::before {
   content: "";
-  width: 24px;
-  height: 24px;
-  background: url('../assets/visuals/sp_board_tree.png') -0.8px -160.8px / 512px 448px no-repeat;
+  width: 25.2px;
+  height: 25.2px;
+  background: url('../assets/visuals/sp_board_tree.png') -0.84px -168.84px / 537.6px 470.4px no-repeat;
 }
 .egg-stepper-btn.minus::before {
   content: "";
-  width: 24px;
-  height: 7px;
-  background: url('../assets/visuals/sp_board_tree.png') -72.8px -162.4px / 512px 448px no-repeat;
+  width: 30.24px;
+  height: 8.4px;
+  background: url('../assets/visuals/sp_board_tree.png') -71.4px -168.84px / 537.6px 470.4px no-repeat;
 }
 
+/* 1fr auto 1fr 대칭 3열 그리드: 좌우 글자 길이와 무관하게 가운데 숫자가 정확히 팝업 수직 중앙선(50%)에 정렬됨 */
 .egg-stepper-val {
-  display: flex;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: baseline;
-  gap: 18px;
+  column-gap: 14px;
   font-size: 20px;
-  font-weight: 800;
-  color: #6a4412;
+  font-weight: 700;
+  color: #5b3a08;
   white-space: nowrap;
 }
-.egg-stepper-val strong {
-  min-width: 54px;
+.egg-stepper-label-left {
+  justify-self: end;
+}
+.egg-stepper-label-right {
+  justify-self: start;
+}
+
+/* 숫자 표시와 시각적으로 100% 동일한 무테두리 인라인 키보드 입력창 */
+.egg-delta-input {
+  justify-self: center;
+  border: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  width: 1.25ch;
+  min-width: 1.1ch;
+  max-width: 5.2ch;
   text-align: center;
-  font-size: 52px;
+  font-family: inherit;
+  font-size: 54px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  color: #6a4412;
+  color: #7b4a06;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
+  caret-color: #7b4a06;
+  appearance: none;
+  cursor: text;
 }
-.egg-stepper-val strong.is-pos { color: #2486d0; }
-.egg-stepper-val strong.is-neg { color: #e23c56; }
+.egg-delta-input::selection {
+  background: rgba(255, 216, 59, 0.38);
+}
+.egg-delta-input.is-pos {
+  color: #2486d0;
+  caret-color: #2486d0;
+}
+.egg-delta-input.is-neg {
+  color: #e23c56;
+  caret-color: #e23c56;
+}
 
 .egg-popup-meta {
   text-align: center;
   font-size: 14px;
   color: #7d6d58;
   line-height: 1.6;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 .egg-popup-meta strong { color: #5b3b0f; font-weight: 800; }
 
@@ -738,7 +802,9 @@
 .egg-apply-btn.is-neg { background: #e8445c; }
 .egg-apply-btn:not(:disabled):hover { filter: brightness(1.06); }
 
-/* 목표 설정 모달 (원본 황금알 목표(학급점수 목표).png + 1학생화면.mp4 00:37~00:50) */
+/* ============================================================
+   4. 목표 설정 모달 (원본 다크 그레이 모달)
+   ============================================================ */
 .goals-modal-card {
   position: relative;
   width: 680px;
@@ -886,7 +952,6 @@
   margin-top: 8px;
 }
 
-/* 목표 추가 완료 초록 알림 팝업 (1학생화면.mp4 00:48) */
 .goal-saved-toast {
   position: absolute;
   top: 50%;

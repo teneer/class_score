@@ -366,8 +366,8 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 310px;
-  padding-right: 174px;
+  width: 286px;
+  padding-right: 146px;
   z-index: 12;
   pointer-events: none;
 }
@@ -378,8 +378,8 @@
   transform: translateX(14px) scale(0.86);
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
-.wb-tree-overlay .growth-tree-trunk:hover ~ .wb-tree-hover-dock .wb-tree-hover-egg,
-.wb-tree-overlay .tree-track-viewport:hover ~ .wb-tree-hover-dock .wb-tree-hover-egg,
+.wb-tree-overlay .growth-pages-viewport:hover ~ .wb-tree-hover-dock .wb-tree-hover-egg,
+.wb-tree-overlay .tree-climber-layer:hover ~ .wb-tree-hover-dock .wb-tree-hover-egg,
 .wb-tree-overlay .wb-tree-hover-dock:hover .wb-tree-hover-egg,
 .wb-tree-overlay .wb-tree-hover-egg:focus-visible {
   opacity: 1;
@@ -971,7 +971,8 @@
 }
 
 .wb-tree-overlay .growth-tree-trunk,
-.wb-tree-overlay .tree-track-viewport,
+.wb-tree-overlay .page-tree-groove,
+.wb-tree-overlay .tree-climber-layer,
 .wb-tree-overlay .goal-leaf-banner,
 .wb-tree-overlay .egg-popup-backdrop {
   pointer-events: auto;

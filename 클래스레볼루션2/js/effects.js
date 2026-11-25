@@ -14,6 +14,11 @@ let fxPlaying = false;
 let fxTimer = null;
 let fxStepTimers = [];
 
+export function isFxStagePlaying() {
+  const stage = document.getElementById('fx-stage');
+  return Boolean(fxPlaying || (stage && !stage.hidden));
+}
+
 /** 연출 내부 단계 타이머 일괄 정리 */
 function clearFxStepTimers() {
   for (const id of fxStepTimers) clearTimeout(id);
@@ -109,13 +114,12 @@ export function presentOutcome(outcome, { forceToast = false } = {}) {
       }
     }
   } else if (outcome.kind === 'egg') {
-    // 황금알 직접 부여/차감 (1학생화면.mp4 00:00~00:35)
-    // 목표 달성 시 바로 회전 갈색 원 목표 달성 연출, 미달성 시 효과음만 깔끔하게 재생
+    // 황금알 직접 부여/차감: 목표 달성 시 회전 갈색 원 목표 달성 연출, 눈금 이동 사운드는 growth 뷰 루프에서 매 눈금마다 재생
     if (Array.isArray(outcome.achievedGoals) && outcome.achievedGoals.length > 0) {
       for (const goal of outcome.achievedGoals) {
         fxQueue.push({ type: 'goal', goal, eggsNow: outcome.eggsNow });
       }
-    } else {
+    } else if (mode !== 'growth' && mode !== 'whiteboard') {
       playSound(outcome.delta > 0 ? 'eggUp' : 'eggDown');
     }
   }
