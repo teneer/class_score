@@ -6,36 +6,36 @@
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#efeee3">
   <title>Class123 - 클래스123 복원 웹</title>
-  <link rel="stylesheet" href="styles/base.css?v=20261126a">
-  <link rel="stylesheet" href="styles/layout.css?v=20261126a">
-  <link rel="stylesheet" href="styles/students.css?v=20261126a">
-  <link rel="stylesheet" href="styles/growth.css?v=20261126a">
-  <link rel="stylesheet" href="styles/checklist.css?v=20261126a">
-  <link rel="stylesheet" href="styles/tools.css?v=20261126a">
-  <link rel="stylesheet" href="styles/whiteboard.css?v=20261126a">
-  <link rel="stylesheet" href="styles/assignments.css?v=20261126a">
-  <link rel="stylesheet" href="styles/cyber.css?v=20261126a">
-  <link rel="stylesheet" href="styles/effects.css?v=20261126a">
+  <link rel="stylesheet" href="styles/base.css?v=20261126b">
+  <link rel="stylesheet" href="styles/layout.css?v=20261126b">
+  <link rel="stylesheet" href="styles/students.css?v=20261126b">
+  <link rel="stylesheet" href="styles/growth.css?v=20261126b">
+  <link rel="stylesheet" href="styles/checklist.css?v=20261126b">
+  <link rel="stylesheet" href="styles/tools.css?v=20261126b">
+  <link rel="stylesheet" href="styles/whiteboard.css?v=20261126b">
+  <link rel="stylesheet" href="styles/assignments.css?v=20261126b">
+  <link rel="stylesheet" href="styles/cyber.css?v=20261126b">
+  <link rel="stylesheet" href="styles/effects.css?v=20261126b">
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=20261126a",
-      "./js/audio.js": "./js/audio.js?v=20261126a",
-      "./js/cloud-sync.js": "./js/cloud-sync.js?v=20261126a",
-      "./js/doc-importer.js": "./js/doc-importer.js?v=20261126a",
-      "./js/effects.js": "./js/effects.js?v=20261126a",
-      "./js/quiz-csv.js": "./js/quiz-csv.js?v=20261126a",
-      "./js/score-engine.js": "./js/score-engine.js?v=20261126a",
-      "./js/store.js": "./js/store.js?v=20261126a",
-      "./js/worksheet-renderer.js": "./js/worksheet-renderer.js?v=20261126a",
-      "./js/views/assignments.js": "./js/views/assignments.js?v=20261126a",
-      "./js/views/bulk-score.js": "./js/views/bulk-score.js?v=20261126a",
-      "./js/views/checklist.js": "./js/views/checklist.js?v=20261126a",
-      "./js/views/cyber.js": "./js/views/cyber.js?v=20261126a",
-      "./js/views/growth.js": "./js/views/growth.js?v=20261126a",
-      "./js/views/students.js": "./js/views/students.js?v=20261126a",
-      "./js/views/tools.js": "./js/views/tools.js?v=20261126a",
-      "./js/views/whiteboard.js": "./js/views/whiteboard.js?v=20261126a"
+      "./js/app.js": "./js/app.js?v=20261126b",
+      "./js/audio.js": "./js/audio.js?v=20261126b",
+      "./js/cloud-sync.js": "./js/cloud-sync.js?v=20261126b",
+      "./js/doc-importer.js": "./js/doc-importer.js?v=20261126b",
+      "./js/effects.js": "./js/effects.js?v=20261126b",
+      "./js/quiz-csv.js": "./js/quiz-csv.js?v=20261126b",
+      "./js/score-engine.js": "./js/score-engine.js?v=20261126b",
+      "./js/store.js": "./js/store.js?v=20261126b",
+      "./js/worksheet-renderer.js": "./js/worksheet-renderer.js?v=20261126b",
+      "./js/views/assignments.js": "./js/views/assignments.js?v=20261126b",
+      "./js/views/bulk-score.js": "./js/views/bulk-score.js?v=20261126b",
+      "./js/views/checklist.js": "./js/views/checklist.js?v=20261126b",
+      "./js/views/cyber.js": "./js/views/cyber.js?v=20261126b",
+      "./js/views/growth.js": "./js/views/growth.js?v=20261126b",
+      "./js/views/students.js": "./js/views/students.js?v=20261126b",
+      "./js/views/tools.js": "./js/views/tools.js?v=20261126b",
+      "./js/views/whiteboard.js": "./js/views/whiteboard.js?v=20261126b"
     }
   }
   </script>
@@ -183,19 +183,16 @@
       <!-- 하단 토스트 피드백 (명렬/타 탭 수신용) -->
       <div id="toast-dock" class="toast-dock" aria-live="polite"></div>
 
-      <!-- 깜깜이(화면 가리기) 오버레이: 다른 곳은 모두 암전되고 깜깜이 버튼 자리만 '보이기' 버튼으로 전환 -->
+      <!-- 깜깜이(화면 가리기) 오버레이: 다른 곳은 모두 암전되고 깜깜이 버튼 자리만 눈 감은 스프라이트 해제 버튼으로 전환 -->
       <div id="screen-curtain" class="screen-curtain" hidden>
         <button type="button" class="curtain-same-spot-btn" id="btn-curtain-off" title="화면 다시 보이기" aria-label="보이기">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
+          <i class="sp-icon sp-eye-closed" aria-hidden="true"></i>
           <span>보이기</span>
         </button>
       </div>
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20261126a"></script>
+  <script type="module" src="js/app.js?v=20261126b"></script>
 </body>
 </html>

@@ -11,11 +11,11 @@
 /* 내부영역 최상단 좌·우 플로팅 패널 (별도 상단 바 제거, 빈 공간은 카드 영역으로 활용) */
 .students-floating-top {
   position: absolute;
-  top: 8px;
-  left: 10px;
-  right: 10px;
+  top: calc(8px * var(--ui-scale, 1));
+  left: calc(10px * var(--ui-scale, 1));
+  right: calc(10px * var(--ui-scale, 1));
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
   pointer-events: none;
@@ -35,6 +35,8 @@
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: top left;
   transition: background 0.14s, border-color 0.14s;
 }
 .st-top-class-btn:hover {
@@ -61,6 +63,8 @@
   box-shadow: 0 2px 7px rgba(74, 66, 53, 0.1);
   flex-wrap: nowrap;
   white-space: nowrap;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: top right;
 }
 .seating-stage.is-editing .st-top-class-btn,
 .seating-stage.is-editing .st-top-options {
@@ -1096,14 +1100,14 @@
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
 }
 
-/* 자리배치 내부 하단 고정 도구 바 (좌측 자리배치수정 · 우측 뽑기 고정, 중앙은 교탁 회전 버튼 슬롯) */
+/* 자리배치 내부 하단 고정 도구 바 (좌측 자리배치수정 · 우측 뽑기 고정, 화면 비율에 맞춰 비례 확대·축소) */
 .seating-floating-bar {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 54px;
-  padding: 5px 16px;
+  height: calc(54px * var(--ui-scale, 1));
+  padding: 0 calc(16px * var(--ui-scale, 1));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1117,6 +1121,8 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: left center;
 }
 .seat-edit-sub-btn {
   padding: 6px 11px;
@@ -1173,7 +1179,6 @@
 .seat-flip-pill {
   position: absolute;
   left: 50%;
-  transform: translateX(-50%);
   height: 34px;
   display: inline-flex;
   align-items: center;
@@ -1191,10 +1196,14 @@
   transition: background 0.14s, color 0.14s, box-shadow 0.14s;
 }
 .seat-flip-pill.is-pos-bottom {
-  bottom: 10px;
+  bottom: calc(10px * var(--ui-scale, 1));
+  transform: translateX(-50%) scale(var(--ui-scale, 1));
+  transform-origin: center bottom;
 }
 .seat-flip-pill.is-pos-top {
-  top: 6px;
+  top: calc(8px * var(--ui-scale, 1));
+  transform: translateX(-50%) scale(var(--ui-scale, 1));
+  transform-origin: center top;
 }
 .seat-flip-pill:hover {
   background: #fff;
@@ -1207,6 +1216,8 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: right center;
 }
 
 .seat-group-pick-card {
@@ -1578,6 +1589,14 @@
 /* ==================== 3. 하단 공통 액션바 (3열 고정 Grid · 고정 높이 · 선택 시 으쓱/머쓱 전환) ==================== */
 .students-bottombar {
   flex: none;
+  height: calc(68px * var(--ui-scale, 1));
+  box-sizing: border-box;
+  border-top: 1px solid #e1ddd1;
+  overflow: hidden;
+  position: relative;
+}
+.students-bottombar-inner {
+  width: calc(100% / var(--ui-scale, 1));
   height: 68px;
   box-sizing: border-box;
   display: grid;
@@ -1585,7 +1604,8 @@
   align-items: center;
   gap: 12px;
   padding: 0 4px;
-  border-top: 1px solid #e1ddd1;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: 0 0;
 }
 
 .bottom-left-slot {
@@ -1699,36 +1719,12 @@
   height: 36px;
   justify-content: center;
 }
-#btn-select-clear.is-cancel-slot {
-  background: #fff;
-  border: 1px solid #d7d2c6;
-  color: #5b5245;
-  font-weight: 800;
-  box-shadow: 0 1px 3px rgba(74, 66, 53, 0.08);
-}
-#btn-select-clear.is-cancel-slot:hover {
-  background: #faf8f2;
-  border-color: #bfb8a8;
-}
 
 #btn-select-recent,
 #btn-select-invert.is-invert-slot {
-  min-width: 148px;
+  min-width: 112px;
   height: 36px;
-  justify-content: flex-start;
-}
-#btn-select-invert.is-invert-slot {
-  background: #fff;
-  border: 1px solid #d7d2c6;
-  color: #4b4235;
-  font-weight: 800;
   justify-content: center;
-  box-shadow: 0 1px 3px rgba(74, 66, 53, 0.08);
-}
-#btn-select-invert.is-invert-slot:hover {
-  background: #fff8cf;
-  border-color: #e2c515;
-  color: #4b3808;
 }
 
 .selected-pill {

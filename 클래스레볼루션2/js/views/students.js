@@ -162,6 +162,16 @@ function rerenderActiveStudentRoots(primaryRoot) {
   }
 }
 
+/** 화면 크기/비율 변경 시 하단바 및 내부영역 UI 버튼들의 가로세로 비율을 유지한 채 비례 확대·축소 */
+function applyStudentsUiScale(root) {
+  const shellEl = root?.querySelector('.students-shell');
+  if (!shellEl) return;
+  const w = shellEl.clientWidth || window.innerWidth || 1280;
+  const h = shellEl.clientHeight || window.innerHeight || 720;
+  const scale = Math.max(0.45, Math.min(1.18, Math.min(w / 1280, h / 720)));
+  shellEl.style.setProperty('--ui-scale', scale.toFixed(4));
+}
+
 window.addEventListener('resize', () => {
   cancelAnimationFrame(studentsResizeRaf);
   studentsResizeRaf = requestAnimationFrame(() => {
@@ -171,6 +181,7 @@ window.addEventListener('resize', () => {
         continue;
       }
       if (!r.closest('.mode-view')?.classList.contains('is-active')) continue;
+      applyStudentsUiScale(r);
       if (getEffectiveSubView(r) === 'seats') applySeatingFit(r);
       else applyListFit(r);
     }
@@ -723,7 +734,8 @@ export function renderStudentsView(root) {
         : renderSeatingBody(state, activeStudents, scoreMode, root, topFloatingHtml)}
 
       <div class="students-bottombar ${hasSelection ? 'is-selecting' : ''}">
-        <div class="bottom-left-slot">
+        <div class="students-bottombar-inner">
+          <div class="bottom-left-slot">
           <button type="button" class="mini-egg-progress" id="btn-goto-growth" title="학급점수 화면으로 이동">
             <div class="mini-egg-top">
               <i class="sp-icon sp-egg-bottom" aria-hidden="true"></i>
@@ -787,11 +799,13 @@ export function renderStudentsView(root) {
             </div>
           `}
         </div>
+        </div>
       </div>
     </div>
   `;
 
   bindStudentsEvents(root, state, activeStudents);
+  applyStudentsUiScale(root);
   if (viewKind === 'seats') {
     applySeatingFit(root);
   } else {

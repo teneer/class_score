@@ -477,7 +477,14 @@ body.is-whiteboard-fullscreen .fx-stage {
   cursor: pointer;
   transition: background 0.14s, transform 0.1s;
 }
+.curtain-same-spot-btn .sp-eye-closed {
+  transform: scale(0.82);
+  filter: brightness(0) invert(1) sepia(1) saturate(4.5) hue-rotate(6deg);
+}
 .curtain-same-spot-btn:hover {
   background: #ffe347;
   color: #1b1706;
+}
+.curtain-same-spot-btn:hover .sp-eye-closed {
+  filter: brightness(0);
 }

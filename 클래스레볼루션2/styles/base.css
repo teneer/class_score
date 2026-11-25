@@ -445,7 +445,12 @@ button:disabled {
   background-position: -248px -61px;
   transform: scale(0.8);
 }
-#btn-curtain[aria-pressed="true"] .sp-eye {
+#btn-curtain[aria-pressed="true"] .sp-eye,
+.sp-eye-closed {
+  width: 30px;
+  height: 24px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 380px 570px;
   background-position: -248px -15px;
 }
 .sp-speaker {
@@ -549,8 +554,9 @@ button:disabled {
   width: 16px;
   height: 16px;
   background-image: url('../assets/visuals/sp_board_images.png');
-  background-size: 830px 290px;
-  background-position: -460px -2px;
+  /* 1660x580 원본에서 갈색 '*' 특수문자 아이콘 정확한 위치 (x=923..938, y=1..16) */
+  background-size: 1660px 580px;
+  background-position: -923px -1px;
 }
 .sp-history-list {
   width: 18px;
