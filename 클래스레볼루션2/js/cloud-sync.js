@@ -347,9 +347,26 @@ export async function syncTeacherStateToCloud(state) {
   await fs.setDoc(classRef, {
     className: state.classInfo?.name || '우리 반',
     motto: state.classInfo?.motto || '',
+    starsPerEgg: Math.max(5, Number(state.classInfo?.starsPerEgg) || 10),
     driveBridgeUrl: state.cloudConfig?.driveBridgeUrl || '',
     driveFolderName: state.cloudConfig?.driveFolderName || '클래스레볼루션2',
     students: publicStudents,
+    groups: Array.isArray(state.groups)
+      ? state.groups.map((g) => ({ id: g.id, name: g.name, order: g.order ?? 0 }))
+      : [],
+    growth: state.growth
+      ? {
+          eggs: Number(state.growth.eggs) || 0,
+          pendingTrailCount: Array.isArray(state.growth.pendingTrail) ? state.growth.pendingTrail.length : 0,
+          goals: Array.isArray(state.growth.goals) ? state.growth.goals : [],
+        }
+      : { eggs: 0, pendingTrailCount: 0, goals: [] },
+    wbScoreboard: state.wbScoreboard
+      ? {
+          baseGroupMode: state.wbScoreboard.baseGroupMode === 'avg' ? 'avg' : 'sum',
+          specialGroupScores: state.wbScoreboard.specialGroupScores || {},
+        }
+      : { baseGroupMode: 'sum', specialGroupScores: {} },
     assignments: Array.isArray(state.assignments) ? state.assignments : [],
     selfChecks: Array.isArray(state.selfChecks) ? state.selfChecks : [],
     cyberRoom: state.cyberRoom || null,

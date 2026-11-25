@@ -2,17 +2,29 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light">
-  <meta name="theme-color" content="#f5f3ea">
-  <title>클래스레볼루션2 · 학생 과제 페이지</title>
-  <link rel="stylesheet" href="styles/student.css?v=20261123c">
+  <meta name="theme-color" content="#efeee3">
+  <title>클래스레볼루션2 · 학생 대시보드</title>
+  <link rel="stylesheet" href="styles/student.css?v=20261125b">
+  <script type="importmap">
+  {
+    "imports": {
+      "./js/student-app.js": "./js/student-app.js?v=20261125b",
+      "./js/store.js": "./js/store.js?v=20261125b",
+      "./js/audio.js": "./js/audio.js?v=20261125b",
+      "./js/quiz-csv.js": "./js/quiz-csv.js?v=20261125b",
+      "./js/worksheet-renderer.js": "./js/worksheet-renderer.js?v=20261125b",
+      "./js/cloud-sync.js": "./js/cloud-sync.js?v=20261125b"
+    }
+  }
+  </script>
 </head>
 <body>
   <div id="student-app" class="st-app">
-    <div class="st-loading">불러오는 중입니다...</div>
+    <div class="st-loading">학생 대시보드를 불러오는 중입니다...</div>
   </div>
   <div id="st-toast" class="st-toast" hidden></div>
-  <script type="module" src="js/student-app.js?v=20261123f"></script>
+  <script type="module" src="js/student-app.js?v=20261125b"></script>
 </body>
 </html>
