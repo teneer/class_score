@@ -349,16 +349,18 @@ button {
   color: var(--text-main);
 }
 
-.st-group-chip {
-  padding: 2px 8px;
+.st-profile-info .st-group-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
   border-radius: 99px;
   background: var(--brown-group);
-  color: #ffde59;
+  color: #ffe869;
   font-size: 11.5px;
   font-weight: 800;
 }
 
-.st-profile-info span {
+.st-profile-info > span {
   display: block;
   font-size: 12px;
   color: var(--text-sub);
@@ -786,6 +788,7 @@ button {
   font-weight: 900;
   color: var(--text-main);
   letter-spacing: -0.01em;
+  word-break: keep-all;
 }
 
 .st-dash-title-txt p {
@@ -793,6 +796,7 @@ button {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-sub);
+  word-break: keep-all;
 }
 
 .st-dash-head-right {
@@ -942,6 +946,8 @@ button {
   color: var(--text-sub);
   font-size: 13.5px;
   font-weight: 700;
+  line-height: 1.45;
+  word-break: keep-all;
   display: flex;
   align-items: center;
   gap: 10px;
