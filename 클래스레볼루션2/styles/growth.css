@@ -9,52 +9,105 @@
   transition: background-color 0.85s ease;
 }
 
-/* 1. 하늘 배경 + 10점 이전 전용 마을 땅 레이어 (z-index: 0) */
+/* 1. 다층 패럴랙스 하늘 배경 · 연속 구름 · 하늘 오브젝트 · 0~9점 마을 땅 레이어 (z-index: 0) */
 .growth-bg-layer {
   position: absolute;
   inset: 0 var(--tree-w) 0 0;
   pointer-events: none;
   z-index: 0;
   overflow: hidden;
+  background-color: var(--sky-color, #44d6ed);
   transition: background-color 0.85s ease;
 }
 
+/* 고도감을 주는 연속 하늘 대기층 밴드 (올라갈 때 위에서 새 하늘 결이 이어서 내려옴) */
+.growth-sky-band {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse 65% 22% at 22% 18%, rgba(255, 255, 255, 0.16) 0%, transparent 72%),
+    radial-gradient(ellipse 58% 20% at 78% 64%, rgba(255, 255, 255, 0.14) 0%, transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 48%, rgba(255, 255, 255, 0.09) 100%);
+  background-repeat: repeat-y;
+  background-size: 100% 760px;
+  background-position: 0 var(--sky-band-y, 0px);
+  transition: background-position 0.42s cubic-bezier(0.32, 0.08, 0.24, 1);
+}
+.growth-world.is-camera-panning .growth-sky-band {
+  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 원경·근경 심리스 구름 패럴랙스 (평상시 잔잔한 수평 흐름 + 상승 시 위에서 새 구름이 연속 하강) */
+.growth-cloud-drift {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1400px;
+  width: calc(100% + 1400px);
+  pointer-events: none;
+  will-change: transform;
+  transition: opacity 0.7s ease;
+}
+.growth-cloud-drift.is-far {
+  animation: growth-cloud-drift-x 68s linear infinite;
+}
+.growth-cloud-drift.is-near {
+  animation: growth-cloud-drift-x 42s linear infinite;
+}
+@keyframes growth-cloud-drift-x {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(1400px, 0, 0); }
+}
+
+.growth-cloud-sheet {
+  width: 100%;
+  height: 100%;
+  background-repeat: repeat;
+  transition: background-position 0.42s cubic-bezier(0.32, 0.08, 0.24, 1);
+}
+.growth-world.is-camera-panning .growth-cloud-sheet {
+  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 원경 구름 (부드러운 반투명 구름 타일 1400x840) */
+.growth-cloud-sheet.is-far {
+  opacity: 0.48;
+  background-size: 1400px 840px;
+  background-position: 0 var(--cloud-far-y, 0px);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1400' height='840' viewBox='0 0 1400 840'%3E%3Cg fill='%23ffffff'%3E%3Cg opacity='0.75' transform='translate(70,85)'%3E%3Crect x='22' y='34' width='146' height='38' rx='19'/%3E%3Ccircle cx='58' cy='38' r='26'/%3E%3Ccircle cx='98' cy='28' r='34'/%3E%3Ccircle cx='136' cy='40' r='22'/%3E%3C/g%3E%3Cg opacity='0.65' transform='translate(1060,150)'%3E%3Crect x='18' y='30' width='168' height='42' rx='21'/%3E%3Ccircle cx='56' cy='36' r='28'/%3E%3Ccircle cx='104' cy='24' r='36'/%3E%3Ccircle cx='148' cy='38' r='25'/%3E%3C/g%3E%3Cg opacity='0.7' transform='translate(520,360)'%3E%3Crect x='16' y='26' width='132' height='34' rx='17'/%3E%3Ccircle cx='48' cy='30' r='22'/%3E%3Ccircle cx='84' cy='22' r='29'/%3E%3Ccircle cx='118' cy='32' r='20'/%3E%3C/g%3E%3Cg opacity='0.68' transform='translate(190,610)'%3E%3Crect x='20' y='32' width='154' height='40' rx='20'/%3E%3Ccircle cx='58' cy='36' r='27'/%3E%3Ccircle cx='100' cy='26' r='35'/%3E%3Ccircle cx='140' cy='38' r='24'/%3E%3C/g%3E%3Cg opacity='0.72' transform='translate(920,650)'%3E%3Crect x='16' y='28' width='138' height='36' rx='18'/%3E%3Ccircle cx='50' cy='32' r='24'/%3E%3Ccircle cx='88' cy='22' r='31'/%3E%3Ccircle cx='124' cy='34' r='21'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* 근경 뭉게구름 (별길 좌·우·상·하에 선명하게 보이는 큰 플랫 구름 타일 1400x920) */
+.growth-cloud-sheet.is-near {
+  opacity: 0.78;
+  background-size: 1400px 920px;
+  background-position: 0 var(--cloud-near-y, 0px);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1400' height='920' viewBox='0 0 1400 920'%3E%3Cg fill='%23ffffff'%3E%3Cg opacity='0.92' transform='translate(28,190)'%3E%3Crect x='24' y='44' width='210' height='52' rx='26'/%3E%3Ccircle cx='72' cy='50' r='36'/%3E%3Ccircle cx='128' cy='34' r='48'/%3E%3Ccircle cx='184' cy='50' r='34'/%3E%3C/g%3E%3Cg opacity='0.88' transform='translate(1110,70)'%3E%3Crect x='22' y='40' width='196' height='48' rx='24'/%3E%3Ccircle cx='68' cy='46' r='33'/%3E%3Ccircle cx='120' cy='30' r='44'/%3E%3Ccircle cx='172' cy='46' r='31'/%3E%3C/g%3E%3Cg opacity='0.82' transform='translate(770,450)'%3E%3Crect x='18' y='34' width='164' height='42' rx='21'/%3E%3Ccircle cx='58' cy='38' r='28'/%3E%3Ccircle cx='102' cy='26' r='38'/%3E%3Ccircle cx='146' cy='40' r='26'/%3E%3C/g%3E%3Cg opacity='0.9' transform='translate(95,710)'%3E%3Crect x='20' y='38' width='182' height='46' rx='23'/%3E%3Ccircle cx='64' cy='42' r='31'/%3E%3Ccircle cx='114' cy='28' r='42'/%3E%3Ccircle cx='160' cy='44' r='29'/%3E%3C/g%3E%3Cg opacity='0.86' transform='translate(1060,640)'%3E%3Crect x='24' y='42' width='204' height='50' rx='25'/%3E%3Ccircle cx='70' cy='48' r='35'/%3E%3Ccircle cx='126' cy='32' r='46'/%3E%3Ccircle cx='180' cy='48' r='32'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* 고도별 하늘 오브젝트 (새 · 열기구 · 비행기 · 우주선 · 밤하늘 별 — repeat-y 무한 하강) */
 .growth-sky-sheet {
   position: absolute;
   inset: 0;
-  background-repeat: no-repeat;
+  background-repeat: repeat-y;
   background-size: 100% auto;
-  background-position: center var(--sky-pos-y, 82%);
-  transition: background-position 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
+  background-position: center var(--sky-scroll-y, 0px);
+  transition: background-position 0.42s cubic-bezier(0.32, 0.08, 0.24, 1), opacity 0.6s ease;
+}
+.growth-world.is-camera-panning .growth-sky-sheet {
+  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
 }
 
-.growth-bg-layer[data-century="0"] { background-color: #44d6ed; }
-.growth-bg-layer[data-century="0"] .growth-sky-sheet {
-  background-image: url('../assets/visuals/bg-effect-wow-cloud.png');
-  opacity: 0.42;
+.growth-bg-layer[data-dark-space="true"] .growth-cloud-drift.is-near {
+  opacity: 0.16;
 }
-.growth-bg-layer[data-century="1"] { background-color: #36c9ee; }
-.growth-bg-layer[data-century="1"] .growth-sky-sheet {
-  background-image: url('../assets/visuals/sp_board_sky_object2.png');
-}
-.growth-bg-layer[data-century="2"] { background-color: #2cb1de; }
-.growth-bg-layer[data-century="2"] .growth-sky-sheet {
-  background-image: url('../assets/visuals/sp_board_sky_object3.png');
-}
-.growth-bg-layer[data-century="3"] { background-color: #2585c8; }
-.growth-bg-layer[data-century="3"] .growth-sky-sheet {
-  background-image: url('../assets/visuals/sp_board_sky_object4.png');
-}
-.growth-bg-layer[data-century="4"] { background-color: #131c45; }
-.growth-bg-layer[data-century="4"] .growth-sky-sheet {
-  background-image:
-    url('../assets/visuals/sp_board_sky_object5.png'),
-    url('../assets/visuals/sp_board_sky_stars.png');
+.growth-bg-layer[data-dark-space="true"] .growth-cloud-drift.is-far {
+  opacity: 0.22;
 }
 
-/* 0점 미만 땅속 배경 — 점수가 아무리 낮아져도 동일한 땅속 배경 유지, 내려갈 때만 지층이 위로 흐르는 하강 연출 */
+/* 0점 미만 땅속 배경 — 내려갈 때 지층이 아래에서 위로 연속 이동 */
 .growth-bg-layer[data-underground="true"] {
-  background-color: #5b3a24;
+  background-color: #5b3a24 !important;
   background-image:
     radial-gradient(ellipse 34px 20px at 14% 22%, rgba(42, 24, 13, 0.45) 0 98%, transparent 100%),
     radial-gradient(ellipse 22px 14px at 31% 68%, rgba(122, 82, 52, 0.35) 0 98%, transparent 100%),
@@ -66,11 +119,12 @@
   background-repeat: repeat-y;
   background-size: 100% 420px;
   background-position: 0 var(--underground-y, 0px);
-  transition: background-position 0.68s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.6s ease;
+  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.6s ease;
 }
-.growth-bg-layer[data-underground="true"] .growth-sky-sheet {
-  opacity: 0;
-  background-image: none;
+.growth-bg-layer[data-underground="true"] .growth-sky-sheet,
+.growth-bg-layer[data-underground="true"] .growth-sky-band,
+.growth-bg-layer[data-underground="true"] .growth-cloud-drift {
+  opacity: 0 !important;
 }
 
 /* 땅속에서는 초록 잎 나뭇가지 대신 갈색 땅속 뿌리 톤 유지 */
@@ -78,10 +132,10 @@
   filter: sepia(0.85) hue-rotate(-32deg) saturate(1.2) brightness(0.68);
 }
 .growth-world[data-underground="true"] .growth-tree-trunk {
-  background: #7c4e30;
+  background-color: #7c4e30;
 }
 
-/* 마을은 10점 이전(decade === 0) 땅에만 표시 */
+/* 마을은 0~9점(decade === 0) 땅에 위치하며 상승 시 나무와 동일한 픽셀 속도로 화면 아래로 내려감 */
 .growth-village-ground {
   position: absolute;
   left: 0;
@@ -89,29 +143,36 @@
   bottom: 0;
   height: 220px;
   background: url('../assets/visuals/sp_board_sky_village.png') center bottom / 100% auto no-repeat;
-  transform: translateY(var(--village-shift, 0%));
-  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
+  transform: translate3d(0, var(--village-shift, 0px), 0);
+  transition: transform 0.70s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.55s ease;
   pointer-events: none;
 }
 .growth-village-ground.is-below-view {
   opacity: 0;
 }
 
-/* 2. 우측 나무 기둥 배경 (z-index: 3 — 나무.png / branch1 갈색 #915f3c 완벽 일치, 이음새 0px) */
+/* 2. 우측 나무 기둥 배경 (z-index: 3 — 은은한 수직 나무결이 나뭇가지·줄기와 1:1 동일 속도로 함께 하강) */
 .growth-tree-trunk {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
   width: var(--tree-w);
-  background: #915f3c;
+  background-color: #915f3c;
+  background-image:
+    radial-gradient(ellipse 9px 44px at 26% 24%, rgba(114, 72, 43, 0.28) 0%, transparent 100%),
+    radial-gradient(ellipse 8px 52px at 52% 72%, rgba(114, 72, 43, 0.24) 0%, transparent 100%),
+    radial-gradient(ellipse 7px 36px at 18% 80%, rgba(168, 114, 76, 0.18) 0%, transparent 100%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 0%, transparent 14%, transparent 82%, rgba(0, 0, 0, 0.08) 100%);
+  background-repeat: repeat-y;
+  background-size: 160px 320px;
+  background-position: 0 var(--tree-scroll-y, 0px);
+  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.6s ease;
   z-index: 3;
 }
 
 /* 3. 원본 비율(370x1080 → 296x864) 나뭇가지 오버레이 (z-index: 4)
- *    branch3/4 수직 절단선 x=169(우측에서 201px)가 나무 기둥 좌측 경계(right: 160px)에 0px 오차로 밀착!
- *    branch1 갈색 밑동(#925f3d)은 #915f3c 나무 기둥에 자연스럽게 융합되고,
- *    branch2~5 꽃·잎·사과·별장식은 나무 기둥 앞면에 자연스럽게 걸쳐짐. */
+ *    나무 줄기·황금알 하강 거리(+trackH)와 1px 오차 없이 함께 내려가며 위에서 새 나뭇가지가 무한히 이어서 내려옴 */
 .tree-branch-overlay {
   position: absolute;
   top: 0;
@@ -124,15 +185,13 @@
 }
 .tree-branch-strip {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   width: 296px;
-  height: max(1200px, calc(100% + 260px));
+  height: 100%;
   background-repeat: repeat-y;
-  background-position: right bottom;
+  background-position: right var(--tree-scroll-y, 0px);
   background-size: 296px 864px;
-  transform: translateY(var(--tree-scroll-y, 0px));
-  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: background-position 0.70s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.55s ease;
 }
 
 /* 4. 좌측 하늘/별길 영역 (z-index: 5 — 큰 황금알과 총점이 나뭇가지에 가리지 않음) */
@@ -356,8 +415,11 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  transform: translateY(var(--ticks-shift, 0%));
-  transition: transform 0.72s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translate3d(0, var(--ticks-shift, 0%), 0);
+  transition: none;
+}
+.growth-world.is-camera-panning .tree-ticks-strip {
+  transition: transform 0.70s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* 초록 줄기가 올라오면 지나간 별(z-index: 1)을 원본과 동일하게 자연스럽게 덮음 (z-index: 2) */
@@ -373,7 +435,7 @@
   transition: height 0.42s cubic-bezier(0.32, 0.08, 0.24, 1);
 }
 .growth-world.is-camera-panning .tree-fill-bar {
-  transition: height 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: height 0.70s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* 진한 갈색 막대 속 원본 별 스프라이트 (sp_board_tree.png 좌상단 x=10, y=11, w=23, h=22) */
@@ -405,7 +467,7 @@
   transition: bottom 0.42s cubic-bezier(0.32, 0.08, 0.24, 1);
 }
 .growth-world.is-camera-panning .tree-climber-egg {
-  transition: bottom 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: bottom 0.70s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .tree-climber-egg.is-landing {
   animation: egg-star-bounce 0.26s cubic-bezier(0.32, 0.08, 0.24, 1);

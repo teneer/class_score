@@ -18,9 +18,8 @@ const STAR_POSITIONS = [
   { x: 74.59, y: 77.11 }, // 9번째 (황금알 바로 앞)
 ];
 
-// 원본 실측(나무.png 643px / 65px 등간격): 10단계(슬롯 0~9), 정확히 10% 등간격 (0=5%, 1=15%, ..., 9=95%)
-// 경계 돌파 연출용으로 -4 ~ 104 범위 허용
-const stepToPercent = (step) => Math.max(-4, Math.min(104, 5 + step * 10));
+// 원본 실측(나무.png 643px / 65px 등간격): 10단계(슬롯 0~9), 정확히 10% 등간격 (0=5%, 1=15%, ..., 9=95%, 10=105%, -1=-5%)
+const stepToPercent = (step) => Math.max(-6, Math.min(106, 5 + step * 10));
 const getDecade = (eggs) => Math.floor(eggs / 10);
 const getStepInDecade = (eggs) => ((eggs % 10) + 10) % 10;
 
@@ -58,6 +57,7 @@ function applyGrowthFit(root) {
 window.addEventListener('resize', () => {
   if (lastGrowthRoot && lastGrowthRoot.closest('.mode-view')?.classList.contains('is-active')) {
     applyGrowthFit(lastGrowthRoot);
+    if (!isCameraPanning) applyClimberDomInPlace(lastGrowthRoot, { bounce: false, ticksShiftVal: '0%' });
   }
 });
 
@@ -69,48 +69,101 @@ function nextFrame() {
   return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }
 
-/** 100점 단위 하늘 구간 및 0 미만 땅속 배경 정보 계산 */
+/** 고도(10점 단위 decade)별 하늘 색상 · 하늘 오브젝트 · 나뭇가지 · 땅속 정보 계산 */
 function getCenturyInfo(decade) {
   if (decade < 0) {
-    // 0점 미만은 점수가 아무리 내려가도 동일한 땅속 배경 유지 (내려갈 때 지층 Y만 살짝 이동)
     return {
       underground: true,
-      century: 0,
+      darkSpace: false,
+      skyColor: '#5b3a24',
       branchUrl: 'assets/visuals/sp_board_tree_branch1.png',
-      skyPosY: '82%',
-      undergroundY: `${((-decade - 1) % 3) * -120}px`,
+      skyObjectBg: 'none',
       dark: true,
     };
   }
-  const eggsFloor = decade * 10;
-  const century = Math.min(4, Math.floor(eggsFloor / 100)); // 0..4 (100점 단위 5단계)
-  const decadeInCentury = Math.floor((eggsFloor % 100) / 10); // 0..9
-  const skyPosY = `${Math.max(12, 82 - decadeInCentury * 7.8)}%`;
+  const branchIdx = decade <= 1 ? 1 : decade <= 4 ? 2 : decade <= 7 ? 3 : decade <= 11 ? 4 : 5;
+  let skyColor = '#44d6ed';
+  let skyObjectBg = "url('assets/visuals/sp_board_sky_object2.png')";
+  let dark = false;
+  let darkSpace = false;
+
+  if (decade === 0) {
+    skyColor = '#44d6ed';
+    skyObjectBg = "url('assets/visuals/sp_board_sky_object2.png')";
+  } else if (decade <= 3) {
+    skyColor = '#3ad0ee';
+    skyObjectBg = "url('assets/visuals/sp_board_sky_object2.png')";
+  } else if (decade <= 6) {
+    skyColor = '#30bee5';
+    skyObjectBg = "url('assets/visuals/sp_board_sky_object3.png')";
+  } else if (decade <= 9) {
+    skyColor = '#2698d4';
+    skyObjectBg = "url('assets/visuals/sp_board_sky_object4.png')";
+  } else if (decade <= 13) {
+    skyColor = '#1e6bb8';
+    skyObjectBg = "url('assets/visuals/sp_board_sky_object5.png')";
+  } else {
+    skyColor = '#131c45';
+    skyObjectBg = "url('assets/visuals/sp_board_sky_object5.png'), url('assets/visuals/sp_board_sky_stars.png')";
+    dark = true;
+    darkSpace = true;
+  }
+
   return {
     underground: false,
-    century,
-    branchUrl: `assets/visuals/sp_board_tree_branch${century + 1}.png`,
-    skyPosY,
-    undergroundY: '0px',
-    dark: century >= 4,
+    darkSpace,
+    skyColor,
+    branchUrl: `assets/visuals/sp_board_tree_branch${branchIdx}.png`,
+    skyObjectBg,
+    dark,
   };
 }
 
-/** DOM 전체를 갈아엎지 않고 새싹 황금알·초록 줄기·하늘/땅속/가지 위치만 부드럽게 갱신 */
-function applyClimberDomInPlace(root, { bounce = false, ticksShiftVal = null } = {}) {
+/** 실제 트랙 높이를 기준으로 나무(가지·기둥·줄기 1:1 일치) 및 배경·구름 다층 패럴랙스 연속 스크롤 오프셋 계산 */
+function computeLayerScrollVars(root, decade, step) {
+  const trackEl = root?.querySelector('.tree-track-viewport');
+  const trackH = trackEl?.clientHeight || Math.max(480, (root?.clientHeight || 742) - 158);
+  const treeScrollPx = Math.round(decade * trackH);
+  const villageShiftPx = decade === 0
+    ? 0
+    : (decade > 0 ? Math.max(260, Math.round(decade * trackH)) : -Math.max(260, Math.round(Math.abs(decade) * trackH)));
+  const cloudNearPx = Math.round((decade * 0.86 + step * 0.016) * trackH);
+  const skyScrollPx = Math.round((decade * 0.68 + step * 0.012) * trackH);
+  const skyBandPx = Math.round((decade * 0.56 + step * 0.010) * trackH);
+  const cloudFarPx = Math.round((decade * 0.45 + step * 0.008) * trackH);
+  const undergroundPx = Math.round(decade * trackH * 0.82);
+
+  return {
+    treeScrollPx,
+    villageShiftPx,
+    cloudNearPx,
+    skyScrollPx,
+    skyBandPx,
+    cloudFarPx,
+    undergroundPx,
+  };
+}
+
+/** DOM 전체를 갈아엎지 않고 새싹 황금알·초록 줄기·별 눈금·나무(가지/기둥)·구름·하늘 배경을 동기화 갱신 */
+function applyClimberDomInPlace(root, { bounce = false, ticksShiftVal = '0%' } = {}) {
   if (!root) return;
   const world = root.querySelector('.growth-world');
   const fillBar = root.querySelector('.tree-fill-bar');
   const climber = root.querySelector('.tree-climber-egg');
   const climberNum = root.querySelector('.tree-climber-num');
   const bgLayer = root.querySelector('.growth-bg-layer');
+  const skyBand = root.querySelector('.growth-sky-band');
   const skySheet = root.querySelector('.growth-sky-sheet');
+  const cloudFar = root.querySelector('.growth-cloud-sheet.is-far');
+  const cloudNear = root.querySelector('.growth-cloud-sheet.is-near');
   const village = root.querySelector('.growth-village-ground');
+  const trunk = root.querySelector('.growth-tree-trunk');
   const branchStrip = root.querySelector('.tree-branch-strip');
   const ticksStrip = root.querySelector('.tree-ticks-strip');
   if (!world || !fillBar || !climber) return;
 
   const info = getCenturyInfo(cameraDecade);
+  const vars = computeLayerScrollVars(root, cameraDecade, visualStep);
   const pct = `${stepToPercent(visualStep)}%`;
   const fillPct = `${Math.max(0, stepToPercent(visualStep))}%`;
 
@@ -122,22 +175,31 @@ function applyClimberDomInPlace(root, { bounce = false, ticksShiftVal = null } =
   if (climberNum) climberNum.textContent = String(displayedEggs ?? 0);
 
   if (bgLayer) {
-    bgLayer.dataset.century = String(info.century);
     bgLayer.dataset.underground = info.underground ? 'true' : 'false';
-    bgLayer.style.setProperty('--underground-y', info.undergroundY);
+    bgLayer.dataset.darkSpace = info.darkSpace ? 'true' : 'false';
+    bgLayer.style.setProperty('--sky-color', info.skyColor);
+    bgLayer.style.setProperty('--underground-y', `${vars.undergroundPx}px`);
   }
-  if (skySheet) skySheet.style.setProperty('--sky-pos-y', info.skyPosY);
+  if (skyBand) skyBand.style.setProperty('--sky-band-y', `${vars.skyBandPx}px`);
+  if (skySheet) {
+    skySheet.style.backgroundImage = info.skyObjectBg;
+    skySheet.style.setProperty('--sky-scroll-y', `${vars.skyScrollPx}px`);
+  }
+  if (cloudFar) cloudFar.style.setProperty('--cloud-far-y', `${vars.cloudFarPx}px`);
+  if (cloudNear) cloudNear.style.setProperty('--cloud-near-y', `${vars.cloudNearPx}px`);
   if (village) {
     village.classList.toggle('is-below-view', cameraDecade !== 0);
-    const vShift = cameraDecade === 0 ? '0%' : (cameraDecade > 0 ? '125%' : '-130%');
-    village.style.setProperty('--village-shift', vShift);
+    village.style.setProperty('--village-shift', `${vars.villageShiftPx}px`);
+  }
+  if (trunk) {
+    trunk.style.setProperty('--tree-scroll-y', `${vars.treeScrollPx}px`);
   }
   if (branchStrip) {
     branchStrip.style.backgroundImage = `url('${info.branchUrl}')`;
-    branchStrip.style.setProperty('--tree-scroll-y', `${(Math.abs(cameraDecade) % 2) * 90}px`);
+    branchStrip.style.setProperty('--tree-scroll-y', `${vars.treeScrollPx}px`);
   }
   if (ticksStrip) {
-    ticksStrip.style.setProperty('--ticks-shift', ticksShiftVal ?? (isCameraPanning ? '14%' : '0%'));
+    ticksStrip.style.setProperty('--ticks-shift', ticksShiftVal);
   }
 
   if (bounce) {
@@ -147,7 +209,7 @@ function applyClimberDomInPlace(root, { bounce = false, ticksShiftVal = null } =
   }
 }
 
-/** 점수를 한꺼번에 부여/차감해도 원래 별에서 다음 별까지 부드럽게 이동(0 이하 땅속 하강 포함) + 도착 안착 바운스 */
+/** 점수를 한꺼번에 부여/차감해도 원래 별에서 다음 별까지 부드럽게 이동(10칸 경계에서 전 배경·구름·가지·줄기·새 별 동반 스크롤) */
 async function runStepClimberLoop() {
   if (stepLoopRunning) return;
   stepLoopRunning = true;
@@ -159,10 +221,11 @@ async function runStepClimberLoop() {
   while (displayedEggs !== null && displayedEggs !== targetEggsGoal) {
     if (myRunId !== stepLoopRunId) break;
     const root = lastGrowthRoot;
-    if (!root || !root.closest('.mode-view')?.classList.contains('is-active')) {
+    if (!root || !root.isConnected || root.hidden || !root.closest('.mode-view')?.classList.contains('is-active')) {
       displayedEggs = targetEggsGoal;
       cameraDecade = getDecade(displayedEggs);
       visualStep = getStepInDecade(displayedEggs);
+      isCameraPanning = false;
       break;
     }
 
@@ -175,56 +238,61 @@ async function runStepClimberLoop() {
     const nextDecade = getDecade(nextEggs);
 
     if (dir > 0 && nextDecade > curDecade) {
-      // 10점 경계 상승 돌파(예: 9→10 또는 -1→0): 꼭대기 위로 상승 → 화면 추적 → 다음 구간 바닥(0칸) 안착
+      // 10점 경계 상승 돌파(예: 9→10): 10번째 자리(105%) 도달 → 카메라 1구간 상승(배경·구름·가지·줄기·위쪽 새 별 100% 동반 하강) → 0칸(5%) 바운스 안착
       isCameraPanning = false;
-      visualStep = 9.9;
+      visualStep = 10;
       displayedEggs = nextEggs;
-      applyClimberDomInPlace(root, { bounce: false });
-      await sleep(430);
+      applyClimberDomInPlace(root, { bounce: false, ticksShiftVal: '0%' });
+      await sleep(420);
       if (myRunId !== stepLoopRunId) break;
+
+      const ticksEl = root.querySelector('.tree-ticks-strip');
+      if (ticksEl) void ticksEl.offsetHeight;
 
       isCameraPanning = true;
       cameraDecade = nextDecade;
       visualStep = 0;
-      applyClimberDomInPlace(root, { bounce: false, ticksShiftVal: '14%' });
-      await sleep(680);
+      applyClimberDomInPlace(root, { bounce: false, ticksShiftVal: '100%' });
+      await sleep(710);
       if (myRunId !== stepLoopRunId) break;
 
       isCameraPanning = false;
       applyClimberDomInPlace(root, { bounce: true, ticksShiftVal: '0%' });
-      await sleep(270);
+      await sleep(260);
     } else if (dir < 0 && nextDecade < curDecade) {
-      // 10점 경계 하강 돌파(예: 0→-1 땅속 진입, -10→-11 땅속 더 깊이 하강):
-      // 바닥 아래로 내려가는 연출 → 화면이 아래로 따라 내려감(땅속 배경 자체는 유지) → 다음 구간 꼭대기(9칸) 안착
+      // 10점 경계 하강 돌파(예: 10→9, 0→-1): 바닥 아래(-5%) 하강 → 카메라 1구간 하강(아래 구간 배경·가지·줄기·별 100% 동반 상승) → 9칸(95%) 안착
       isCameraPanning = false;
-      visualStep = -0.9;
+      visualStep = -1;
       displayedEggs = nextEggs;
-      applyClimberDomInPlace(root, { bounce: false });
+      applyClimberDomInPlace(root, { bounce: false, ticksShiftVal: '0%' });
       await sleep(420);
       if (myRunId !== stepLoopRunId) break;
+
+      const ticksEl = root.querySelector('.tree-ticks-strip');
+      if (ticksEl) void ticksEl.offsetHeight;
 
       isCameraPanning = true;
       cameraDecade = nextDecade;
       visualStep = 9;
-      applyClimberDomInPlace(root, { bounce: false, ticksShiftVal: '-14%' });
-      await sleep(680);
+      applyClimberDomInPlace(root, { bounce: false, ticksShiftVal: '-100%' });
+      await sleep(710);
       if (myRunId !== stepLoopRunId) break;
 
       isCameraPanning = false;
       applyClimberDomInPlace(root, { bounce: true, ticksShiftVal: '0%' });
-      await sleep(270);
+      await sleep(260);
     } else {
-      // 같은 10점 구간 내: 원래 별에서 다음 별까지 0.42초 부드럽게 이동 → 도착 시 위아래 흔들림 안착
+      // 같은 10점 구간 내: 원래 별에서 다음 별까지 부드럽게 이동 (구름·하늘 미세 패럴랙스 동반)
       isCameraPanning = false;
       cameraDecade = nextDecade;
       displayedEggs = nextEggs;
       visualStep = getStepInDecade(nextEggs);
-      applyClimberDomInPlace(root, { bounce: false });
-      await sleep(430);
+      applyClimberDomInPlace(root, { bounce: false, ticksShiftVal: '0%' });
+      await sleep(420);
       if (myRunId !== stepLoopRunId) break;
 
-      applyClimberDomInPlace(root, { bounce: true });
-      await sleep(270);
+      applyClimberDomInPlace(root, { bounce: true, ticksShiftVal: '0%' });
+      await sleep(260);
     }
   }
 
@@ -276,6 +344,7 @@ function paintGrowthDom(root) {
   const growth = state.growth;
   const eggs = growth.eggs;
   const info = getCenturyInfo(cameraDecade);
+  const vars = computeLayerScrollVars(root, cameraDecade, visualStep);
 
   const sortedGoals = [...(growth.goals || [])]
     .filter((g) => Number(g.targetEggs) > 0)
@@ -284,26 +353,32 @@ function paintGrowthDom(root) {
 
   const trail = growth.pendingTrail || [];
   const eggBottomPct = `${stepToPercent(visualStep)}%`;
-
-  // 마을은 10점 이전(cameraDecade === 0) 땅에만 보임 (땅속이면 위로 사라짐)
-  const villageShift = cameraDecade === 0 ? '0%' : (cameraDecade > 0 ? '125%' : '-130%');
-  const treeScrollY = `${(Math.abs(cameraDecade) % 2) * 90}px`;
-  const ticksShift = isCameraPanning ? '14%' : '0%';
   const fillBottomPct = `${Math.max(0, stepToPercent(visualStep))}%`;
+  const tickBandOffsets = [-100, 0, 100];
 
   const deltaClass = eggPendingDelta > 0 ? 'is-pos' : (eggPendingDelta < 0 ? 'is-neg' : '');
   const applyLabel = eggPendingDelta < 0 ? '차감하기' : '부여하기';
 
   root.innerHTML = `
     <div class="growth-world ${isCameraPanning ? 'is-camera-panning' : ''}" data-dark-sky="${info.dark ? 'true' : 'false'}" data-underground="${info.underground ? 'true' : 'false'}">
-      <!-- 1. 하늘 스크롤 / 0 미만 땅속 배경 + 0~9점 전용 마을 땅 (z-index: 0) -->
-      <div class="growth-bg-layer" data-century="${info.century}" data-underground="${info.underground ? 'true' : 'false'}" style="--underground-y:${info.undergroundY};">
-        <div class="growth-sky-sheet" style="--sky-pos-y:${info.skyPosY};"></div>
-        <div class="growth-village-ground ${cameraDecade !== 0 ? 'is-below-view' : ''}" style="--village-shift:${villageShift};"></div>
+      <!-- 1. 다층 패럴랙스 하늘 배경 · 연속 구름 · 하늘 오브젝트 · 0~9점 전용 마을 땅 (z-index: 0) -->
+      <div class="growth-bg-layer"
+           data-underground="${info.underground ? 'true' : 'false'}"
+           data-dark-space="${info.darkSpace ? 'true' : 'false'}"
+           style="--sky-color:${info.skyColor};--underground-y:${vars.undergroundPx}px;">
+        <div class="growth-sky-band" style="--sky-band-y:${vars.skyBandPx}px;"></div>
+        <div class="growth-cloud-drift is-far">
+          <div class="growth-cloud-sheet is-far" style="--cloud-far-y:${vars.cloudFarPx}px;"></div>
+        </div>
+        <div class="growth-sky-sheet" style="background-image:${info.skyObjectBg};--sky-scroll-y:${vars.skyScrollPx}px;"></div>
+        <div class="growth-cloud-drift is-near">
+          <div class="growth-cloud-sheet is-near" style="--cloud-near-y:${vars.cloudNearPx}px;"></div>
+        </div>
+        <div class="growth-village-ground ${cameraDecade !== 0 ? 'is-below-view' : ''}" style="--village-shift:${vars.villageShiftPx}px;"></div>
       </div>
 
-      <!-- 2. 우측 나무 기둥 배경 (#915f3c, z-index: 3) + 만능칠판 나무 호버용 큰 황금알 부여 버튼 -->
-      <div class="growth-tree-trunk" aria-hidden="true"></div>
+      <!-- 2. 우측 나무 기둥 배경 (수직 나무결 동반 하강, z-index: 3) + 만능칠판 나무 호버용 큰 황금알 부여 버튼 -->
+      <div class="growth-tree-trunk" style="--tree-scroll-y:${vars.treeScrollPx}px;" aria-hidden="true"></div>
       <div class="wb-tree-hover-dock">
         <button type="button" class="big-egg-btn wb-tree-hover-egg" id="btn-wb-tree-big-egg" title="클릭하여 황금알 직접 부여/차감">
           <span class="big-egg-num">${eggs}</span>
@@ -311,9 +386,9 @@ function paintGrowthDom(root) {
         </button>
       </div>
 
-      <!-- 3. 원본 370x1080 나뭇가지 오버레이 (296px 폭으로 기둥 좌측 경계에 0px 오차 밀착, z-index: 4) -->
+      <!-- 3. 원본 370x1080 나뭇가지 오버레이 (줄기·황금알과 1:1 동일 픽셀 하강 + 무한 반복, z-index: 4) -->
       <div class="tree-branch-overlay" aria-hidden="true">
-        <div class="tree-branch-strip" style="background-image:url('${info.branchUrl}');--tree-scroll-y:${treeScrollY};"></div>
+        <div class="tree-branch-strip" style="background-image:url('${info.branchUrl}');--tree-scroll-y:${vars.treeScrollPx}px;"></div>
       </div>
 
       <!-- 4. 좌측 메인 하늘/별길 영역 (z-index: 5) -->
@@ -365,14 +440,16 @@ function paintGrowthDom(root) {
         </div>
       </div>
 
-      <!-- 5. 나무 안 진한 갈색 막대 + 원본 9개 별 스프라이트(10단계 등간격, 초록 줄기가 지나간 별 덮음, z-index: 6) -->
+      <!-- 5. 나무 안 진한 갈색 막대 + 3구간 연속 별 스프라이트(상승 시 위에서 새 9개 별이 함께 내려옴, z-index: 6) -->
       <div class="tree-track-viewport">
         <div class="tree-ticks-scroll-clip">
-          <div class="tree-ticks-strip" style="--ticks-shift:${ticksShift};">
-            ${Array.from({ length: 9 }, (_, i) => {
-              const tickBottom = stepToPercent(i + 1); // 15%, 25%, ..., 95% (정확히 10% 등간격)
-              return `<span class="tree-tick-star" style="bottom:${tickBottom}%;" aria-hidden="true"></span>`;
-            }).join('')}
+          <div class="tree-ticks-strip" style="--ticks-shift:0%;">
+            ${tickBandOffsets.map((bandOffset) =>
+              Array.from({ length: 9 }, (_, i) => {
+                const tickBottom = bandOffset + stepToPercent(i + 1);
+                return `<span class="tree-tick-star" style="bottom:${tickBottom}%;" aria-hidden="true"></span>`;
+              }).join('')
+            ).join('')}
           </div>
           <div class="tree-fill-bar" style="--egg-bottom:${fillBottomPct};"></div>
         </div>
@@ -437,6 +514,9 @@ function paintGrowthDom(root) {
 
   bindGrowthEvents(root, eggs, growth.specialEggs || 0);
   applyGrowthFit(root);
+  if (!isCameraPanning) {
+    applyClimberDomInPlace(root, { bounce: false, ticksShiftVal: '0%' });
+  }
 }
 
 /** 팝업 내부 숫자·버튼 상태만 부분 갱신 (전체 리렌더링 및 깜빡임 방지) */
