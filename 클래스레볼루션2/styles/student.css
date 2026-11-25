@@ -782,13 +782,42 @@ button {
 .theme-done .st-dash-icon { background: #e6f7f2; border-color: #b5e6d8; }
 .theme-gallery .st-dash-icon { background: #fff1e4; border-color: #f5d2b3; }
 
+.st-dash-title-txt {
+  min-width: 0;
+}
+
 .st-dash-title-txt h3 {
   margin: 0;
   font-size: 19px;
   font-weight: 900;
   color: var(--text-main);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.st-dash-card.span-4 .st-dash-head {
+  gap: 8px;
+}
+.st-dash-card.span-4 .st-dash-title-group {
+  gap: 10px;
+}
+.st-dash-card.span-4 .st-dash-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+.st-dash-card.span-4 .st-dash-title-txt h3 {
+  font-size: 16.5px;
+}
+.st-dash-card.span-4 .st-count-pill {
+  padding: 4px 9px;
+  font-size: 12px;
+}
+.st-dash-card.span-4 .st-dash-arrow {
+  width: 30px;
+  height: 30px;
+  font-size: 17px;
 }
 
 .st-dash-title-txt p {
