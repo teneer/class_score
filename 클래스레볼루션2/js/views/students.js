@@ -381,7 +381,7 @@ function computeDefaultGhostPos(boxes, stageWidth = 1506, stageHeight = 658) {
   return { x: minX, y: Math.round(maxBottom + GROUP_GAP_Y) };
 }
 
-/** 공간이 남으면 카드가 있는 영역을 더 크게 확대하고, 영역을 벗어나면 비율을 유지해 축소(fitScale) 적용 */
+/** 고정 원점(0,0) 기준으로 영역 초과 시에만 비율 축소(fitScale) 적용 — 편집 중 치우친 위치가 그대로 유지됨 */
 function applySeatingFit(root) {
   const scrollEl = root?.querySelector('#seating-canvas-scroll');
   const fitEl = root?.querySelector('#seating-canvas-fit');
@@ -391,7 +391,7 @@ function applySeatingFit(root) {
   const viewW = scrollEl.clientWidth || 1506;
   const viewH = scrollEl.clientHeight || 740;
 
-  // 모둠 박스만 기준으로 스케일과 중앙 위치를 계산해 일반·편집 모드 간 위치/크기를 100% 동일하게 유지
+  // 모둠 박스만 기준으로 캔버스 크기와 축소 배율을 계산해 일반·편집 모드 간 위치/크기를 100% 동일하게 유지
   const groupItems = Array.from(canvasEl.querySelectorAll('[data-group-box]'));
   const allItems = Array.from(canvasEl.querySelectorAll('[data-group-box], #group-ghost-add'));
   const measureItems = groupItems.length > 0 ? groupItems : allItems;
@@ -407,52 +407,37 @@ function applySeatingFit(root) {
     return;
   }
 
-  let minLeft = Infinity;
-  let minTop = Infinity;
   let maxRight = 0;
   let maxBottom = 0;
   measureItems.forEach((el) => {
-    const l = el.offsetLeft;
-    const t = el.offsetTop;
-    const r = l + el.offsetWidth;
-    const b = t + el.offsetHeight;
-    if (l < minLeft) minLeft = l;
-    if (t < minTop) minTop = t;
+    const r = el.offsetLeft + el.offsetWidth;
+    const b = el.offsetTop + el.offsetHeight;
     if (r > maxRight) maxRight = r;
     if (b > maxBottom) maxBottom = b;
   });
 
-  const spanW = Math.max(200, maxRight - minLeft);
-  const spanH = Math.max(140, maxBottom - minTop);
+  // 강제 중앙 정렬(minLeft/minTop 차감) 없이 고정 원점(0,0) 기준 캔버스 사용
+  const contentW = Math.max(viewW, Math.ceil(maxRight + CANVAS_PAD));
+  const contentH = Math.max(viewH, Math.ceil(maxBottom + CANVAS_PAD));
+  const fitScale = Math.min(1, viewW / contentW, viewH / contentH);
 
-  // 내부영역 전체를 활용: 최소 외곽 여백만 두고 최대 1.65배까지 확대 또는 영역 초과 시 비율 유지 축소
-  const fitScale = Math.min(
-    1.65,
-    (viewW - CANVAS_PAD * 2) / spanW,
-    (viewH - CANVAS_PAD * 2) / spanH
-  );
-
-  // 캔버스 논리 크기는 모든 요소(편집 모드의 점선 '+' 포함)를 감싸되, 개별 .group-box의 left/top은 변경하지 않음
-  let canvasMaxR = maxRight;
-  let canvasMaxB = maxBottom;
+  // 캔버스 논리 크기는 화면 전체(viewW/fitScale × viewH/fitScale)를 채워 좌·상단 치우침이 그대로 보존됨
+  let canvasMaxR = contentW;
+  let canvasMaxB = contentH;
   allItems.forEach((el) => {
-    canvasMaxR = Math.max(canvasMaxR, el.offsetLeft + el.offsetWidth);
-    canvasMaxB = Math.max(canvasMaxB, el.offsetTop + el.offsetHeight);
+    canvasMaxR = Math.max(canvasMaxR, Math.ceil(el.offsetLeft + el.offsetWidth + CANVAS_PAD));
+    canvasMaxB = Math.max(canvasMaxB, Math.ceil(el.offsetTop + el.offsetHeight + CANVAS_PAD));
   });
-  const virtualW = Math.max(Math.ceil(canvasMaxR + CANVAS_PAD), Math.round(viewW / fitScale));
-  const virtualH = Math.max(Math.ceil(canvasMaxB + CANVAS_PAD), Math.round(viewH / fitScale));
+  const virtualW = Math.max(canvasMaxR, Math.round(viewW / fitScale));
+  const virtualH = Math.max(canvasMaxB, Math.round(viewH / fitScale));
 
   canvasEl.style.width = `${virtualW}px`;
   canvasEl.style.height = `${virtualH}px`;
   fitEl.style.width = `${virtualW}px`;
   fitEl.style.height = `${virtualH}px`;
 
-  // 개별 모둠 DOM 좌표를 건드리지 않고 fitEl 오프셋만으로 정중앙 배치 (학생 선택 시 슬라이드 이동 원천 방지)
-  const offsetX = Math.round((viewW - spanW * fitScale) / 2 - minLeft * fitScale);
-  const offsetY = Math.round((viewH - spanH * fitScale) / 2 - minTop * fitScale);
-
-  fitEl.style.left = `${offsetX}px`;
-  fitEl.style.top = `${offsetY}px`;
+  fitEl.style.left = '0px';
+  fitEl.style.top = '0px';
   fitEl.style.transform = Math.abs(fitScale - 1) > 0.001 ? `scale(${fitScale.toFixed(5)})` : 'none';
 
   // 전체 내부영역 정중앙을 회전축으로 설정
@@ -1311,18 +1296,12 @@ function bindSeatingEvents(root, state, activeStudents) {
         const active = s.students.filter((x) => !x.trashed);
         const boxes = ensureGroupLayout(s.groups, active);
         if (boxes.length > 0) {
-          const rects = boxes.map((b) => domGroupRects.get(b.id) || { x: b.x, y: b.y, w: b.w, h: b.h });
-          const boundMinX = Math.min(...rects.map((r) => r.x));
-          const boundMaxX = Math.max(...rects.map((r) => r.x + r.w));
-          const boundMinY = Math.min(...rects.map((r) => r.y));
-          const boundMaxY = Math.max(...rects.map((r) => r.y + r.h));
-
           boxes.forEach((b) => {
             const g = s.groups.find((x) => x.id === b.id);
             const rect = domGroupRects.get(b.id) || { x: b.x, y: b.y, w: b.w, h: b.h };
             if (g) {
-              g.x = Math.max(CANVAS_PAD, Math.round(boundMinX + boundMaxX - (rect.x + rect.w)));
-              g.y = Math.max(CANVAS_PAD, Math.round(boundMinY + boundMaxY - (rect.y + rect.h)));
+              g.x = Math.max(CANVAS_PAD, Math.round(stageW - (rect.x + rect.w)));
+              g.y = Math.max(CANVAS_PAD, Math.round(stageH - (rect.y + rect.h)));
             }
             const members = active.filter((m) => m.groupId === b.id);
             const cols = b.cols;
@@ -1339,8 +1318,8 @@ function bindSeatingEvents(root, state, activeStudents) {
           if (seatEditMode && ghostAddPos) {
             const gr = domGhostRect || { x: ghostAddPos.x, y: ghostAddPos.y, w: GHOST_W, h: GHOST_H };
             ghostAddPos = {
-              x: Math.max(CANVAS_PAD, Math.round(boundMinX + boundMaxX - (gr.x + gr.w))),
-              y: Math.max(CANVAS_PAD, Math.round(boundMinY + boundMaxY - (gr.y + gr.h))),
+              x: Math.max(CANVAS_PAD, Math.round(stageW - (gr.x + gr.w))),
+              y: Math.max(CANVAS_PAD, Math.round(stageH - (gr.y + gr.h))),
             };
           }
         }
