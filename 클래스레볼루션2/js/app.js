@@ -13,6 +13,8 @@ import { renderAssignmentsView, initTeacherCloudAutoConnect } from './views/assi
 import { renderCyberView } from './views/cyber.js';
 import { isCloudConnected, syncTeacherStateToCloud } from './cloud-sync.js';
 
+const LAST_MODE_STORAGE_KEY = 'class123_last_mode';
+
 let currentMode = 'students'; // 'students' | 'seats' | 'growth' | 'checklist' | 'picker' | 'timer' | 'bulk' | 'whiteboard' | 'assignments' | 'cyber'
 let previousModeBeforeWhiteboard = 'students';
 
@@ -35,6 +37,9 @@ function switchMode(mode, options = {}) {
     previousModeBeforeWhiteboard = currentMode;
   }
   currentMode = mode;
+  try {
+    localStorage.setItem(LAST_MODE_STORAGE_KEY, mode);
+  } catch (_) {}
 
   const shellEl = document.querySelector('.app-shell');
   if (shellEl) {
@@ -324,7 +329,12 @@ async function bootstrap() {
   }, true);
 
   renderChrome();
-  switchMode('students');
+  let initialMode = 'students';
+  try {
+    const savedMode = localStorage.getItem(LAST_MODE_STORAGE_KEY);
+    if (savedMode && VIEW_CONTAINERS[savedMode]) initialMode = savedMode;
+  } catch (_) {}
+  switchMode(initialMode);
 }
 
 bootstrap();

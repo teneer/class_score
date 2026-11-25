@@ -471,12 +471,40 @@
   100% { scale: 1; }
 }
 
+/* 학생목록/자리배치 확대·축소 기본 배율 복원 버튼 (기본 100%에서 벗어났을 때만 노출) */
+.st-zoom-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid #d4b94c;
+  background: #fff6c9;
+  color: #5e470c;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s;
+}
+.st-zoom-reset-btn:hover {
+  background: #ffeb8e;
+  border-color: #bfa02e;
+}
+.st-zoom-reset-btn[hidden] {
+  display: none;
+}
+
 /* 내부영역 전체를 좌석 배치 캔버스로 사용 (보이지 않는 상·하단 바 여백 제거) */
 .seating-canvas-scroll {
   position: absolute;
   inset: 0;
   overflow: hidden;
   cursor: default;
+}
+.seating-canvas-scroll.is-zoomed,
+.student-grid-scroll.is-zoomed {
+  overflow: auto;
 }
 
 /* 화면 영역 초과 시 스크롤바 없이 가로세로 비율 유지 축소 래퍼 */

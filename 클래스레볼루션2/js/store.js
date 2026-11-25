@@ -106,6 +106,8 @@ export function createDefaultState() {
       sortBy: 'number',
       scoreDisplayMode: 'net', // 'net'(쑥쑥점수) | 'pos'(으쓱점수) | 'neg'(머쓱점수) | 'both'(으쓱+머쓱)
       seatingReversed: false,
+      listZoom: 1,
+      seatZoom: 1,
     },
     students,
     groups,

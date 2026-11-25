@@ -39,6 +39,108 @@ let lastStudentsRoot = null;
 const mountedStudentRoots = new Set();
 let studentsResizeRaf = 0;
 
+// 학생목록·자리배치 카드 영역 전용 배율 (Ctrl+휠 / 핀치투줌, 기본 1.0 = 화면맞춤)
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2.0;
+const pendingZoom = { list: null, seats: null };
+const zoomSaveTimers = { list: null, seats: null };
+
+function clampZoom(val) {
+  const n = Number(val);
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(n * 100) / 100));
+}
+
+function getUserZoom(viewKind, state = store.getState()) {
+  if (pendingZoom[viewKind] !== null) return pendingZoom[viewKind];
+  const key = viewKind === 'seats' ? 'seatZoom' : 'listZoom';
+  return clampZoom(state?.uiPrefs?.[key] ?? 1);
+}
+
+function updateZoomResetButton(root, viewKind, zoom) {
+  const btn = root?.querySelector('[data-zoom-reset]');
+  if (!btn) return;
+  const isDefault = Math.abs(zoom - 1) < 0.005;
+  btn.hidden = isDefault;
+  if (!isDefault) {
+    btn.textContent = `${Math.round(zoom * 100)}% · 원래대로`;
+  }
+}
+
+function persistUserZoom(viewKind, zoom) {
+  const key = viewKind === 'seats' ? 'seatZoom' : 'listZoom';
+  store.update((s) => {
+    if (!s.uiPrefs) s.uiPrefs = {};
+    s.uiPrefs[key] = zoom;
+  }).then(() => {
+    if (pendingZoom[viewKind] === zoom) {
+      pendingZoom[viewKind] = null;
+    }
+  });
+}
+
+function applyUserZoomLive(root, viewKind, rawZoom, opts = {}) {
+  let next = clampZoom(rawZoom);
+  // 100% 근처에서는 자연스럽게 기본 배율(1.0)에 자석 스냅
+  if (!opts.noSnap && Math.abs(next - 1) < 0.03) next = 1;
+  pendingZoom[viewKind] = next;
+
+  if (viewKind === 'seats') applySeatingFit(root);
+  else applyListFit(root);
+  updateZoomResetButton(root, viewKind, next);
+
+  clearTimeout(zoomSaveTimers[viewKind]);
+  if (opts.immediateSave) {
+    persistUserZoom(viewKind, next);
+  } else {
+    zoomSaveTimers[viewKind] = setTimeout(() => persistUserZoom(viewKind, next), 180);
+  }
+}
+
+function bindZoomInteractions(root, viewKind) {
+  const scrollEl = root.querySelector(viewKind === 'seats' ? '#seating-canvas-scroll' : '#student-grid-scroll');
+  if (!scrollEl) return;
+
+  // Ctrl + 휠 (및 트랙패드 핀치 제스처) → 버튼 제외 카드 영역만 확대·축소
+  scrollEl.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const cur = getUserZoom(viewKind);
+    const step = e.deltaY < 0 ? 0.1 : -0.1;
+    const next = Math.round((cur + step) * 10) / 10;
+    applyUserZoomLive(root, viewKind, next);
+  }, { passive: false });
+
+  // 터치스크린 2손가락 핀치투줌
+  let pinchStartDist = 0;
+  let pinchStartZoom = 1;
+  scrollEl.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      const [t1, t2] = e.touches;
+      pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      pinchStartZoom = getUserZoom(viewKind);
+    }
+  }, { passive: true });
+
+  scrollEl.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && pinchStartDist > 10) {
+      e.preventDefault();
+      const [t1, t2] = e.touches;
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const next = pinchStartZoom * (dist / pinchStartDist);
+      applyUserZoomLive(root, viewKind, next, { noSnap: true });
+    }
+  }, { passive: false });
+
+  scrollEl.addEventListener('touchend', (e) => {
+    if (pinchStartDist > 0 && e.touches.length < 2) {
+      pinchStartDist = 0;
+      const cur = getUserZoom(viewKind);
+      applyUserZoomLive(root, viewKind, cur, { immediateSave: true });
+    }
+  }, { passive: true });
+}
+
 function getEffectiveSubView(root) {
   const forced = root?.dataset?.forcedSubView;
   if (forced === 'list' || forced === 'seats') return forced;
@@ -419,26 +521,35 @@ function applySeatingFit(root) {
   // 강제 중앙 정렬(minLeft/minTop 차감) 없이 고정 원점(0,0) 기준 캔버스 사용
   const contentW = Math.max(viewW, Math.ceil(maxRight + CANVAS_PAD));
   const contentH = Math.max(viewH, Math.ceil(maxBottom + CANVAS_PAD));
-  const fitScale = Math.min(1, viewW / contentW, viewH / contentH);
+  const baseFitScale = Math.min(1, viewW / contentW, viewH / contentH);
+  const userZoom = getUserZoom('seats');
+  const fitScale = baseFitScale * userZoom;
 
-  // 캔버스 논리 크기는 화면 전체(viewW/fitScale × viewH/fitScale)를 채워 좌·상단 치우침이 그대로 보존됨
+  // 캔버스 논리 크기는 화면 전체(viewW/baseFitScale × viewH/baseFitScale)를 채워 좌·상단 치우침이 그대로 보존됨
   let canvasMaxR = contentW;
   let canvasMaxB = contentH;
   allItems.forEach((el) => {
     canvasMaxR = Math.max(canvasMaxR, Math.ceil(el.offsetLeft + el.offsetWidth + CANVAS_PAD));
     canvasMaxB = Math.max(canvasMaxB, Math.ceil(el.offsetTop + el.offsetHeight + CANVAS_PAD));
   });
-  const virtualW = Math.max(canvasMaxR, Math.round(viewW / fitScale));
-  const virtualH = Math.max(canvasMaxB, Math.round(viewH / fitScale));
+  const virtualW = Math.max(canvasMaxR, Math.round(viewW / baseFitScale));
+  const virtualH = Math.max(canvasMaxB, Math.round(viewH / baseFitScale));
 
   canvasEl.style.width = `${virtualW}px`;
   canvasEl.style.height = `${virtualH}px`;
   fitEl.style.width = `${virtualW}px`;
   fitEl.style.height = `${virtualH}px`;
 
+  const scaledW = virtualW * fitScale;
+  const scaledH = virtualH * fitScale;
+  const needsScroll = scaledW > viewW + 1 || scaledH > viewH + 1;
+  scrollEl.classList.toggle('is-zoomed', needsScroll);
+
   fitEl.style.left = '0px';
   fitEl.style.top = '0px';
   fitEl.style.transform = Math.abs(fitScale - 1) > 0.001 ? `scale(${fitScale.toFixed(5)})` : 'none';
+  fitEl.style.marginRight = needsScroll ? `${Math.max(0, Math.ceil(scaledW - virtualW))}px` : '0px';
+  fitEl.style.marginBottom = needsScroll ? `${Math.max(0, Math.ceil(scaledH - virtualH))}px` : '0px';
 
   // 전체 내부영역 정중앙을 회전축으로 설정
   const rotatorEl = root?.querySelector('#seating-rotator');
@@ -483,6 +594,8 @@ export function renderStudentsView(root) {
     : selectedNames.join(', ');
 
   const isAvatarShown = viewKind === 'seats' ? Boolean(prefs.seatShowAvatars) : prefs.showAvatars !== false;
+  const curZoom = getUserZoom(viewKind, state);
+  const isDefaultZoom = Math.abs(curZoom - 1) < 0.005;
 
   root.innerHTML = `
     <div class="students-shell ${prefs.showNumbers ? '' : 'hide-numbers'} ${hideAvatarsClass}">
@@ -492,6 +605,9 @@ export function renderStudentsView(root) {
           <span>${escapeHtml(state.classInfo.name || '우리 반')}</span>
         </button>
         <div class="st-top-options">
+          <button type="button" class="st-zoom-reset-btn" data-zoom-reset="${viewKind}" title="기본 배율(100%)로 되돌리기" ${isDefaultZoom ? 'hidden' : ''}>
+            ${Math.round(curZoom * 100)}% · 원래대로
+          </button>
           <label class="st-top-check">
             <input type="checkbox" data-top-opt="numbers" ${prefs.showNumbers !== false ? 'checked' : ''}>
             <span>번호 표시</span>
@@ -647,17 +763,26 @@ function applyListFit(root) {
 
   const gridW = gridEl.offsetWidth || (bestCols * cardW + (bestCols - 1) * gapX);
   const gridH = gridEl.offsetHeight || (Math.ceil(cards / bestCols) * cardH + (Math.ceil(cards / bestCols) - 1) * gapY);
-  const fitScale = Math.min(maxScale, availW / gridW, availH / gridH);
+  const baseFitScale = Math.min(maxScale, availW / gridW, availH / gridH);
+  const userZoom = getUserZoom('list');
+  const fitScale = baseFitScale * userZoom;
 
   fitEl.style.width = `${gridW}px`;
   fitEl.style.height = `${gridH}px`;
 
-  const offsetX = Math.round((viewW - gridW * fitScale) / 2);
-  const offsetY = Math.round((viewH - gridH * fitScale) / 2);
+  const scaledW = gridW * fitScale;
+  const scaledH = gridH * fitScale;
+  const needsScroll = scaledW > viewW - padX || scaledH > viewH - padY;
+  scrollEl.classList.toggle('is-zoomed', needsScroll);
+
+  const offsetX = scaledW > viewW - padX * 2 ? padX : Math.round((viewW - scaledW) / 2);
+  const offsetY = scaledH > viewH - padY * 2 ? padY : Math.round((viewH - scaledH) / 2);
 
   fitEl.style.left = `${offsetX}px`;
   fitEl.style.top = `${offsetY}px`;
   fitEl.style.transform = Math.abs(fitScale - 1) > 0.001 ? `scale(${fitScale.toFixed(5)})` : 'none';
+  fitEl.style.marginRight = needsScroll ? `${Math.max(0, Math.ceil(scaledW - gridW + padX))}px` : '0px';
+  fitEl.style.marginBottom = needsScroll ? `${Math.max(0, Math.ceil(scaledH - gridH + padY))}px` : '0px';
 }
 
 /** 학생목록: 4:3 비율 둥근 카드 (좌측 아바타 / 우상단 3자리 고정우측정렬 점수 / 우하단 선명한 출석번호+이름) */
@@ -880,6 +1005,14 @@ function bindStudentsEvents(root, state, activeStudents) {
   if (optSort) {
     optSort.onchange = () => store.update((s) => { s.uiPrefs.sortBy = optSort.value; });
   }
+  const zoomResetBtn = root.querySelector('[data-zoom-reset]');
+  if (zoomResetBtn) {
+    zoomResetBtn.onclick = () => {
+      applyUserZoomLive(root, viewKind, 1, { immediateSave: true });
+      playSound('confirm');
+    };
+  }
+  bindZoomInteractions(root, viewKind);
 
   // 목록보기 카드 클릭
   root.querySelectorAll('[data-student-card]').forEach((card) => {
