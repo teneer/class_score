@@ -148,14 +148,16 @@ function runNextFx() {
   let duration = 2600;
 
   if (item.type === 'positive') {
-    // 으쓱(상점) 4.5초 타임라인: 0~2초 구름 하강·상표 상승 최대화 → 2~3초 나무·학생 플립·상표 안착·메시지 → 3~4.5초 1차 하이라이트·가로축 플립 춤 전환·2차 하이라이트
+    // 으쓱(상점) 4.5초 타임라인: 10명 초과 시 '외 n명' 없이 한 번에 최대 10명 폭으로 왼쪽→오른쪽 끝까지 가로 스크롤
     stage.classList.add('fx-positive');
     const perStudent = Math.abs(Math.trunc(Number(item.delta) || 1));
     const count = item.targets.length;
     const totalScore = perStudent * count;
-    const shownTargets = item.targets.slice(0, 10);
-    const N = Math.max(1, shownTargets.length);
-    const appearStep = N > 1 ? Math.min(0.12, 0.56 / (N - 1)) : 0;
+    const allTargets = item.targets;
+    const N = Math.max(1, allTargets.length);
+    const needsScroll = count > 10;
+    const initialVisible = Math.min(10, N);
+    const appearStep = initialVisible > 1 ? Math.min(0.10, 0.45 / (initialVisible - 1)) : 0;
     playSound('plusBig');
     const cheers = ['열심히 한 보람이 있네요', '참 잘했어요', '정말 멋져요'];
     const cheerText = cheers[count % cheers.length];
@@ -177,14 +179,15 @@ function runNextFx() {
         </div>
         <h2 class="fx-reason-title">${escapeHtml(item.reason)}</h2>
       </div>
-      <div class="fx-actors-row ${isCompact ? 'is-compact' : ''}">
-        ${shownTargets.map((t, idx) => `
-          <div class="fx-actor-card" data-actor-idx="${idx}" style="--flip-delay:${(2.10 + idx * appearStep).toFixed(3)}s;">
-            <div class="avatar-fx-sprite fx-actor-anim" style="background-image:url('${getFxAvatarUrl(t.avatarId)}')"></div>
-            <span class="fx-actor-name">${escapeHtml(t.name)}</span>
-          </div>
-        `).join('')}
-        ${count > 10 ? `<span class="fx-more-pill">외 ${count - 10}명</span>` : ''}
+      <div class="fx-actors-viewport ${needsScroll ? 'is-scrolling' : ''}">
+        <div class="fx-actors-row ${isCompact ? 'is-compact' : ''} ${needsScroll ? 'is-marquee-track' : ''}">
+          ${allTargets.map((t, idx) => `
+            <div class="fx-actor-card" data-actor-idx="${idx}" style="--flip-delay:${(2.10 + Math.min(idx, 9) * appearStep).toFixed(3)}s;">
+              <div class="avatar-fx-sprite fx-actor-anim" style="background-image:url('${getFxAvatarUrl(t.avatarId)}')"></div>
+              <span class="fx-actor-name">${escapeHtml(t.name)}</span>
+            </div>
+          `).join('')}
+        </div>
       </div>
       <div class="fx-bottom-cheer">
         <div class="fx-cheer-pill">" ${cheerText} "</div>
@@ -193,32 +196,53 @@ function runNextFx() {
     `;
 
     const cards = [...stage.querySelectorAll('.fx-actor-card')];
-    const hi1Step = N > 1 ? Math.min(110, 380 / (N - 1)) : 0;
-    const hi2Step = N > 1 ? Math.min(100, 340 / (N - 1)) : 0;
     duration = 4500;
 
-    // 3.0s ~ 3.52s: 1차 하얀색 순차 하이라이트 (처음부터 기쁨 스프라이트 상태)
-    cards.forEach((card, idx) => {
-      const startAt = Math.round(3000 + idx * hi1Step);
-      scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
-      scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 140);
-    });
+    if (needsScroll) {
+      const viewportEl = stage.querySelector('.fx-actors-viewport');
+      const trackEl = stage.querySelector('.fx-actors-row');
+      // 2.65s ~ 4.25s: 왼쪽 1번 학생부터 오른쪽 끝 학생까지 효과 시간 내 가로 스크롤
+      scheduleFxStep(() => {
+        if (!viewportEl || !trackEl) return;
+        const dist = Math.max(0, trackEl.scrollWidth - viewportEl.clientWidth);
+        if (dist > 0) {
+          trackEl.style.transition = 'transform 1.60s cubic-bezier(0.25, 0.08, 0.25, 1)';
+          trackEl.style.transform = `translate3d(-${dist}px, 0, 0)`;
+        }
+      }, 2650);
 
-    // 3.85s ~ 4.35s: 2차 하얀색 순차 하이라이트 (플립 없이 기쁨 상태 유지)
-    cards.forEach((card, idx) => {
-      const startAt = Math.round(3850 + idx * hi2Step);
-      scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
-      scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 140);
-    });
+      // 스크롤 진행에 맞춰 1번~끝 학생 순차 하이라이트
+      const hiStep = N > 1 ? 1500 / (N - 1) : 0;
+      cards.forEach((card, idx) => {
+        const startAt = Math.round(2700 + idx * hiStep);
+        scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
+        scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 140);
+      });
+    } else {
+      const hi1Step = N > 1 ? Math.min(110, 380 / (N - 1)) : 0;
+      const hi2Step = N > 1 ? Math.min(100, 340 / (N - 1)) : 0;
+      cards.forEach((card, idx) => {
+        const startAt = Math.round(3000 + idx * hi1Step);
+        scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
+        scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 140);
+      });
+      cards.forEach((card, idx) => {
+        const startAt = Math.round(3850 + idx * hi2Step);
+        scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
+        scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 140);
+      });
+    }
   } else if (item.type === 'negative') {
-    // 머쓱(감점) 4.0초 타임라인: 0~1초 먹구름·비 하강·벌점표 360도 회전 상승 최대화 → 1~2초 나무·학생 플립·안착 → 2~4초 별도 포즈 없이 2회 순차 하이라이트
+    // 머쓱(감점) 4.0초 타임라인: 10명 초과 시 '외 n명' 없이 한 번에 최대 10명 폭으로 왼쪽→오른쪽 끝까지 가로 스크롤
     stage.classList.add('fx-negative');
     const perStudent = Math.abs(Math.trunc(Number(item.delta) || 1));
     const count = item.targets.length;
     const totalScore = perStudent * count;
-    const shownTargets = item.targets.slice(0, 10);
-    const N = Math.max(1, shownTargets.length);
-    const appearStep = N > 1 ? Math.min(0.12, 0.54 / (N - 1)) : 0;
+    const allTargets = item.targets;
+    const N = Math.max(1, allTargets.length);
+    const needsScroll = count > 10;
+    const initialVisible = Math.min(10, N);
+    const appearStep = initialVisible > 1 ? Math.min(0.10, 0.45 / (initialVisible - 1)) : 0;
     playSound('minusBig');
     const warns = ['고쳐주세요', '다음엔 잘 해봐요'];
     const warnText = warns[count % warns.length];
@@ -240,14 +264,15 @@ function runNextFx() {
         </div>
         <h2 class="fx-reason-title">${escapeHtml(item.reason)}</h2>
       </div>
-      <div class="fx-actors-row ${isCompact ? 'is-compact' : ''}">
-        ${shownTargets.map((t, idx) => `
-          <div class="fx-actor-card" data-actor-idx="${idx}" style="--flip-delay:${(1.12 + idx * appearStep).toFixed(3)}s;">
-            <img class="fx-still-img fx-actor-still" src="${getStillAvatarUrl(t.avatarId)}" alt="${escapeAttr(t.name)}">
-            <span class="fx-actor-name">${escapeHtml(t.name)}</span>
-          </div>
-        `).join('')}
-        ${count > 10 ? `<span class="fx-more-pill">외 ${count - 10}명</span>` : ''}
+      <div class="fx-actors-viewport ${needsScroll ? 'is-scrolling' : ''}">
+        <div class="fx-actors-row ${isCompact ? 'is-compact' : ''} ${needsScroll ? 'is-marquee-track' : ''}">
+          ${allTargets.map((t, idx) => `
+            <div class="fx-actor-card" data-actor-idx="${idx}" style="--flip-delay:${(1.12 + Math.min(idx, 9) * appearStep).toFixed(3)}s;">
+              <img class="fx-still-img fx-actor-still" src="${getStillAvatarUrl(t.avatarId)}" alt="${escapeAttr(t.name)}">
+              <span class="fx-actor-name">${escapeHtml(t.name)}</span>
+            </div>
+          `).join('')}
+        </div>
       </div>
       <div class="fx-bottom-cheer">
         <div class="fx-cheer-pill">" ${warnText} "</div>
@@ -256,21 +281,40 @@ function runNextFx() {
     `;
 
     const cards = [...stage.querySelectorAll('.fx-actor-card')];
-    const hiStep = N > 1 ? Math.min(150, 620 / (N - 1)) : 0;
     duration = 4000;
 
-    // 2.05s ~ 2.85s: 1차 순차 하얀색 하이라이트
-    cards.forEach((card, idx) => {
-      const startAt = Math.round(2050 + idx * hiStep);
-      scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
-      scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 175);
-    });
-    // 3.00s ~ 3.80s: 2차 순차 하얀색 하이라이트
-    cards.forEach((card, idx) => {
-      const startAt = Math.round(3000 + idx * hiStep);
-      scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
-      scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 175);
-    });
+    if (needsScroll) {
+      const viewportEl = stage.querySelector('.fx-actors-viewport');
+      const trackEl = stage.querySelector('.fx-actors-row');
+      // 1.70s ~ 3.70s: 왼쪽 1번 학생부터 오른쪽 끝 학생까지 효과 시간 내 가로 스크롤
+      scheduleFxStep(() => {
+        if (!viewportEl || !trackEl) return;
+        const dist = Math.max(0, trackEl.scrollWidth - viewportEl.clientWidth);
+        if (dist > 0) {
+          trackEl.style.transition = 'transform 2.00s cubic-bezier(0.25, 0.08, 0.25, 1)';
+          trackEl.style.transform = `translate3d(-${dist}px, 0, 0)`;
+        }
+      }, 1700);
+
+      const hiStep = N > 1 ? 1850 / (N - 1) : 0;
+      cards.forEach((card, idx) => {
+        const startAt = Math.round(1750 + idx * hiStep);
+        scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
+        scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 160);
+      });
+    } else {
+      const hiStep = N > 1 ? Math.min(150, 620 / (N - 1)) : 0;
+      cards.forEach((card, idx) => {
+        const startAt = Math.round(2050 + idx * hiStep);
+        scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
+        scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 175);
+      });
+      cards.forEach((card, idx) => {
+        const startAt = Math.round(3000 + idx * hiStep);
+        scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
+        scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 175);
+      });
+    }
   } else if (item.type === 'egg') {
     // 3수업도구.mp4 00:31~00:33 — 검정 배경 + 흰 날개 달린 황금알 획득 연출 (추후 전용 사운드 추가 전까지 무음)
     stage.classList.add('fx-egg');

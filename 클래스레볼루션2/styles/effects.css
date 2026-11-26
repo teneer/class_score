@@ -1367,7 +1367,24 @@
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* 대상 학생들 전시 영역 */
+/* 대상 학생들 전시 영역 (최대 10명 한 화면, 11명 이상은 '외 n명' 없이 왼쪽→오른쪽 가로 스크롤) */
+.fx-actors-viewport {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 1240px;
+  display: flex;
+  justify-content: center;
+}
+.fx-actors-viewport.is-scrolling {
+  /* 한 번에 최대 10명 폭(90px × 10 + 12px × 9 + 좌우 패딩 24px = 1032px) */
+  width: min(100%, 1032px);
+  max-width: 1032px;
+  overflow: hidden;
+  justify-content: flex-start;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
 .fx-actors-row {
   position: relative;
   z-index: 3;
@@ -1381,6 +1398,16 @@
 }
 .fx-actors-row.is-compact {
   gap: 10px 12px;
+}
+.fx-actors-row.is-marquee-track {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  max-width: none;
+  width: max-content;
+  gap: 12px;
+  padding: 4px 0;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
 }
 
 .fx-actor-card {
