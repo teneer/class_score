@@ -640,6 +640,89 @@ button:disabled {
   background-position: -191px -41px;
 }
 
+/* 원형·아이콘 X 버튼 공통: 폰트 &times; 글리프 치우침 제거 + 대칭 X 선 정중앙 정렬 */
+.dialog-close,
+.seat-pick-close,
+.goal-icon-btn.is-cancel,
+.goal-icon-btn[data-goal-del],
+.wbf-icon-btn[data-wbf-close] {
+  position: relative;
+}
+.seat-unassign-btn,
+.dialog-close,
+.seat-pick-close,
+.fx-goal-close-btn,
+.goal-icon-btn.is-cancel,
+.goal-icon-btn[data-goal-del],
+.wbf-icon-btn[data-wbf-close],
+[data-del-bgpage] {
+  font-size: 0 !important;
+  line-height: 0 !important;
+  --x-size: 13px;
+  --x-thick: 2px;
+}
+.seat-unassign-btn,
+[data-del-bgpage] {
+  --x-size: 9px;
+  --x-thick: 1.8px;
+}
+.fx-goal-close-btn {
+  --x-size: 16px;
+  --x-thick: 2.4px;
+}
+.goal-icon-btn.is-cancel,
+.goal-icon-btn[data-goal-del],
+.wbf-icon-btn[data-wbf-close] {
+  --x-size: 10px;
+  --x-thick: 1.8px;
+}
+.seat-unassign-btn::before,
+.seat-unassign-btn::after,
+.dialog-close::before,
+.dialog-close::after,
+.seat-pick-close::before,
+.seat-pick-close::after,
+.fx-goal-close-btn::before,
+.fx-goal-close-btn::after,
+.goal-icon-btn.is-cancel::before,
+.goal-icon-btn.is-cancel::after,
+.goal-icon-btn[data-goal-del]::before,
+.goal-icon-btn[data-goal-del]::after,
+.wbf-icon-btn[data-wbf-close]::before,
+.wbf-icon-btn[data-wbf-close]::after,
+[data-del-bgpage]::before,
+[data-del-bgpage]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--x-size);
+  height: var(--x-thick);
+  background: currentColor;
+  border-radius: 999px;
+  pointer-events: none;
+}
+.seat-unassign-btn::before,
+.dialog-close::before,
+.seat-pick-close::before,
+.fx-goal-close-btn::before,
+.goal-icon-btn.is-cancel::before,
+.goal-icon-btn[data-goal-del]::before,
+.wbf-icon-btn[data-wbf-close]::before,
+[data-del-bgpage]::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.seat-unassign-btn::after,
+.dialog-close::after,
+.seat-pick-close::after,
+.fx-goal-close-btn::after,
+.goal-icon-btn.is-cancel::after,
+.goal-icon-btn[data-goal-del]::after,
+.wbf-icon-btn[data-wbf-close]::after,
+[data-del-bgpage]::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
 /* 커스텀 스크롤바 */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
