@@ -91,12 +91,16 @@ function getCenturyInfo(decade) {
     "url('assets/visuals/sp_board_sky_object5.png'), url('assets/visuals/sp_board_sky_stars.png')",
   ];
 
+  const inCentury = ((decade % 10) + 10) % 10;
+  const slicePosY = ['100%', '50%', '0%'][inCentury % 3]; // 1920x3240 배경 시트: 아래 → 중간 → 위 반복
+
   return {
     underground: false,
     century,
     skyColor: skyColors[century],
     branchUrl: `assets/visuals/sp_board_tree_branch${century + 1}.png`,
     skyObjectBg: skyObjects[century],
+    skyPosY: slicePosY,
     dark: century >= 4,
   };
 }
@@ -130,7 +134,7 @@ function renderWorldPageSlideHtml(decade, fillStep, goalSet, roleClass = 'is-cur
   return `
     <div class="growth-page-slide ${roleClass}" data-decade="${decade}" data-underground="${info.underground ? 'true' : 'false'}">
       <div class="growth-bg-layer" data-underground="${info.underground ? 'true' : 'false'}" style="--sky-color:${info.skyColor};">
-        <div class="growth-sky-sheet" style="background-image:${info.skyObjectBg};"></div>
+        <div class="growth-sky-sheet" style="background-image:${info.skyObjectBg};background-position:center ${info.skyPosY || '100%'};"></div>
         ${decade === 0 ? `<div class="growth-village-ground"></div>` : ''}
       </div>
       <div class="growth-tree-trunk" aria-hidden="true"></div>

@@ -94,13 +94,17 @@
 
 .growth-sky-sheet {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 100%;
+  inset: 0;
   background-repeat: no-repeat;
-  background-size: 100% auto;
-  background-position: center 38%;
+  /* 원본 1920x3240(화면 3장 높이) 배경을 아래(100%) → 중간(50%) → 위(0%) 3구간으로 정확히 분할 표시 */
+  background-size: 100% 300%;
+  background-position: center 100%;
+}
+.growth-page-slide.is-above .growth-sky-sheet {
+  top: 48px;
+}
+.growth-page-slide.is-below .growth-sky-sheet {
+  bottom: 48px;
 }
 
 /* 0점 미만 땅속 배경 */
