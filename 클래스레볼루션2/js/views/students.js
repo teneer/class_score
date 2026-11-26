@@ -9,6 +9,10 @@ import { playSound } from '../audio.js';
 const SEAT_W = 152;
 const SEAT_H = 85.5;
 const SEAT_GAP = 6;
+const CELL_STEP_X = SEAT_W + SEAT_GAP; // 158
+const CELL_STEP_Y = SEAT_H + SEAT_GAP; // 91.5
+const GROUP_BORDER = 3;
+const GROUP_INNER_PAD = 6;
 const GROUP_PAD_X = 18; // border 6 + padding 12
 const GROUP_PAD_Y = 18; // border 6 + padding 12
 const FOOTER_H = 30;
@@ -29,6 +33,8 @@ let seatingFlipTargetRoot = null;
 let seatingPickRunning = false; // 자리배치 내 그룹 뽑기 / 개인 뽑기 하이라이트 진행 중 플래그
 let ghostAddPos = null; // 편집 모드 중 이동 가능한 1명 크기 점선 '+' 새 모둠 카드 좌표 { x, y }
 let swapSourceStudentId = null; // 편집 모드에서 학생 카드 2개 클릭 자리 교환용 첫 번째 선택 학생 ID
+let editSelectType = null; // 자리편집 다중 선택 타입: null | 'group' | 'student'
+let editSelectedIds = new Set(); // 자리편집 다중 선택 ID 집합
 let navigateCallback = null;
 
 // 상점/벌점 연출 복귀 시 노란 선택 하이라이트 유지 + 1초 좌우 4세트 틸트 (상점은 포즈 동반, 벌점은 포즈 없음) 후 선택 해제
@@ -215,6 +221,8 @@ export function setStudentsSubView(view) {
     seatEditMode = false;
     ghostAddPos = null;
     swapSourceStudentId = null;
+    editSelectType = null;
+    editSelectedIds.clear();
   }
 }
 
@@ -305,7 +313,24 @@ function buildGroupSeatMap(members) {
   return map;
 }
 
-/** 모둠 박스 실제 픽셀 크기 계산 (모둠 안 +버튼 없음, 보이지 않는 그리드 셀 기준 독립 크기) */
+/** 모둠의 유효 비활성(삭제) 슬롯 집합 정리 (학생이 점유 중인 슬롯 및 범위 밖 제외, 최소 1칸 활성 보장) */
+function getDisabledSlotSet(group, totalSlots, seatMap) {
+  const raw = Array.isArray(group?.disabledSlots) ? group.disabledSlots : [];
+  const set = new Set();
+  for (const v of raw) {
+    const idx = Math.trunc(Number(v));
+    if (idx >= 0 && idx < totalSlots && !seatMap.has(idx)) {
+      set.add(idx);
+    }
+  }
+  // 최소 1칸은 활성 상태 유지
+  if (set.size >= totalSlots) {
+    set.clear();
+  }
+  return set;
+}
+
+/** 모둠 박스 실제 픽셀 크기 및 비사각형/라벨 메타 계산 */
 function measureGroupBox(group, members) {
   const seatMap = buildGroupSeatMap(members);
   const cols = Math.max(1, Number(group.cols) || (members.length <= 1 ? 1 : 2));
@@ -314,9 +339,160 @@ function measureGroupBox(group, members) {
   const savedRows = Math.trunc(Number(group.rows) || 0);
   const rows = Math.max(minRows, savedRows || minRows);
   const totalSlots = rows * cols;
+  const disabledSet = getDisabledSlotSet(group, totalSlots, seatMap);
+  const isNonRect = disabledSet.size > 0;
+  const labelSide = group.labelSide === 'top' ? 'top' : 'bottom';
   const w = cols * SEAT_W + (cols - 1) * SEAT_GAP + GROUP_PAD_X;
   const h = rows * SEAT_H + (rows - 1) * SEAT_GAP + GROUP_PAD_Y + FOOTER_H;
-  return { cols, rows, totalSlots, seatMap, w, h };
+  return { cols, rows, totalSlots, seatMap, disabledSet, isNonRect, labelSide, w, h };
+}
+
+/** 모둠의 활성 셀 실제 좌표 사각형 목록 (box.x, box.y 기준) */
+function getGroupActiveCellRects(box) {
+  const side = box.labelSide === 'top' ? 'top' : 'bottom';
+  const gridOriginX = box.x + GROUP_BORDER + GROUP_INNER_PAD;
+  const gridOriginY = box.y + (side === 'top' ? FOOTER_H : 0) + GROUP_BORDER + GROUP_INNER_PAD;
+  const cells = [];
+  for (let i = 0; i < box.totalSlots; i++) {
+    if (box.disabledSet && box.disabledSet.has(i)) continue;
+    const r = Math.floor(i / box.cols);
+    const c = i % box.cols;
+    cells.push({
+      slot: i,
+      r,
+      c,
+      x1: gridOriginX + c * CELL_STEP_X,
+      y1: gridOriginY + r * CELL_STEP_Y,
+      x2: gridOriginX + c * CELL_STEP_X + SEAT_W,
+      y2: gridOriginY + r * CELL_STEP_Y + SEAT_H,
+    });
+  }
+  return cells;
+}
+
+/** 모둠 라벨(푸터)의 실제 위치 및 크기 계산 (비사각형이면 해당 변의 가장 바깥쪽 활성 행에 부착) */
+function getGroupLabelMetrics(box, sideOverride = null) {
+  const side = sideOverride || (box.labelSide === 'top' ? 'top' : 'bottom');
+  if (!box.isNonRect) {
+    return {
+      side,
+      leftRel: 0,
+      topRel: side === 'top' ? 0 : box.h - FOOTER_H,
+      width: box.w,
+      height: FOOTER_H,
+      x1: box.x,
+      y1: side === 'top' ? box.y : box.y + box.h - FOOTER_H,
+      x2: box.x + box.w,
+      y2: side === 'top' ? box.y + FOOTER_H : box.y + box.h,
+    };
+  }
+  const activeCells = [];
+  for (let i = 0; i < box.totalSlots; i++) {
+    if (box.disabledSet && box.disabledSet.has(i)) continue;
+    activeCells.push({ r: Math.floor(i / box.cols), c: i % box.cols });
+  }
+  if (activeCells.length === 0) {
+    return {
+      side, leftRel: 0, topRel: side === 'top' ? 0 : box.h - FOOTER_H, width: box.w, height: FOOTER_H,
+      x1: box.x, y1: side === 'top' ? box.y : box.y + box.h - FOOTER_H, x2: box.x + box.w, y2: side === 'top' ? box.y + FOOTER_H : box.y + box.h,
+    };
+  }
+  const extremeRow = side === 'top'
+    ? Math.min(...activeCells.map((a) => a.r))
+    : Math.max(...activeCells.map((a) => a.r));
+  const rowCols = activeCells.filter((a) => a.r === extremeRow).map((a) => a.c);
+  const minC = Math.min(...rowCols);
+  const maxC = Math.max(...rowCols);
+  const leftRel = minC * CELL_STEP_X;
+  const width = (maxC - minC + 1) * SEAT_W + (maxC - minC) * SEAT_GAP + GROUP_PAD_X;
+  const gridTopOffset = (box.labelSide === 'top' ? FOOTER_H : 0) + GROUP_BORDER + GROUP_INNER_PAD;
+  const rowTopRel = gridTopOffset + extremeRow * CELL_STEP_Y;
+  const topRel = side === 'top'
+    ? Math.max(0, rowTopRel - GROUP_INNER_PAD - GROUP_BORDER - FOOTER_H)
+    : rowTopRel + SEAT_H + GROUP_INNER_PAD + GROUP_BORDER;
+  return {
+    side,
+    leftRel,
+    topRel,
+    width,
+    height: FOOTER_H,
+    x1: box.x + leftRel,
+    y1: box.y + topRel,
+    x2: box.x + leftRel + width,
+    y2: box.y + topRel + FOOTER_H,
+  };
+}
+
+/** 비사각형 모둠 SVG 외곽선 경로 생성 (활성 셀 합집합의 외곽선 + 흰 내부 배경) */
+function renderNonRectShapeSvg(box, isSelected) {
+  const gridOffsetX = GROUP_BORDER + GROUP_INNER_PAD;
+  const gridOffsetY = (box.labelSide === 'top' ? FOOTER_H : 0) + GROUP_BORDER + GROUP_INNER_PAD;
+  const activeSet = new Set();
+  for (let i = 0; i < box.totalSlots; i++) {
+    if (!box.disabledSet.has(i)) activeSet.add(i);
+  }
+  const hasCell = (r, c) => r >= 0 && r < box.rows && c >= 0 && c < box.cols && activeSet.has(r * box.cols + c);
+
+  const fillColor = isSelected ? '#ffe838' : '#7e5c44';
+  const outerRects = [];
+  const innerRects = [];
+  const outerExpand = GROUP_INNER_PAD + GROUP_BORDER; // 9px (3px border + 6px pad)
+  const innerExpand = GROUP_INNER_PAD; // 6px
+
+  for (const idx of activeSet) {
+    const r = Math.floor(idx / box.cols);
+    const c = idx % box.cols;
+    const cx = gridOffsetX + c * CELL_STEP_X;
+    const cy = gridOffsetY + r * CELL_STEP_Y;
+
+    // 인접 활성 셀 방향으로는 브릿지를 채워 내부 선을 없앰
+    const extR = hasCell(r, c + 1) ? SEAT_GAP : 0;
+    const extB = hasCell(r + 1, c) ? SEAT_GAP : 0;
+    outerRects.push(`<rect x="${cx - outerExpand}" y="${cy - outerExpand}" width="${SEAT_W + outerExpand * 2 + extR}" height="${SEAT_H + outerExpand * 2 + extB}" rx="10" ry="10" fill="${fillColor}"/>`);
+    innerRects.push(`<rect x="${cx - innerExpand}" y="${cy - innerExpand}" width="${SEAT_W + innerExpand * 2 + extR}" height="${SEAT_H + innerExpand * 2 + extB}" rx="7" ry="7" fill="#ffffff"/>`);
+  }
+
+  return `
+    <svg class="group-shape-svg" width="${box.w}" height="${box.h}" viewBox="0 0 ${box.w} ${box.h}" aria-hidden="true">
+      <g class="group-shape-outer">${outerRects.join('')}</g>
+      <g class="group-shape-inner">${innerRects.join('')}</g>
+    </svg>
+  `;
+}
+
+/** 두 모둠이 셀 단위(6px 간격)로 맞닿은 변 감지 → 외톨이 짝 간격 일치(1.5 + 3 + 1.5 = 6px) 표시용 */
+function computeSnappedEdgesMap(boxes) {
+  const map = new Map();
+  boxes.forEach((b) => map.set(b.id, { l: false, r: false, t: false, b: false }));
+  const cellsByBox = boxes.map((b) => ({ id: b.id, cells: getGroupActiveCellRects(b) }));
+  const TOL = 2.5;
+  for (let i = 0; i < cellsByBox.length; i++) {
+    for (let j = i + 1; j < cellsByBox.length; j++) {
+      const A = cellsByBox[i];
+      const B = cellsByBox[j];
+      for (const ca of A.cells) {
+        for (const cb of B.cells) {
+          const ySame = Math.abs(ca.y1 - cb.y1) < SEAT_H * 0.8;
+          const xSame = Math.abs(ca.x1 - cb.x1) < SEAT_W * 0.8;
+          if (ySame && Math.abs((ca.x2 + SEAT_GAP) - cb.x1) <= TOL) {
+            map.get(A.id).r = true;
+            map.get(B.id).l = true;
+          } else if (ySame && Math.abs((cb.x2 + SEAT_GAP) - ca.x1) <= TOL) {
+            map.get(A.id).l = true;
+            map.get(B.id).r = true;
+          }
+          if (xSame && Math.abs((ca.y2 + SEAT_GAP) - cb.y1) <= TOL) {
+            map.get(A.id).b = true;
+            map.get(B.id).t = true;
+          } else if (xSame && Math.abs((cb.y2 + SEAT_GAP) - ca.y1) <= TOL) {
+            map.get(A.id).t = true;
+            map.get(B.id).b = true;
+          }
+        }
+      }
+    }
+  }
+  return map;
 }
 
 /** 모둠 좌표가 비어있으면 내부공간 기준 가운데 정렬 기본 배치 계산 */
@@ -356,7 +532,11 @@ function ensureGroupLayout(groups, activeStudents, stageWidth = 1496) {
       for (let k = 0; k < c; k++) x += colWidths[k] + GROUP_GAP_X;
       const y = colY[c];
       colY[c] = y + m.h + GROUP_GAP_Y;
-      boxes.push({ id: m.g.id, group: m.g, x, y, w: m.w, h: m.h, cols: m.cols, rows: m.rows, totalSlots: m.totalSlots, seatMap: m.seatMap });
+      boxes.push({
+        id: m.g.id, group: m.g, x, y,
+        w: m.w, h: m.h, cols: m.cols, rows: m.rows, totalSlots: m.totalSlots,
+        seatMap: m.seatMap, disabledSet: m.disabledSet, isNonRect: m.isNonRect, labelSide: m.labelSide,
+      });
     });
   } else {
     sorted.forEach((g) => {
@@ -369,27 +549,90 @@ function ensureGroupLayout(groups, activeStudents, stageWidth = 1496) {
   return boxes;
 }
 
+/** 두 사각형이 pad 여유를 두고 겹치는지 검사 */
+function rectPairOverlaps(a, b, pad = 0) {
+  return a.x1 < b.x2 + pad && a.x2 + pad > b.x1 && a.y1 < b.y2 + pad && a.y2 + pad > b.y1;
+}
+
+/** 두 모둠의 활성 셀 영역끼리 충돌하는지 검사 (6px 외톨이 짝 맞물림은 충돌 아님 — 5px 미만 침범 시만 충돌) */
+function doGroupCellsCollide(a, b) {
+  const cellsA = getGroupActiveCellRects(a);
+  const cellsB = getGroupActiveCellRects(b);
+  const cellPad = SEAT_GAP - 1.5; // 4.5px -> 정확히 6px 간격 맞물림은 허용, 그보다 침범하면 충돌
+  for (const ca of cellsA) {
+    for (const cb of cellsB) {
+      if (rectPairOverlaps(ca, cb, cellPad)) return true;
+    }
+  }
+  return false;
+}
+
+/** 모둠의 라벨 사각형이 상대 모둠의 활성 셀 또는 라벨과 겹치는지 검사 */
+function doesLabelCollideWithOther(box, side, other) {
+  const lbl = getGroupLabelMetrics(box, side);
+  const otherCells = getGroupActiveCellRects(other);
+  for (const c of otherCells) {
+    if (rectPairOverlaps(lbl, c, 2)) return true;
+  }
+  const otherLbl = getGroupLabelMetrics(other);
+  if (rectPairOverlaps(lbl, otherLbl, 2)) return true;
+  return false;
+}
+
 /**
- * 독립 충돌 해소 (틈새 삽입 시 옆/아래 겹치는 모둠만 부드럽게 밀고, 비충돌 열/행 모둠은 그대로 유지)
- * axisHint: 'auto' | 'x' | 'y'
+ * 독립 충돌 해소 (유효 셀 사각형 + 라벨 영역 분리 + 스냅 시 라벨 자동 회피 bottom ↔ top)
+ * - 셀끼리 안 겹치고 라벨만 겹치면 모둠을 밀지 않고 라벨을 반대 변으로 자동 이동
+ * - anchorIds: 문자열 1개 또는 배열(다중 선택 모둠 일괄 이동 시 고정 앵커 집합)
  */
-function resolveBoxCollisions(boxes, anchorId, axisHint = 'auto') {
+function resolveBoxCollisions(boxes, anchorIdOrIds, axisHint = 'auto') {
   const result = boxes.map((b) => ({ ...b }));
-  const queue = [anchorId];
+  const anchorList = Array.isArray(anchorIdOrIds) ? anchorIdOrIds : [anchorIdOrIds];
+  const fixedAnchors = new Set(anchorList);
+  const queue = [...anchorList];
   const mx = GROUP_GAP_X;
   const my = GROUP_GAP_Y;
 
-  for (let pass = 0; pass < 24 && queue.length > 0; pass++) {
+  for (let pass = 0; pass < 28 && queue.length > 0; pass++) {
     const curId = queue.shift();
     const a = result.find((b) => b.id === curId);
     if (!a) continue;
 
     for (const b of result) {
-      if (b.id === a.id) continue;
-      const overlapX = a.x < b.x + b.w + mx && a.x + a.w + mx > b.x;
-      const overlapY = a.y < b.y + b.h + my && a.y + a.h + my > b.y;
-      if (!overlapX || !overlapY) continue;
+      if (b.id === a.id || fixedAnchors.has(b.id)) continue;
 
+      const cellsCollide = doGroupCellsCollide(a, b);
+      const aLblHit = !cellsCollide && doesLabelCollideWithOther(a, a.labelSide, b);
+      const bLblHit = !cellsCollide && doesLabelCollideWithOther(b, b.labelSide, a);
+
+      // 1) 셀끼리는 안 겹치고 라벨만 겹치는 경우 → 라벨을 반대 변(bottom <-> top)으로 자동 회피 시도
+      if (!cellsCollide && (aLblHit || bLblHit)) {
+        let resolvedByFlip = true;
+        if (bLblHit) {
+          const altSide = b.labelSide === 'top' ? 'bottom' : 'top';
+          const altBlocked = result.some((o) => o.id !== b.id && doesLabelCollideWithOther(b, altSide, o));
+          if (!altBlocked) {
+            b.labelSide = altSide;
+          } else {
+            resolvedByFlip = false;
+          }
+        }
+        if (resolvedByFlip && aLblHit && !doesLabelCollideWithOther(a, a.labelSide, b)) {
+          // b의 라벨 이동만으로 해소됨
+        } else if (resolvedByFlip && aLblHit) {
+          const altSideA = a.labelSide === 'top' ? 'bottom' : 'top';
+          const altBlockedA = result.some((o) => o.id !== a.id && doesLabelCollideWithOther(a, altSideA, o));
+          if (!altBlockedA) {
+            a.labelSide = altSideA;
+          } else {
+            resolvedByFlip = false;
+          }
+        }
+        if (resolvedByFlip) continue;
+      }
+
+      if (!cellsCollide && !aLblHit && !bLblHit) continue;
+
+      // 2) 실제 셀 충돌 또는 위·아래 라벨 모두 막힌 경우에만 모둠 밀기
       const pushRight = (a.x + a.w + mx) - b.x;
       const pushLeft = (b.x + b.w + mx) - a.x;
       const pushDown = (a.y + a.h + my) - b.y;
@@ -407,7 +650,6 @@ function resolveBoxCollisions(boxes, anchorId, axisHint = 'auto') {
         if (bcx >= acx || b.x - pushLeft < CANVAS_PAD) b.x += pushRight;
         else b.x -= pushLeft;
       } else {
-        // 틈새 삽입 방향 자동 판별: 가로로 끼어들었으면 가로 밀림, 세로로 겹쳤으면 세로 밀림
         const minX = bcx >= acx ? pushRight : (b.x - pushLeft >= CANVAS_PAD ? pushLeft : pushRight);
         const minY = bcy >= acy ? pushDown : (b.y - pushUp >= CANVAS_PAD ? pushUp : pushDown);
         if (minX <= minY * 1.15) {
@@ -553,15 +795,31 @@ function applySeatingFit(root) {
 
   let maxRight = 0;
   let maxBottom = 0;
-  const itemBoxes = measureItems.map((el) => {
+  // 비사각형 모둠 지원: UI 겹침 검사는 유효 셀 사각형 목록 + 라벨 사각형 단위로 수행
+  const collisionRects = [];
+  measureItems.forEach((el) => {
     const x = el.offsetLeft;
     const y = el.offsetTop;
     const w = el.offsetWidth;
     const h = el.offsetHeight;
     if (x + w > maxRight) maxRight = x + w;
     if (y + h > maxBottom) maxBottom = y + h;
-    return { x, y, w, h };
+    if (el.classList.contains('is-nonrect')) {
+      const subEls = el.querySelectorAll('.seat-slot, .seat-cell-empty, .group-footer');
+      subEls.forEach((sub) => {
+        const sx = x + sub.offsetLeft;
+        const sy = y + sub.offsetTop;
+        const sw = sub.offsetWidth;
+        const sh = sub.offsetHeight;
+        if (sw > 0 && sh > 0) collisionRects.push({ x: sx, y: sy, w: sw, h: sh });
+      });
+    } else {
+      collisionRects.push({ x, y, w, h });
+    }
   });
+  const itemBoxes = collisionRects.length > 0 ? collisionRects : measureItems.map((el) => ({
+    x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight,
+  }));
 
   // 1) 고정 원점(0,0) 기준 기본 배율 (화면 밖 초과 시에만 축소)
   const contentW = Math.max(viewW, Math.ceil(maxRight + CANVAS_PAD));
@@ -981,6 +1239,7 @@ function renderSeatingBody(state, activeStudents, scoreMode, root, topFloatingHt
   const stageW = curScroll?.clientWidth || root?.querySelector('.students-shell')?.clientWidth || Math.max(800, window.innerWidth - 100);
   const stageH = curScroll?.clientHeight || Math.max(460, window.innerHeight - 200);
   const displayBoxes = ensureGroupLayout(state.groups, activeStudents, stageW);
+  const snappedEdgesMap = computeSnappedEdgesMap(displayBoxes);
 
   if (
     seatEditMode &&
@@ -1015,57 +1274,93 @@ function renderSeatingBody(state, activeStudents, scoreMode, root, topFloatingHt
                   const members = activeStudents.filter((s) => s.groupId === g.id);
                   const selectableMembers = members.filter((m) => !m.absent);
                   const orderedSlots = Array.from({ length: box.totalSlots }, (_, i) => i);
+                  const activeSlotCount = box.totalSlots - (box.disabledSet ? box.disabledSet.size : 0);
                   const allInGroupSelected = selectableMembers.length > 0 && selectableMembers.every((m) => selectedIds.has(m.id));
+                  const isEditGrpSelected = seatEditMode && editSelectType === 'group' && editSelectedIds.has(g.id);
+                  const isTopLabel = box.labelSide === 'top';
+                  const lblMetrics = getGroupLabelMetrics(box);
+                  const snapEdges = snappedEdgesMap.get(g.id) || {};
+                  const snapCls = [
+                    snapEdges.l ? 'is-snap-l' : '',
+                    snapEdges.r ? 'is-snap-r' : '',
+                    snapEdges.t ? 'is-snap-t' : '',
+                    snapEdges.b ? 'is-snap-b' : '',
+                  ].filter(Boolean).join(' ');
 
-                  return `
-                    <div class="group-box ${allInGroupSelected ? 'is-group-selected' : ''} ${seatEditMode ? 'is-editable' : ''}"
-                         data-group-box="${g.id}"
-                         style="left:${box.x}px;top:${box.y}px;width:${box.w}px;">
-                      <div class="group-seats" style="grid-template-columns:repeat(${box.cols}, ${SEAT_W}px);">
-                        ${orderedSlots.map((slotIdx) => {
-                          const st = box.seatMap.get(slotIdx);
-                          if (!st) {
-                            return `<div class="seat-cell-empty ${seatEditMode && swapSourceStudentId ? 'is-swap-ready' : ''}" data-empty-seat-group="${g.id}" data-empty-seat-index="${slotIdx}"></div>`;
-                          }
-                          const isCeleb = celebratingIds.has(st.id);
-                          const showPose = isCeleb && celebratingType === 'positive';
-                          const hasAv = showAvatars || showPose;
-                          const isSwapSrc = seatEditMode && swapSourceStudentId === st.id;
-                          return `
-                            <div class="seat-slot ${selectedIds.has(st.id) ? 'is-selected' : ''} ${st.absent ? 'is-absent' : ''} ${isCeleb ? 'is-celebrating' : ''} ${hasAv ? 'has-avatar' : ''} ${seatEditMode ? 'is-edit-draggable' : ''} ${isSwapSrc ? 'is-swap-source' : ''}"
-                                 data-seat-student="${st.id}"
-                                 data-seat-group="${g.id}"
-                                 data-seat-index="${slotIdx}">
-                              <div class="seat-num-bar">${st.number}</div>
-                              ${isSwapSrc ? `<span class="seat-swap-badge">교환 선택</span>` : ''}
-                              ${showPose
-                                ? `<div class="seat-avatar-wrap"><div class="avatar-fx-sprite is-finite seat-avatar-fx" style="background-image:url('${getFxAvatarUrl(st.avatarId)}')"></div></div>`
-                                : (showAvatars ? `<div class="seat-avatar-wrap"><img class="seat-avatar" src="${getStillAvatarUrl(st.avatarId)}" alt=""></div>` : '')
-                              }
-                              <div class="seat-info">
-                                <span class="seat-name">${escapeHtml(st.name)}</span>
-                                <span class="seat-score">${renderScoreHtml(st, scoreMode)}</span>
-                              </div>
-                              ${seatEditMode ? `<button type="button" class="seat-unassign-btn" data-unassign-student="${st.id}" title="미배치로 빼기">&times;</button>` : ''}
-                            </div>
-                          `;
-                        }).join('')}
-                      </div>
-
-                      <div class="group-footer" data-group-drag-handle="${g.id}">
-                        ${seatEditMode ? `
-                          <input type="text" class="group-name-inline-input" data-inline-rename-group="${g.id}" value="${escapeAttr(g.name)}" maxlength="24" title="클릭하여 모둠 이름 바로 수정" aria-label="모둠 이름">
-                          <div class="group-edit-actions">
-                            <button type="button" class="group-mini-btn" data-delete-group="${g.id}">삭제</button>
-                          </div>
-                        ` : `
-                          <button type="button" class="group-name-btn" data-select-group="${g.id}" title="클릭하면 모둠원 전체 선택">${escapeHtml(g.name)}</button>
+                  const footerHtml = `
+                    <div class="group-footer ${isTopLabel ? 'is-label-top' : 'is-label-bottom'}"
+                         data-group-drag-handle="${g.id}"
+                         style="${box.isNonRect ? `position:absolute;left:${lblMetrics.leftRel}px;top:${lblMetrics.topRel}px;width:${lblMetrics.width}px;` : ''}">
+                      ${seatEditMode ? `
+                        <input type="text" class="group-name-inline-input" data-inline-rename-group="${g.id}" value="${escapeAttr(g.name)}" maxlength="24" title="클릭하여 모둠 이름 바로 수정" aria-label="모둠 이름">
+                        <div class="group-edit-actions">
+                          <button type="button" class="group-mini-btn group-label-flip-btn" data-flip-label="${g.id}" title="${isTopLabel ? '라벨 아래로 이동' : '라벨 위로 이동'}">${isTopLabel ? '▼' : '▲'}</button>
+                          ${box.isNonRect ? `<button type="button" class="group-mini-btn" data-restore-slots="${g.id}" title="삭제한 빈 칸 모두 복원">복원</button>` : ''}
+                          <button type="button" class="group-mini-btn" data-delete-group="${g.id}">삭제</button>
+                        </div>
+                      ` : `
+                        <button type="button" class="group-name-btn" data-select-group="${g.id}" title="클릭하면 모둠원 전체 선택">${escapeHtml(g.name)}</button>
+                        <div class="group-footer-right">
+                          <button type="button" class="group-label-flip-hover" data-flip-label="${g.id}" title="${isTopLabel ? '라벨 아래로 이동' : '라벨 위로 이동'}">${isTopLabel ? '▼' : '▲'}</button>
                           <span class="group-total">
                             ${renderGroupTotalHtml(members, scoreMode)}
                             <i class="sp-icon sp-sprout-mini" aria-hidden="true"></i>
                           </span>
-                        `}
-                      </div>
+                        </div>
+                      `}
+                    </div>
+                  `;
+
+                  const seatsGridHtml = `
+                    <div class="group-seats" style="grid-template-columns:repeat(${box.cols}, ${SEAT_W}px);${box.isNonRect ? `padding:${GROUP_INNER_PAD + GROUP_BORDER}px;${isTopLabel ? `margin-top:${FOOTER_H}px;` : `margin-bottom:${FOOTER_H}px;`}` : ''}">
+                      ${orderedSlots.map((slotIdx) => {
+                        if (box.disabledSet && box.disabledSet.has(slotIdx)) {
+                          return `<div class="seat-cell-disabled" data-disabled-slot="${slotIdx}"></div>`;
+                        }
+                        const st = box.seatMap.get(slotIdx);
+                        if (!st) {
+                          return `
+                            <div class="seat-cell-empty ${seatEditMode && swapSourceStudentId ? 'is-swap-ready' : ''}" data-empty-seat-group="${g.id}" data-empty-seat-index="${slotIdx}">
+                              ${seatEditMode && activeSlotCount > 1 ? `
+                                <button type="button" class="seat-cell-del-btn" data-disable-slot-group="${g.id}" data-disable-slot-index="${slotIdx}" title="이 빈 자리를 삭제해 비사각형(ㄱ자·ㄴ자 등) 모둠 만들기">자리 삭제</button>
+                              ` : ''}
+                            </div>
+                          `;
+                        }
+                        const isCeleb = celebratingIds.has(st.id);
+                        const showPose = isCeleb && celebratingType === 'positive';
+                        const hasAv = showAvatars || showPose;
+                        const isSwapSrc = seatEditMode && swapSourceStudentId === st.id;
+                        const isEditStSelected = seatEditMode && editSelectType === 'student' && editSelectedIds.has(st.id);
+                        return `
+                          <div class="seat-slot ${selectedIds.has(st.id) ? 'is-selected' : ''} ${st.absent ? 'is-absent' : ''} ${isCeleb ? 'is-celebrating' : ''} ${hasAv ? 'has-avatar' : ''} ${seatEditMode ? 'is-edit-draggable' : ''} ${isSwapSrc ? 'is-swap-source' : ''} ${isEditStSelected ? 'is-edit-selected' : ''}"
+                               data-seat-student="${st.id}"
+                               data-seat-group="${g.id}"
+                               data-seat-index="${slotIdx}">
+                            <div class="seat-num-bar">${st.number}</div>
+                            ${isSwapSrc ? `<span class="seat-swap-badge">교환 선택</span>` : ''}
+                            ${isEditStSelected ? `<span class="seat-multi-badge">선택</span>` : ''}
+                            ${showPose
+                              ? `<div class="seat-avatar-wrap"><div class="avatar-fx-sprite is-finite seat-avatar-fx" style="background-image:url('${getFxAvatarUrl(st.avatarId)}')"></div></div>`
+                              : (showAvatars ? `<div class="seat-avatar-wrap"><img class="seat-avatar" src="${getStillAvatarUrl(st.avatarId)}" alt=""></div>` : '')
+                            }
+                            <div class="seat-info">
+                              <span class="seat-name">${escapeHtml(st.name)}</span>
+                              <span class="seat-score">${renderScoreHtml(st, scoreMode)}</span>
+                            </div>
+                            ${seatEditMode ? `<button type="button" class="seat-unassign-btn" data-unassign-student="${st.id}" title="미배치로 빼기">&times;</button>` : ''}
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  `;
+
+                  return `
+                    <div class="group-box ${allInGroupSelected ? 'is-group-selected' : ''} ${seatEditMode ? 'is-editable' : ''} ${box.isNonRect ? 'is-nonrect' : ''} ${isTopLabel ? 'is-label-top' : ''} ${isEditGrpSelected ? 'is-edit-selected' : ''} ${snapCls}"
+                         data-group-box="${g.id}"
+                         style="left:${box.x}px;top:${box.y}px;width:${box.w}px;${box.isNonRect ? `height:${box.h}px;` : ''}">
+                      ${box.isNonRect ? renderNonRectShapeSvg(box, allInGroupSelected) : ''}
+                      ${isTopLabel && !box.isNonRect ? footerHtml + seatsGridHtml : seatsGridHtml + footerHtml}
                       ${seatEditMode ? `
                         <div class="group-resize-handle" data-resize-group="${g.id}" data-resize-dir="e" title="오른쪽 테두리 드래그 (가로 1칸 단위)"></div>
                         <div class="group-resize-handle" data-resize-group="${g.id}" data-resize-dir="w" title="왼쪽 테두리 드래그 (가로 1칸 단위)"></div>
@@ -1287,17 +1582,110 @@ function bindSeatingEvents(root, state, activeStudents) {
   const viewH = scrollEl.clientHeight || Math.max(460, window.innerHeight - 200);
   const baseBoxes = ensureGroupLayout(state.groups, activeStudents, viewW);
 
-  // 편집 모드에서 빈 배경 클릭 시 학생 교환 선택 해제 (배경 드래그 좌석 이동은 비활성화하여 기본 위치 유지)
+  // 편집 모드에서 빈 배경 클릭 시 선택 해제 / 빈 배경 드래그 시 박스 다중 선택(Marquee)
   if (scrollEl) {
     scrollEl.onpointerdown = (ev) => {
       if (ev.button !== 0 || seatingFlipping) return;
       if (ev.target.closest('[data-group-box], #group-ghost-add, button, .seat-slot')) return;
-      if (seatEditMode && swapSourceStudentId) {
+      if (!seatEditMode) return;
+
+      const startX = ev.clientX;
+      const startY = ev.clientY;
+      let marqueeEl = null;
+      let dragged = false;
+
+      const onMove = (e) => {
+        if (!dragged && Math.hypot(e.clientX - startX, e.clientY - startY) < 6) return;
+        if (!dragged) {
+          dragged = true;
+          marqueeEl = document.createElement('div');
+          marqueeEl.className = 'seat-marquee-box';
+          document.body.appendChild(marqueeEl);
+        }
+        const left = Math.min(startX, e.clientX);
+        const top = Math.min(startY, e.clientY);
+        const width = Math.abs(e.clientX - startX);
+        const height = Math.abs(e.clientY - startY);
+        marqueeEl.style.left = `${left}px`;
+        marqueeEl.style.top = `${top}px`;
+        marqueeEl.style.width = `${width}px`;
+        marqueeEl.style.height = `${height}px`;
+      };
+
+      const onUp = (e) => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        if (marqueeEl) marqueeEl.remove();
+
+        if (!dragged) {
+          if (swapSourceStudentId || editSelectedIds.size > 0) {
+            swapSourceStudentId = null;
+            editSelectType = null;
+            editSelectedIds.clear();
+            renderStudentsView(root);
+          }
+          return;
+        }
+
+        const rx1 = Math.min(startX, e.clientX);
+        const ry1 = Math.min(startY, e.clientY);
+        const rx2 = Math.max(startX, e.clientX);
+        const ry2 = Math.max(startY, e.clientY);
+        const hitRect = (r) => r.left < rx2 && r.right > rx1 && r.top < ry2 && r.bottom > ry1;
+
+        // 모둠 박스 전체가 크게 포함되거나 2개 이상 모둠에 걸치면 모둠 다중 선택,
+        // 한 모둠 안의 학생들만 부분 드래그한 경우 학생 다중 선택
+        const hitGroups = [];
+        canvas.querySelectorAll('[data-group-box]').forEach((gEl) => {
+          const r = gEl.getBoundingClientRect();
+          const cx = (r.left + r.right) / 2;
+          const cy = (r.top + r.bottom) / 2;
+          if (cx >= rx1 && cx <= rx2 && cy >= ry1 && cy <= ry2) {
+            hitGroups.push(gEl.dataset.groupBox);
+          }
+        });
+
         swapSourceStudentId = null;
+        if (hitGroups.length >= 1) {
+          editSelectType = 'group';
+          editSelectedIds = new Set(hitGroups);
+        } else {
+          const hitStudents = [];
+          canvas.querySelectorAll('.seat-slot[data-seat-student]').forEach((sEl) => {
+            const r = sEl.getBoundingClientRect();
+            if (hitRect(r)) hitStudents.push(sEl.dataset.seatStudent);
+          });
+          if (hitStudents.length > 0) {
+            editSelectType = 'student';
+            editSelectedIds = new Set(hitStudents);
+          } else {
+            editSelectType = null;
+            editSelectedIds.clear();
+          }
+        }
         renderStudentsView(root);
-      }
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
     };
   }
+
+  // 모둠 라벨 상·하(위/아래) 수동 전환 (일반·편집 모드 공통)
+  root.querySelectorAll('[data-flip-label]').forEach((btn) => {
+    btn.onpointerdown = (e) => e.stopPropagation();
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const gid = btn.dataset.flipLabel;
+      await store.update((s) => {
+        const g = s.groups.find((x) => x.id === gid);
+        if (g) {
+          g.labelSide = g.labelSide === 'top' ? 'bottom' : 'top';
+        }
+      });
+      playSound('confirm');
+    };
+  });
 
   // 모둠(그룹 박스 여백 · 하단 푸터 · 그룹 이름) 클릭 → 일반 모드: 그룹과 소속 학생 모두 선택/해제
   const toggleGroupSelection = (gid) => {
@@ -1430,14 +1818,66 @@ function bindSeatingEvents(root, state, activeStudents) {
       };
     });
 
-    // 3. 모둠 카드 통째 드래그 (푸터 및 모둠 내부 여백 어디든 드래그 가능, 자석 격자 스냅 + 실시간 틈새 밀림)
+    // 1-B. 빈 자리 '자리 삭제' 버튼 (비사각형 ㄱ자·ㄴ자 모둠 구성) 및 '복원' 버튼
+    root.querySelectorAll('[data-disable-slot-group]').forEach((btn) => {
+      btn.onpointerdown = (e) => e.stopPropagation();
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const gid = btn.dataset.disableSlotGroup;
+        const slotIdx = Number(btn.dataset.disableSlotIndex);
+        await store.update((s) => {
+          const g = s.groups.find((x) => x.id === gid);
+          if (!g) return;
+          const active = s.students.filter((x) => !x.trashed && x.groupId === gid);
+          const m = measureGroupBox(g, active);
+          if (m.seatMap.has(slotIdx)) return;
+          if (m.totalSlots - m.disabledSet.size <= 1) return;
+          const next = new Set(m.disabledSet);
+          next.add(slotIdx);
+          g.disabledSlots = Array.from(next).sort((a, b) => a - b);
+          g.cols = m.cols;
+          g.rows = m.rows;
+        });
+        playSound('confirm');
+      };
+    });
+    root.querySelectorAll('[data-restore-slots]').forEach((btn) => {
+      btn.onpointerdown = (e) => e.stopPropagation();
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const gid = btn.dataset.restoreSlots;
+        await store.update((s) => {
+          const g = s.groups.find((x) => x.id === gid);
+          if (g) g.disabledSlots = [];
+        });
+        playSound('confirm');
+      };
+    });
+
+    // 3. 모둠 카드 통째 드래그 (Ctrl+클릭 다중 선택 + 다중 선택 모둠 통째 이동 + 자석 격자 스냅 + 실시간 충돌 밀림)
     root.querySelectorAll('[data-group-box]').forEach((boxEl) => {
       boxEl.onpointerdown = (ev) => {
         if (ev.button !== 0) return;
-        if (ev.target.closest('.seat-slot, .group-mini-btn, .seat-unassign-btn, .group-resize-handle, .group-name-inline-input')) return;
+        if (ev.target.closest('.seat-slot, .group-mini-btn, .seat-unassign-btn, .group-resize-handle, .group-name-inline-input, .seat-cell-del-btn')) return;
         if (swapSourceStudentId && ev.target.closest('.seat-cell-empty')) return;
+        const gid = boxEl.dataset.groupBox;
+        if (ev.ctrlKey || ev.metaKey) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          swapSourceStudentId = null;
+          if (editSelectType !== 'group') {
+            editSelectType = 'group';
+            editSelectedIds.clear();
+          }
+          if (editSelectedIds.has(gid)) editSelectedIds.delete(gid);
+          else editSelectedIds.add(gid);
+          if (editSelectedIds.size === 0) editSelectType = null;
+          playSound('tick');
+          renderStudentsView(root);
+          return;
+        }
         ev.preventDefault();
-        startGroupDrag(ev, boxEl.dataset.groupBox, canvas, baseBoxes);
+        startGroupDrag(ev, gid, canvas, baseBoxes);
       };
     });
 
@@ -1542,6 +1982,8 @@ function bindSeatingEvents(root, state, activeStudents) {
   // 하단 3대 버튼
   const toggleEdit = async () => {
     swapSourceStudentId = null;
+    editSelectType = null;
+    editSelectedIds.clear();
     if (!seatEditMode) {
       const editViewW = scrollEl?.clientWidth || Math.max(800, window.innerWidth - 100);
       const editViewH = scrollEl?.clientHeight || Math.max(460, window.innerHeight - 200);
@@ -1610,6 +2052,16 @@ function bindSeatingEvents(root, state, activeStudents) {
             if (g) {
               g.x = Math.max(CANVAS_PAD, Math.round(stageW - (rect.x + rect.w)));
               g.y = Math.max(CANVAS_PAD, Math.round(stageH - (rect.y + rect.h)));
+              // 상하반전 시 라벨 위치(bottom <-> top)도 함께 반전
+              g.labelSide = g.labelSide === 'top' ? 'bottom' : 'top';
+              // 비사각형 삭제 칸(disabledSlots)도 180도 점대칭 변환
+              if (Array.isArray(g.disabledSlots) && g.disabledSlots.length > 0) {
+                g.disabledSlots = g.disabledSlots.map((idx) => {
+                  const r = Math.floor(idx / b.cols);
+                  const c = idx % b.cols;
+                  return Math.max(0, b.rows - 1 - r) * b.cols + Math.max(0, b.cols - 1 - c);
+                }).sort((a, z) => a - z);
+              }
             }
             const members = active.filter((m) => m.groupId === b.id);
             const cols = b.cols;
@@ -2079,8 +2531,8 @@ function openSeatingStudentWinnerModal(root, studentId) {
   };
 }
 
-/** 자석 격자 스냅 계산 + 가이드선 렌더링 */
-function computeMagneticSnap(dragX, dragY, dragW, dragH, otherBoxes) {
+/** 자석 격자 스냅 계산 + 셀 단위(6px 외톨이 짝 맞물림) 스냅 + 가이드선 렌더링 */
+function computeMagneticSnap(dragX, dragY, dragW, dragH, otherBoxes, dragBoxMeta = null) {
   let snappedX = dragX;
   let snappedY = dragY;
   let bestDx = SNAP_THRESHOLD + 1;
@@ -2088,7 +2540,10 @@ function computeMagneticSnap(dragX, dragY, dragW, dragH, otherBoxes) {
   let guideX = null;
   let guideY = null;
 
+  const dragLabelTopOffset = dragBoxMeta?.labelSide === 'top' ? FOOTER_H : 0;
+
   for (const o of otherBoxes) {
+    const oLabelTopOffset = o.labelSide === 'top' ? FOOTER_H : 0;
     const xTargets = [
       { val: o.x, line: o.x },
       { val: o.x + o.w - dragW, line: o.x + o.w },
@@ -2096,6 +2551,13 @@ function computeMagneticSnap(dragX, dragY, dragW, dragH, otherBoxes) {
       { val: o.x - dragW - GROUP_GAP_X, line: o.x - GROUP_GAP_X },
       { val: o.x + (o.w - dragW) / 2, line: o.x + o.w / 2 },
     ];
+    // 셀 격자 단위(CELL_STEP_X = 158px) 맞물림 스냅 — 다른 모둠의 외톨이 짝 간격을 6px로 0px 오차 일치
+    const maxColSpan = (o.cols || 2) + (dragBoxMeta?.cols || 2);
+    for (let k = -maxColSpan; k <= maxColSpan; k++) {
+      const alignedX = o.x + k * CELL_STEP_X;
+      xTargets.push({ val: alignedX, line: alignedX + GROUP_BORDER + GROUP_INNER_PAD });
+    }
+
     for (const t of xTargets) {
       const d = Math.abs(dragX - t.val);
       if (d < bestDx) {
@@ -2112,6 +2574,13 @@ function computeMagneticSnap(dragX, dragY, dragW, dragH, otherBoxes) {
       { val: o.y - dragH - GROUP_GAP_Y, line: o.y - GROUP_GAP_Y },
       { val: o.y + (o.h - dragH) / 2, line: o.y + o.h / 2 },
     ];
+    // 셀 격자 단위(CELL_STEP_Y = 91.5px) 맞물림 스냅 (라벨 상·하 오프셋 보정)
+    const maxRowSpan = (o.rows || 2) + (dragBoxMeta?.rows || 2);
+    for (let k = -maxRowSpan; k <= maxRowSpan; k++) {
+      const alignedY = o.y + (oLabelTopOffset - dragLabelTopOffset) + k * CELL_STEP_Y;
+      yTargets.push({ val: alignedY, line: alignedY + dragLabelTopOffset + GROUP_BORDER + GROUP_INNER_PAD });
+    }
+
     for (const t of yTargets) {
       const d = Math.abs(dragY - t.val);
       if (d < bestDy) {
@@ -2146,34 +2615,55 @@ function renderSnapGuides(canvas, guideX, guideY) {
   }
 }
 
-/** 모둠 카드 통째 드래그: 자석 격자 + 틈새 삽입 실시간 부드러운 밀림 + 영역 초과 시 자동 비율 축소 */
+/** 모둠 카드 통째 드래그: 단일 또는 다중 선택 모둠 일괄 이동 + 자석 격자(6px 맞물림) + 라벨 자동 회피 + 충돌 밀림 */
 function startGroupDrag(ev, groupId, canvas, baseBoxes) {
   const scale = getSeatingCanvasScale(canvas);
   const boxEl = canvas.querySelector(`[data-group-box="${groupId}"]`);
   const orig = baseBoxes.find((b) => b.id === groupId);
   if (!boxEl || !orig) return;
 
+  // 다중 선택된 모둠 중 하나를 드래그하면 선택된 모든 모둠을 상대 위치 유지하며 통째 이동
+  const isMultiGroupDrag = editSelectType === 'group' && editSelectedIds.has(groupId) && editSelectedIds.size > 1;
+  const movingIds = isMultiGroupDrag ? Array.from(editSelectedIds) : [groupId];
+  const movingSet = new Set(movingIds);
+  const movingOrigs = baseBoxes.filter((b) => movingSet.has(b.id));
+  const minOrigX = Math.min(...movingOrigs.map((b) => b.x));
+  const minOrigY = Math.min(...movingOrigs.map((b) => b.y));
+
   const startClientX = ev.clientX;
   const startClientY = ev.clientY;
-  const others = baseBoxes.filter((b) => b.id !== groupId);
+  const others = baseBoxes.filter((b) => !movingSet.has(b.id));
   let latestBoxes = baseBoxes.map((b) => ({ ...b }));
   let moved = false;
 
-  boxEl.classList.add('is-dragging');
+  movingIds.forEach((id) => {
+    const el = canvas.querySelector(`[data-group-box="${id}"]`);
+    if (el) el.classList.add('is-dragging');
+  });
 
   const onMove = (e) => {
-    const dx = (e.clientX - startClientX) / scale;
-    const dy = (e.clientY - startClientY) / scale;
-    if (Math.hypot(dx, dy) > 3) moved = true;
+    const rawDx = (e.clientX - startClientX) / scale;
+    const rawDy = (e.clientY - startClientY) / scale;
+    if (Math.hypot(rawDx, rawDy) > 3) moved = true;
 
-    const rawX = Math.max(CANVAS_PAD, orig.x + dx);
-    const rawY = Math.max(CANVAS_PAD, orig.y + dy);
-    const snap = computeMagneticSnap(rawX, rawY, orig.w, orig.h, others);
+    const clampedDx = Math.max(CANVAS_PAD - minOrigX, rawDx);
+    const clampedDy = Math.max(CANVAS_PAD - minOrigY, rawDy);
+
+    const anchorRawX = orig.x + clampedDx;
+    const anchorRawY = orig.y + clampedDy;
+    const snap = computeMagneticSnap(anchorRawX, anchorRawY, orig.w, orig.h, others, orig);
     renderSnapGuides(canvas, snap.guideX, snap.guideY);
 
-    // 틈새 삽입 실시간 충돌 밀림 계산 (다른 모둠들이 부드럽게 옆/아래로 밀림)
-    const candidate = baseBoxes.map((b) => (b.id === groupId ? { ...b, x: snap.x, y: snap.y } : { ...b }));
-    latestBoxes = resolveBoxCollisions(candidate, groupId, 'auto');
+    const finalDx = Math.max(CANVAS_PAD - minOrigX, snap.x - orig.x);
+    const finalDy = Math.max(CANVAS_PAD - minOrigY, snap.y - orig.y);
+
+    // 틈새 삽입 & 라벨 자동 회피 실시간 계산
+    const candidate = baseBoxes.map((b) => (
+      movingSet.has(b.id)
+        ? { ...b, x: Math.max(CANVAS_PAD, Math.round(b.x + finalDx)), y: Math.max(CANVAS_PAD, Math.round(b.y + finalDy)) }
+        : { ...b }
+    ));
+    latestBoxes = resolveBoxCollisions(candidate, movingIds, 'auto');
 
     for (const b of latestBoxes) {
       const el = canvas.querySelector(`[data-group-box="${b.id}"]`);
@@ -2188,7 +2678,10 @@ function startGroupDrag(ev, groupId, canvas, baseBoxes) {
   const onUp = async () => {
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
-    boxEl.classList.remove('is-dragging');
+    movingIds.forEach((id) => {
+      const el = canvas.querySelector(`[data-group-box="${id}"]`);
+      if (el) el.classList.remove('is-dragging');
+    });
     renderSnapGuides(canvas, null, null);
     if (!moved) return;
 
@@ -2198,6 +2691,7 @@ function startGroupDrag(ev, groupId, canvas, baseBoxes) {
         if (g) {
           g.x = b.x;
           g.y = b.y;
+          if (b.labelSide) g.labelSide = b.labelSide;
         }
       });
     });
@@ -2246,9 +2740,25 @@ function startGhostAddDrag(ev, ghostEl, canvas, baseBoxes) {
   window.addEventListener('pointerup', onUp);
 }
 
-/** 학생 카드 드래그: 보이지 않는 그리드 빈 셀 직접 배치 + 카드 틈새 삽입 + 모둠 자동 확장 + 점선 '+' 새 모둠 드롭 */
+/** 학생 카드 드래그: 단일/다중 선택(Ctrl+클릭) + 빈 셀 직접 배치 + 카드 틈새 삽입 + 점선 '+' 새 모둠 드롭 */
 function startStudentSeatDrag(ev, slotEl, canvas, baseBoxes) {
   const studentId = slotEl.dataset.seatStudent;
+  if (ev.ctrlKey || ev.metaKey) {
+    swapSourceStudentId = null;
+    if (editSelectType !== 'student') {
+      editSelectType = 'student';
+      editSelectedIds.clear();
+    }
+    if (editSelectedIds.has(studentId)) editSelectedIds.delete(studentId);
+    else editSelectedIds.add(studentId);
+    if (editSelectedIds.size === 0) editSelectType = null;
+    playSound('tick');
+    if (lastStudentsRoot) renderStudentsView(lastStudentsRoot);
+    return;
+  }
+
+  const isMultiStudentDrag = editSelectType === 'student' && editSelectedIds.has(studentId) && editSelectedIds.size > 1;
+  const movingStudentIds = isMultiStudentDrag ? Array.from(editSelectedIds) : [studentId];
   const startClientX = ev.clientX;
   const startClientY = ev.clientY;
   let dragging = false;
@@ -2274,8 +2784,17 @@ function startStudentSeatDrag(ev, slotEl, canvas, baseBoxes) {
       ghost.classList.add('seat-drag-ghost');
       ghost.style.width = `${slotEl.getBoundingClientRect().width}px`;
       ghost.style.height = `${slotEl.getBoundingClientRect().height}px`;
+      if (isMultiStudentDrag) {
+        const cntBadge = document.createElement('span');
+        cntBadge.className = 'seat-multi-drag-count';
+        cntBadge.textContent = `${movingStudentIds.length}명 이동`;
+        ghost.appendChild(cntBadge);
+      }
       document.body.appendChild(ghost);
-      slotEl.style.opacity = '0.35';
+      movingStudentIds.forEach((id) => {
+        const el = canvas.querySelector(`.seat-slot[data-seat-student="${id}"]`);
+        if (el) el.style.opacity = '0.35';
+      });
     }
 
     ghost.style.left = `${e.clientX - ghost.offsetWidth / 2}px`;
@@ -2364,11 +2883,16 @@ function startStudentSeatDrag(ev, slotEl, canvas, baseBoxes) {
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
     clearHighlights();
-    slotEl.style.opacity = '';
+    movingStudentIds.forEach((id) => {
+      const el = canvas.querySelector(`.seat-slot[data-seat-student="${id}"]`);
+      if (el) el.style.opacity = '';
+    });
     if (ghost) ghost.remove();
 
-    // 드래그하지 않고 클릭만 한 경우 → 학생 카드 2개를 누르면 서로 자리 교환
+    // 드래그하지 않고 클릭만 한 경우 → 학생 카드 2개를 누르면 서로 자리 교환 (기존 동작 유지)
     if (!dragging) {
+      editSelectType = null;
+      editSelectedIds.clear();
       if (!swapSourceStudentId) {
         swapSourceStudentId = studentId;
         playSound('tick');
@@ -2398,20 +2922,30 @@ function startStudentSeatDrag(ev, slotEl, canvas, baseBoxes) {
           order: s.groups.length,
           x: spawnPos.x,
           y: spawnPos.y,
-          cols: 1,
+          cols: movingStudentIds.length >= 2 ? 2 : 1,
         });
-        const st = s.students.find((x) => x.id === studentId);
-        if (st) {
-          st.groupId = newId;
-          st.seatIndex = 0;
-        }
+        movingStudentIds.forEach((id, idx) => {
+          const st = s.students.find((x) => x.id === id);
+          if (st) {
+            st.groupId = newId;
+            st.seatIndex = idx;
+          }
+        });
       });
+      editSelectType = null;
+      editSelectedIds.clear();
       playSound('confirm');
       return;
     }
 
     if (hoveredGroupId && hoveredExactSlot >= 0) {
-      await placeOrInsertStudentAtSlot(studentId, hoveredGroupId, hoveredExactSlot, hoveredIsEmptyCell);
+      if (isMultiStudentDrag) {
+        await placeMultipleStudentsInGroup(movingStudentIds, hoveredGroupId, hoveredExactSlot);
+        editSelectType = null;
+        editSelectedIds.clear();
+      } else {
+        await placeOrInsertStudentAtSlot(studentId, hoveredGroupId, hoveredExactSlot, hoveredIsEmptyCell);
+      }
       playSound('confirm');
     }
   };
@@ -2498,6 +3032,53 @@ async function placeOrInsertStudentAtSlot(studentId, targetGroupId, targetSlotId
       if (g) {
         g.x = b.x;
         g.y = b.y;
+        if (b.labelSide) g.labelSide = b.labelSide;
+      }
+    });
+  });
+}
+
+/** 다중 선택된 학생들을 대상 모둠의 빈 슬롯(삭제된 칸 제외, 부족하면 하단 자동 확장)에 일괄 배치 */
+async function placeMultipleStudentsInGroup(studentIds, targetGroupId, startSlotIdx = 0) {
+  const movingSet = new Set(studentIds);
+  await store.update((s) => {
+    const tg = s.groups.find((g) => g.id === targetGroupId);
+    if (!tg) return;
+    const disabled = new Set(Array.isArray(tg.disabledSlots) ? tg.disabledSlots : []);
+    const targetOthers = s.students.filter((x) => !x.trashed && x.groupId === targetGroupId && !movingSet.has(x.id));
+    const occupied = new Set();
+    for (const m of targetOthers) {
+      let idx = Math.max(0, Math.trunc(Number(m.seatIndex) || 0));
+      while (occupied.has(idx) || disabled.has(idx)) idx++;
+      m.seatIndex = idx;
+      occupied.add(idx);
+    }
+
+    const movingStudents = studentIds
+      .map((id) => s.students.find((x) => x.id === id))
+      .filter(Boolean);
+
+    let cursor = Math.max(0, startSlotIdx);
+    for (const st of movingStudents) {
+      while (occupied.has(cursor) || disabled.has(cursor)) cursor++;
+      st.groupId = targetGroupId;
+      st.seatIndex = cursor;
+      occupied.add(cursor);
+      cursor++;
+    }
+
+    const countNow = s.students.filter((x) => !x.trashed && x.groupId === targetGroupId).length;
+    if (!tg.cols && countNow >= 2) tg.cols = 2;
+
+    const active = s.students.filter((x) => !x.trashed);
+    const updatedBoxes = ensureGroupLayout(s.groups, active);
+    const resolved = resolveBoxCollisions(updatedBoxes, targetGroupId, 'y');
+    resolved.forEach((b) => {
+      const g = s.groups.find((x) => x.id === b.id);
+      if (g) {
+        g.x = b.x;
+        g.y = b.y;
+        if (b.labelSide) g.labelSide = b.labelSide;
       }
     });
   });
@@ -2652,6 +3233,19 @@ async function applyGroupGridResize(groupId, newCols, newRows, opts = {}) {
 
     g.cols = finalCols;
     g.rows = finalRows;
+    // 비사각형 삭제 칸(disabledSlots)도 리사이즈(shiftRow, shiftCol)에 맞춰 동일하게 좌표 변환
+    if (Array.isArray(g.disabledSlots) && g.disabledSlots.length > 0) {
+      const nextDisabled = [];
+      for (const oldIdx of g.disabledSlots) {
+        const r = Math.floor(oldIdx / oldCols) + shiftRow;
+        const c = (oldIdx % oldCols) + shiftCol;
+        if (r >= 0 && r < finalRows && c >= 0 && c < finalCols) {
+          const nextIdx = r * finalCols + c;
+          if (!used.has(nextIdx)) nextDisabled.push(nextIdx);
+        }
+      }
+      g.disabledSlots = nextDisabled.length < finalCols * finalRows ? nextDisabled.sort((a, b) => a - b) : [];
+    }
     if (Number.isFinite(nextX)) g.x = Math.max(CANVAS_PAD, Math.round(nextX));
     if (Number.isFinite(nextY)) g.y = Math.max(CANVAS_PAD, Math.round(nextY));
 
@@ -2663,6 +3257,7 @@ async function applyGroupGridResize(groupId, newCols, newRows, opts = {}) {
       if (grp) {
         grp.x = b.x;
         grp.y = b.y;
+        if (b.labelSide) grp.labelSide = b.labelSide;
       }
     });
   });
