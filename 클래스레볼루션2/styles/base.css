@@ -551,12 +551,12 @@ button:disabled {
   background-position: -28px -122px;
 }
 .sp-all-select {
-  width: 16px;
-  height: 16px;
+  width: 8px;
+  height: 8px;
   background-image: url('../assets/visuals/sp_board_images.png');
-  /* 1660x580 원본에서 갈색 '*' 특수문자 아이콘 정확한 위치 (x=923..938, y=1..16) */
-  background-size: 1660px 580px;
-  background-position: -923px -1px;
+  /* 1660x580 원본의 갈색 '*' 아이콘(x=923..938, y=1..16, 16x16)을 정확히 0.5배(8x8)로 축소 */
+  background-size: 830px 290px;
+  background-position: -461.5px -0.5px;
 }
 .sp-history-list {
   width: 18px;
