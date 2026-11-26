@@ -14,7 +14,7 @@ const GROUP_PAD_Y = 18; // border 6 + padding 12
 const FOOTER_H = 30;
 const GROUP_GAP_X = 22;
 const GROUP_GAP_Y = 18;
-const CANVAS_PAD = 18;
+const CANVAS_PAD = 8;
 const SNAP_THRESHOLD = 14;
 const GHOST_W = SEAT_W + GROUP_PAD_X; // 170 (1명 크기 모둠)
 const GHOST_H = SEAT_H + GROUP_PAD_Y + FOOTER_H; // 133.5
@@ -569,7 +569,7 @@ function applySeatingFit(root) {
   const rawFitScale = Math.min(1, viewW / contentW, viewH / contentH);
 
   // 2) 내부영역에 떠 있는 UI 버튼들과 겹치는지 검사 — 안 겹치면 그대로, 겹치면 화면 중앙 기준 축소
-  const uiRects = collectUiObstacleRects(root, scrollEl, 6);
+  const uiRects = collectUiObstacleRects(root, scrollEl, 4);
   const cx = viewW / 2;
   const cy = viewH / 2;
   const overlapsUiAt = (k) => {
