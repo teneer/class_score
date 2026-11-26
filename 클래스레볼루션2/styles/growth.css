@@ -246,7 +246,7 @@
   pointer-events: none;
 }
 
-/* 작고 단정한 원본 비율 별 눈금 (sp_board_tree.png x=10, y=11, w=23, h=22 → 0.565배 13x12.5px) */
+/* 작고 단정한 원본 비율 별 눈금 (숨김 처리 없이 초록 바 z-index:2 / 새싹 알 z-index:10에 자연스럽게 덮임) */
 .tree-tick-star {
   position: absolute;
   left: 50%;
@@ -259,9 +259,6 @@
   background-repeat: no-repeat;
   pointer-events: none;
   z-index: 1;
-}
-.tree-tick-star.is-covered {
-  opacity: 0;
 }
 
 /* 학급 목표가 걸려 있는 눈금의 동그란 별 코인 장식 (sp_board_tree.png x=0, y=100, w=42, h=46 → 0.62배 26x28.5px) */
@@ -276,7 +273,7 @@
   background-position: 0 -62px;
   background-repeat: no-repeat;
   pointer-events: none;
-  z-index: 3;
+  z-index: 1;
 }
 .tree-tick-goal-coin.is-covered {
   display: none;

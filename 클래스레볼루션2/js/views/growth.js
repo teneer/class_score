@@ -161,10 +161,10 @@ function renderWorldPageSlideHtml(decade, fillStep, goalSet, roleClass = 'is-cur
     const covered = fillStep >= k;
     const isGoal = goalSet.has(eggNum);
     if (isGoal) {
-      return `<span class="tree-tick-goal-coin ${covered ? 'is-covered' : ''}" data-tick-step="${k}" style="bottom:${pct}%;" aria-hidden="true"></span>`;
+      return `<span class="tree-tick-goal-coin ${covered ? 'is-covered' : ''}" data-goal-tick-step="${k}" style="bottom:${pct}%;" aria-hidden="true"></span>`;
     }
     if (k === 0) return '';
-    return `<span class="tree-tick-star ${covered ? 'is-covered' : ''}" data-tick-step="${k}" style="bottom:${pct}%;" aria-hidden="true"></span>`;
+    return `<span class="tree-tick-star" style="bottom:${pct}%;" aria-hidden="true"></span>`;
   }).join('');
 
   const attachedEggHtml = attachedEgg
@@ -227,7 +227,8 @@ function syncClimberAndHudInPlace(root, { instantClimber = false } = {}) {
     else delete el.dataset.long;
   });
 
-  // 현재 페이지 슬라이드 내 초록 줄기 및 별/목표 코인 덮임 상태 갱신
+  // 현재 페이지 슬라이드 내 초록 줄기 및 목표 코인 덮임 상태 갱신
+  // (일반 별은 순수 레이어 z-index로 알·바에 자연스럽게 덮이고, 목표 코인만 도착/이탈 시점에 맞춰 숨김·표시)
   if (currSlide) {
     const fillEl = currSlide.querySelector('.page-tree-fill');
     if (fillEl) {
@@ -239,9 +240,20 @@ function syncClimberAndHudInPlace(root, { instantClimber = false } = {}) {
         fillEl.style.transition = '';
       }
     }
-    currSlide.querySelectorAll('[data-tick-step]').forEach((tickEl) => {
-      const k = Number(tickEl.dataset.tickStep);
-      tickEl.classList.toggle('is-covered', visualStep >= k);
+    const curStepSnapshot = visualStep;
+    const myRun = stepLoopRunId;
+    currSlide.querySelectorAll('[data-goal-tick-step]').forEach((coinEl) => {
+      const k = Number(coinEl.dataset.goalTickStep);
+      const shouldCover = curStepSnapshot >= k;
+      if (instantClimber) {
+        coinEl.classList.toggle('is-covered', shouldCover);
+      } else {
+        // 알·초록 바 이동(0.28s)이 코인 위치에 도달·이탈한 직후 반영해 미리 사라지거나 바 밖으로 삐져나오지 않게 함
+        setTimeout(() => {
+          if (myRun !== stepLoopRunId || !coinEl.isConnected) return;
+          coinEl.classList.toggle('is-covered', visualStep >= k);
+        }, 190);
+      }
     });
   }
 
