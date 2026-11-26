@@ -568,14 +568,17 @@ function applySeatingFit(root) {
   const contentH = Math.max(viewH, Math.ceil(maxBottom + CANVAS_PAD));
   const rawFitScale = Math.min(1, viewW / contentW, viewH / contentH);
 
-  // 2) 내부영역에 떠 있는 UI 버튼들과 겹치는지 검사 — 안 겹치면 그대로, 겹치면 화면 중앙 기준 축소
+  // 2) 내부영역에 떠 있는 UI 버튼들과 겹치는지 검사
+  //    - 안 겹치면 그대로 (safeK=1, ox=0, oy=0)
+  //    - 겹치면 먼저 원점(0,0) 고정 축소를 시도해 상단/좌측 빈 공간(버튼 같은 줄)에 데드존이 생기지 않게 함
+  //    - 좌상단 버튼과 직접 겹쳐 원점 축소만으로 해소되지 않을 때만 화면 중앙 기준 축소 사용
   const uiRects = collectUiObstacleRects(root, scrollEl, 4);
   const cx = viewW / 2;
   const cy = viewH / 2;
-  const overlapsUiAt = (k) => {
+  const overlapsUiAt = (k, centerPivot) => {
     const s = rawFitScale * k;
-    const ox = cx * (1 - k);
-    const oy = cy * (1 - k);
+    const ox = centerPivot ? cx * (1 - k) : 0;
+    const oy = centerPivot ? cy * (1 - k) : 0;
     for (const m of itemBoxes) {
       const boxRect = {
         x1: ox + m.x * s,
@@ -591,20 +594,36 @@ function applySeatingFit(root) {
   };
 
   let safeK = 1;
-  if (uiRects.length > 0 && overlapsUiAt(1)) {
-    let lo = 0.25;
-    let hi = 1;
-    for (let i = 0; i < 16; i++) {
-      const mid = (lo + hi) / 2;
-      if (overlapsUiAt(mid)) hi = mid;
-      else lo = mid;
+  let useCenterPivot = false;
+  if (uiRects.length > 0 && overlapsUiAt(1, false)) {
+    // 1순위: 원점(0,0) 고정 축소로 해결 가능한지 검사 (상단·좌측 데드존 0px!)
+    if (!overlapsUiAt(0.25, false)) {
+      let lo = 0.25;
+      let hi = 1;
+      for (let i = 0; i < 16; i++) {
+        const mid = (lo + hi) / 2;
+        if (overlapsUiAt(mid, false)) hi = mid;
+        else lo = mid;
+      }
+      safeK = lo;
+      useCenterPivot = false;
+    } else {
+      // 2순위: 좌상단 버튼과 직접 겹쳐 원점 축소로 해소 불가 시에만 중앙 기준 축소
+      let lo = 0.25;
+      let hi = 1;
+      for (let i = 0; i < 16; i++) {
+        const mid = (lo + hi) / 2;
+        if (overlapsUiAt(mid, true)) hi = mid;
+        else lo = mid;
+      }
+      safeK = lo;
+      useCenterPivot = true;
     }
-    safeK = lo;
   }
 
   const baseFitScale = rawFitScale * safeK;
-  const baseOx = Math.round(cx * (1 - safeK));
-  const baseOy = Math.round(cy * (1 - safeK));
+  const baseOx = useCenterPivot ? Math.round(cx * (1 - safeK)) : 0;
+  const baseOy = useCenterPivot ? Math.round(cy * (1 - safeK)) : 0;
 
   const userZoom = getUserZoom('seats');
   const fitScale = baseFitScale * userZoom;
