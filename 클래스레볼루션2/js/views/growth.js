@@ -84,7 +84,7 @@ function getCenturyInfo(decade) {
   const century = Math.min(4, Math.floor(eggsFloor / 100)); // 0..4 (정확히 100점 단위 5단계)
   const skyColors = ['#38d3f2', '#32c8ee', '#2bb4e0', '#2488ca', '#131c45'];
   const skyObjects = [
-    "url('assets/visuals/sp_board_sky_object2.png')",
+    'none',
     "url('assets/visuals/sp_board_sky_object2.png')",
     "url('assets/visuals/sp_board_sky_object3.png')",
     "url('assets/visuals/sp_board_sky_object4.png')",
@@ -92,7 +92,8 @@ function getCenturyInfo(decade) {
   ];
 
   const inCentury = ((decade % 10) + 10) % 10;
-  const slicePosY = ['100%', '50%', '0%'][inCentury % 3]; // 1920x3240 배경 시트: 아래 → 중간 → 위 반복
+  const sliceIdx = inCentury % 3;
+  const slicePosY = ['100%', '50%', '0%'][sliceIdx]; // 1920x3240 배경 시트: 아래 → 중간 → 위 반복
 
   return {
     underground: false,
@@ -101,8 +102,47 @@ function getCenturyInfo(decade) {
     branchUrl: `assets/visuals/sp_board_tree_branch${century + 1}.png`,
     skyObjectBg: skyObjects[century],
     skyPosY: slicePosY,
+    sliceIdx,
+    hasClouds: century < 4, // 0~399(우주 직전)까지 구름 배치
     dark: century >= 4,
   };
+}
+
+/** 0~399 구간 페이지별 정적 구름 SVG (아래/중간/위 3구간에 맞춰 자연스럽게 다른 배치, 스크롤 시 페이지와 함께 이동) */
+function renderStaticCloudsHtml(sliceIdx) {
+  const presets = [
+    // 아래 구간 (0)
+    [
+      { x: 6, y: 18, w: 185, o: 0.42 },
+      { x: 63, y: 12, w: 220, o: 0.36 },
+      { x: 18, y: 66, w: 210, o: 0.34 },
+      { x: 70, y: 74, w: 195, o: 0.40 },
+    ],
+    // 중간 구간 (1)
+    [
+      { x: 46, y: 10, w: 205, o: 0.38 },
+      { x: 4, y: 44, w: 225, o: 0.42 },
+      { x: 66, y: 38, w: 230, o: 0.36 },
+      { x: 26, y: 80, w: 180, o: 0.32 },
+    ],
+    // 위 구간 (2)
+    [
+      { x: 14, y: 14, w: 215, o: 0.38 },
+      { x: 56, y: 24, w: 195, o: 0.40 },
+      { x: 8, y: 72, w: 200, o: 0.35 },
+      { x: 68, y: 64, w: 220, o: 0.38 },
+    ],
+  ];
+  const clouds = presets[sliceIdx % 3] || presets[0];
+  return `
+    <div class="growth-clouds-layer" aria-hidden="true">
+      ${clouds.map((c) => `
+        <svg class="growth-static-cloud" viewBox="0 0 220 90" style="left:${c.x}%;top:${c.y}%;width:${c.w}px;opacity:${c.o};">
+          <path fill="#ffffff" d="M36 78h146c17 0 30-12 30-27 0-14-11-25-26-26-4-15-18-25-35-25-14 0-27 7-33 18-5-3-11-5-18-5-16 0-30 11-33 26-17 1-31 12-31 27 0 7 6 12 14 12z"/>
+        </svg>
+      `).join('')}
+    </div>
+  `;
 }
 
 function getGoalTargetSet(state) {
@@ -134,7 +174,8 @@ function renderWorldPageSlideHtml(decade, fillStep, goalSet, roleClass = 'is-cur
   return `
     <div class="growth-page-slide ${roleClass}" data-decade="${decade}" data-underground="${info.underground ? 'true' : 'false'}">
       <div class="growth-bg-layer" data-underground="${info.underground ? 'true' : 'false'}" style="--sky-color:${info.skyColor};">
-        <div class="growth-sky-sheet" style="background-image:${info.skyObjectBg};background-position:center ${info.skyPosY || '100%'};"></div>
+        ${info.hasClouds ? renderStaticCloudsHtml(info.sliceIdx) : ''}
+        ${info.skyObjectBg !== 'none' ? `<div class="growth-sky-sheet" style="background-image:${info.skyObjectBg};background-position:center ${info.skyPosY || '100%'};"></div>` : ''}
         ${decade === 0 ? `<div class="growth-village-ground"></div>` : ''}
       </div>
       <div class="growth-tree-trunk" aria-hidden="true"></div>

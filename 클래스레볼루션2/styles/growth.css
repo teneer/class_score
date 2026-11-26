@@ -92,6 +92,24 @@
   bottom: -48px;
 }
 
+.growth-clouds-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.growth-page-slide.is-above .growth-clouds-layer {
+  top: 48px;
+}
+.growth-page-slide.is-below .growth-clouds-layer {
+  bottom: 48px;
+}
+.growth-static-cloud {
+  position: absolute;
+  height: auto;
+  pointer-events: none;
+}
+
 .growth-sky-sheet {
   position: absolute;
   inset: 0;
@@ -120,7 +138,8 @@
     linear-gradient(180deg, #52331f 0%, #5e3d26 36%, #4e301d 70%, #5c3b24 100%);
   background-size: 100% 420px;
 }
-.growth-bg-layer[data-underground="true"] .growth-sky-sheet {
+.growth-bg-layer[data-underground="true"] .growth-sky-sheet,
+.growth-bg-layer[data-underground="true"] .growth-clouds-layer {
   display: none;
 }
 
