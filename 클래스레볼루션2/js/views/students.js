@@ -1053,13 +1053,13 @@ function renderSeatingBody(state, activeStudents, scoreMode, root, topFloatingHt
                       </div>
 
                       <div class="group-footer" data-group-drag-handle="${g.id}">
-                        <button type="button" class="group-name-btn" data-select-group="${g.id}" title="${seatEditMode ? '드래그하여 모둠 통째 이동' : '클릭하면 모둠원 전체 선택'}">${escapeHtml(g.name)}</button>
                         ${seatEditMode ? `
+                          <input type="text" class="group-name-inline-input" data-inline-rename-group="${g.id}" value="${escapeAttr(g.name)}" maxlength="24" title="클릭하여 모둠 이름 바로 수정" aria-label="모둠 이름">
                           <div class="group-edit-actions">
-                            <button type="button" class="group-mini-btn" data-rename-group="${g.id}">이름</button>
                             <button type="button" class="group-mini-btn" data-delete-group="${g.id}">삭제</button>
                           </div>
                         ` : `
+                          <button type="button" class="group-name-btn" data-select-group="${g.id}" title="클릭하면 모둠원 전체 선택">${escapeHtml(g.name)}</button>
                           <span class="group-total">
                             ${renderGroupTotalHtml(members, scoreMode)}
                             <i class="sp-icon sp-sprout-mini" aria-hidden="true"></i>
@@ -1365,18 +1365,41 @@ function bindSeatingEvents(root, state, activeStudents) {
       };
     });
 
-    // 2. 모둠 이름 변경 / 삭제 및 테두리 1칸 단위 리사이즈
-    root.querySelectorAll('[data-rename-group]').forEach((b) => {
-      b.onpointerdown = (e) => e.stopPropagation();
-      b.onclick = (e) => {
-        e.stopPropagation();
-        const g = state.groups.find((x) => x.id === b.dataset.renameGroup);
-        if (!g) return;
-        const next = prompt('모둠 이름 변경', g.name);
-        if (!next || !next.trim()) return;
+    // 2. 모둠 이름 인라인 편집 / 삭제 및 테두리 1칸 단위 리사이즈
+    root.querySelectorAll('[data-inline-rename-group]').forEach((inp) => {
+      const gid = inp.dataset.inlineRenameGroup;
+      const g = state.groups.find((x) => x.id === gid);
+      const origName = g ? g.name : inp.value;
+      let cancelled = false;
+
+      inp.onpointerdown = (e) => e.stopPropagation();
+      inp.onclick = (e) => e.stopPropagation();
+      inp.onfocus = () => {
+        cancelled = false;
+        inp.select();
+      };
+      inp.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          inp.blur();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          cancelled = true;
+          inp.value = origName;
+          inp.blur();
+        }
+      };
+      inp.onblur = () => {
+        if (cancelled) return;
+        const next = inp.value.trim();
+        if (!next) {
+          inp.value = origName;
+          return;
+        }
+        if (next === origName) return;
         store.update((s) => {
-          const target = s.groups.find((x) => x.id === g.id);
-          if (target) target.name = next.trim();
+          const target = s.groups.find((x) => x.id === gid);
+          if (target) target.name = next;
         });
       };
     });
@@ -1411,7 +1434,7 @@ function bindSeatingEvents(root, state, activeStudents) {
     root.querySelectorAll('[data-group-box]').forEach((boxEl) => {
       boxEl.onpointerdown = (ev) => {
         if (ev.button !== 0) return;
-        if (ev.target.closest('.seat-slot, .group-mini-btn, .seat-unassign-btn, .group-resize-handle')) return;
+        if (ev.target.closest('.seat-slot, .group-mini-btn, .seat-unassign-btn, .group-resize-handle, .group-name-inline-input')) return;
         if (swapSourceStudentId && ev.target.closest('.seat-cell-empty')) return;
         ev.preventDefault();
         startGroupDrag(ev, boxEl.dataset.groupBox, canvas, baseBoxes);
