@@ -28,12 +28,11 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  will-change: transform;
-  transform: translate3d(0, 0%, 0);
 }
 
-/* 상승 시 화면이 위에서 아래로 '털썩' 내려가는 바운스 전환 */
+/* 상승 시 화면이 위에서 아래로 '털썩' 내려가는 바운스 전환 (전환 중에만 GPU 레이어 승격) */
 .growth-page-track.is-scrolling-down {
+  will-change: transform;
   animation: growth-page-drop-thud 0.66s forwards;
 }
 
@@ -47,6 +46,7 @@
 
 /* 하강 시 화면이 아래에서 위로 '쑥' 올라가는 전환 */
 .growth-page-track.is-scrolling-up {
+  will-change: transform;
   animation: growth-page-rise-whoosh 0.54s cubic-bezier(0.18, 0.88, 0.26, 1) forwards;
 }
 
@@ -232,6 +232,7 @@
   left: 0;
   right: 0;
   bottom: 0;
+  width: 100%;
   z-index: 2;
   height: var(--fill-h, 4%);
   background: #8dd50f;
@@ -276,10 +277,9 @@
   background-repeat: no-repeat;
   pointer-events: none;
   z-index: 3;
-  transition: opacity 0.16s ease;
 }
 .tree-tick-goal-coin.is-covered {
-  opacity: 0;
+  display: none;
 }
 
 /* ============================================================

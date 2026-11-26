@@ -231,7 +231,13 @@ function syncClimberAndHudInPlace(root, { instantClimber = false } = {}) {
   if (currSlide) {
     const fillEl = currSlide.querySelector('.page-tree-fill');
     if (fillEl) {
-      fillEl.style.setProperty('--fill-h', `${stepToPercent(visualStep)}%`);
+      const fillPct = Math.max(0, Math.min(100, stepToPercent(visualStep)));
+      if (instantClimber) fillEl.style.transition = 'none';
+      fillEl.style.setProperty('--fill-h', `${fillPct}%`);
+      if (instantClimber) {
+        void fillEl.offsetHeight;
+        fillEl.style.transition = '';
+      }
     }
     currSlide.querySelectorAll('[data-tick-step]').forEach((tickEl) => {
       const k = Number(tickEl.dataset.tickStep);
