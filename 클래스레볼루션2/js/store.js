@@ -172,6 +172,15 @@ export function createDefaultState() {
     tools: {
       pickedIds: [],
       rouletteItems: ['발표하기', '칠판 지우기', '우유 당번', '자유선택', '으쓱 +2점', '노래 한 소절'],
+      rouletteSets: [
+        {
+          id: 'rset-default-1',
+          title: '기본 활동 룰렛',
+          items: ['발표하기', '칠판 지우기', '우유 당번', '자유선택', '으쓱 +2점', '노래 한 소절'],
+          favorite: true,
+          updatedAt: Date.now(),
+        },
+      ],
       ladderResults: ['당첨!', '통과', '통과', '보너스 +1', '통과', '발표왕'],
     },
     assignments: [],
