@@ -1395,6 +1395,10 @@
   will-change: transform, opacity;
   animation: fx-actor-flip-y-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) var(--flip-delay, 2.1s) forwards;
 }
+/* 으쓱 연출: 캐릭터 플립 없이 처음부터 기쁨 상태로 부드럽게 등장 */
+.fx-positive .fx-actor-card {
+  animation: fx-reveal-pop 0.32s cubic-bezier(0.22, 1.25, 0.38, 1) var(--flip-delay, 2.1s) forwards;
+}
 .fx-actor-card [hidden] {
   display: none !important;
 }

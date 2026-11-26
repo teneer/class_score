@@ -180,8 +180,7 @@ function runNextFx() {
       <div class="fx-actors-row ${isCompact ? 'is-compact' : ''}">
         ${shownTargets.map((t, idx) => `
           <div class="fx-actor-card" data-actor-idx="${idx}" style="--flip-delay:${(2.10 + idx * appearStep).toFixed(3)}s;">
-            <img class="fx-still-img fx-actor-still" src="${getStillAvatarUrl(t.avatarId)}" alt="${escapeAttr(t.name)}">
-            <div class="avatar-fx-sprite fx-actor-anim" hidden style="background-image:url('${getFxAvatarUrl(t.avatarId)}')"></div>
+            <div class="avatar-fx-sprite fx-actor-anim" style="background-image:url('${getFxAvatarUrl(t.avatarId)}')"></div>
             <span class="fx-actor-name">${escapeHtml(t.name)}</span>
           </div>
         `).join('')}
@@ -198,29 +197,16 @@ function runNextFx() {
     const hi2Step = N > 1 ? Math.min(100, 340 / (N - 1)) : 0;
     duration = 4500;
 
-    // 3.0s ~ 3.52s: 1차 하얀색 순차 하이라이트 (정지 아바타 상태)
+    // 3.0s ~ 3.52s: 1차 하얀색 순차 하이라이트 (처음부터 기쁨 스프라이트 상태)
     cards.forEach((card, idx) => {
       const startAt = Math.round(3000 + idx * hi1Step);
       scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
       scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 140);
     });
 
-    // 3.56s ~ 3.88s: 가로축 플립 및 중간 시점(3.72s)에 2프레임 스프라이트 애니메이션으로 전환
-    scheduleFxStep(() => {
-      cards.forEach((card) => card.classList.add('is-flipping-x'));
-    }, 3560);
-    scheduleFxStep(() => {
-      cards.forEach((card) => {
-        const stillEl = card.querySelector('.fx-actor-still');
-        const animEl = card.querySelector('.fx-actor-anim');
-        if (stillEl) stillEl.hidden = true;
-        if (animEl) animEl.hidden = false;
-      });
-    }, 3720);
-
-    // 3.90s ~ 4.40s: 2차 하얀색 순차 하이라이트 (춤 스프라이트 상태)
+    // 3.85s ~ 4.35s: 2차 하얀색 순차 하이라이트 (플립 없이 기쁨 상태 유지)
     cards.forEach((card, idx) => {
-      const startAt = Math.round(3900 + idx * hi2Step);
+      const startAt = Math.round(3850 + idx * hi2Step);
       scheduleFxStep(() => card.classList.add('is-white-flash'), startAt);
       scheduleFxStep(() => card.classList.remove('is-white-flash'), startAt + 140);
     });
