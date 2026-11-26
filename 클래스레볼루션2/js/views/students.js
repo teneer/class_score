@@ -1109,7 +1109,7 @@ function renderSeatingBody(state, activeStudents, scoreMode, root, topFloatingHt
               <span class="seat-edit-circle">
                 <i class="sp-icon sp-grid" aria-hidden="true"></i>
               </span>
-              <span>${seatEditMode ? '편집 완료' : '자리배치수정'}</span>
+              <span>${seatEditMode ? '편집 완료' : '자리편집'}</span>
             </button>
             ${seatEditMode ? `
               <button type="button" class="seat-edit-sub-btn" id="btn-seat-add-group">+ 새 모둠${unassigned.length > 0 ? ` (${unassigned.length})` : ''}</button>

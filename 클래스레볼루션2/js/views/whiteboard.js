@@ -642,7 +642,7 @@ function renderBoard6Overlay(board6El, splitterEl, container) {
 
           <div class="wb6-v7-team-viewport" id="wb6-team-viewport">
             ${groupRows.length === 0
-              ? `<div class="wb6-empty">등록된 모둠이 없습니다. 자리배치에서 모둠을 먼저 만들어 주세요.</div>`
+              ? `<div class="wb6-empty">등록된 모둠이 없습니다. 자리보기에서 모둠을 먼저 만들어 주세요.</div>`
               : `<div class="wb6-v7-scoreboard" id="wb6-scoreboard">
                   ${groupRows.map((r) => {
                     const isSel = wb6SelectedGroupIds.has(r.group.id);
@@ -1063,7 +1063,7 @@ function mountSingleFloatingPanel(container, kind) {
 
   const titleMap = {
     students: '👥 학생목록',
-    seats: '🪑 자리배치',
+    seats: '🪑 자리보기',
     selfcheck: '☑️ 체크표',
     timer: '⏱ 타이머 · 스톱워치',
   };

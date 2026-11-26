@@ -6,36 +6,36 @@
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#efeee3">
   <title>Class123 - 클래스123 복원 웹</title>
-  <link rel="stylesheet" href="styles/base.css?v=20261126g">
-  <link rel="stylesheet" href="styles/layout.css?v=20261126g">
-  <link rel="stylesheet" href="styles/students.css?v=20261126g">
-  <link rel="stylesheet" href="styles/growth.css?v=20261126g">
-  <link rel="stylesheet" href="styles/checklist.css?v=20261126g">
-  <link rel="stylesheet" href="styles/tools.css?v=20261126g">
-  <link rel="stylesheet" href="styles/whiteboard.css?v=20261126g">
-  <link rel="stylesheet" href="styles/assignments.css?v=20261126g">
-  <link rel="stylesheet" href="styles/cyber.css?v=20261126g">
-  <link rel="stylesheet" href="styles/effects.css?v=20261126g">
+  <link rel="stylesheet" href="styles/base.css?v=20261126h">
+  <link rel="stylesheet" href="styles/layout.css?v=20261126h">
+  <link rel="stylesheet" href="styles/students.css?v=20261126h">
+  <link rel="stylesheet" href="styles/growth.css?v=20261126h">
+  <link rel="stylesheet" href="styles/checklist.css?v=20261126h">
+  <link rel="stylesheet" href="styles/tools.css?v=20261126h">
+  <link rel="stylesheet" href="styles/whiteboard.css?v=20261126h">
+  <link rel="stylesheet" href="styles/assignments.css?v=20261126h">
+  <link rel="stylesheet" href="styles/cyber.css?v=20261126h">
+  <link rel="stylesheet" href="styles/effects.css?v=20261126h">
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=20261126g",
-      "./js/audio.js": "./js/audio.js?v=20261126g",
-      "./js/cloud-sync.js": "./js/cloud-sync.js?v=20261126g",
-      "./js/doc-importer.js": "./js/doc-importer.js?v=20261126g",
-      "./js/effects.js": "./js/effects.js?v=20261126g",
-      "./js/quiz-csv.js": "./js/quiz-csv.js?v=20261126g",
-      "./js/score-engine.js": "./js/score-engine.js?v=20261126g",
-      "./js/store.js": "./js/store.js?v=20261126g",
-      "./js/worksheet-renderer.js": "./js/worksheet-renderer.js?v=20261126g",
-      "./js/views/assignments.js": "./js/views/assignments.js?v=20261126g",
-      "./js/views/bulk-score.js": "./js/views/bulk-score.js?v=20261126g",
-      "./js/views/checklist.js": "./js/views/checklist.js?v=20261126g",
-      "./js/views/cyber.js": "./js/views/cyber.js?v=20261126g",
-      "./js/views/growth.js": "./js/views/growth.js?v=20261126g",
-      "./js/views/students.js": "./js/views/students.js?v=20261126g",
-      "./js/views/tools.js": "./js/views/tools.js?v=20261126g",
-      "./js/views/whiteboard.js": "./js/views/whiteboard.js?v=20261126g"
+      "./js/app.js": "./js/app.js?v=20261126h",
+      "./js/audio.js": "./js/audio.js?v=20261126h",
+      "./js/cloud-sync.js": "./js/cloud-sync.js?v=20261126h",
+      "./js/doc-importer.js": "./js/doc-importer.js?v=20261126h",
+      "./js/effects.js": "./js/effects.js?v=20261126h",
+      "./js/quiz-csv.js": "./js/quiz-csv.js?v=20261126h",
+      "./js/score-engine.js": "./js/score-engine.js?v=20261126h",
+      "./js/store.js": "./js/store.js?v=20261126h",
+      "./js/worksheet-renderer.js": "./js/worksheet-renderer.js?v=20261126h",
+      "./js/views/assignments.js": "./js/views/assignments.js?v=20261126h",
+      "./js/views/bulk-score.js": "./js/views/bulk-score.js?v=20261126h",
+      "./js/views/checklist.js": "./js/views/checklist.js?v=20261126h",
+      "./js/views/cyber.js": "./js/views/cyber.js?v=20261126h",
+      "./js/views/growth.js": "./js/views/growth.js?v=20261126h",
+      "./js/views/students.js": "./js/views/students.js?v=20261126h",
+      "./js/views/tools.js": "./js/views/tools.js?v=20261126h",
+      "./js/views/whiteboard.js": "./js/views/whiteboard.js?v=20261126h"
     }
   }
   </script>
@@ -53,9 +53,9 @@
                 <span class="award-circle"><i class="sp-icon sp-sprout-white" aria-hidden="true"></i></span>
                 <span class="rail-label">학생화면</span>
               </button>
-              <button class="rail-btn" type="button" data-mode="seats" title="자리배치 화면">
+              <button class="rail-btn" type="button" data-mode="seats" title="자리보기 화면">
                 <i class="sp-icon sp-grid" aria-hidden="true"></i>
-                <span class="rail-label">자리배치</span>
+                <span class="rail-label">자리보기</span>
               </button>
               <button class="rail-btn" type="button" data-mode="growth" title="학급점수 (황금알 별길)">
                 <i class="sp-icon sp-egg-nav" aria-hidden="true"></i>
@@ -107,7 +107,7 @@
 
           <!-- 메인 전체화면 워크스페이스 (모드 전환 방식) -->
           <main class="main-workspace" id="main-workspace">
-            <section class="mode-view" id="view-students" aria-label="학생 목록 및 자리배치"></section>
+            <section class="mode-view" id="view-students" aria-label="학생 목록 및 자리보기"></section>
             <section class="mode-view" id="view-growth" aria-label="학급점수 황금알"></section>
             <section class="mode-view" id="view-checklist" aria-label="체크표"></section>
             <section class="mode-view" id="view-picker" aria-label="수업도구 뽑기"></section>
@@ -216,6 +216,6 @@
       }
     })();
   </script>
-  <script type="module" src="js/app.js?v=20261126g"></script>
+  <script type="module" src="js/app.js?v=20261126h"></script>
 </body>
 </html>
