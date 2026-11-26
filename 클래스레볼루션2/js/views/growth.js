@@ -352,7 +352,7 @@ async function runStepClimberLoop() {
         trackEl.classList.remove('is-scrolling-down', 'is-scrolling-up');
         trackEl.innerHTML =
           renderWorldPageSlideHtml(curDecade, 0, goalSet, 'is-curr', { step: 0, num: displayedEggs }) +
-          renderWorldPageSlideHtml(nextDecade, 9, goalSet, 'is-below');
+          renderWorldPageSlideHtml(nextDecade, 10, goalSet, 'is-below');
         void trackEl.offsetHeight;
         trackEl.classList.add('is-scrolling-up');
       }
@@ -365,7 +365,7 @@ async function runStepClimberLoop() {
       cameraDecade = nextDecade;
       if (trackEl) {
         trackEl.classList.remove('is-scrolling-up');
-        trackEl.innerHTML = renderWorldPageSlideHtml(nextDecade, 9, goalSet, 'is-curr');
+        trackEl.innerHTML = renderWorldPageSlideHtml(nextDecade, 10, goalSet, 'is-curr');
       }
 
       // 2) 그다음 황금알이 위에서 이전 페이지 꼭대기 눈금(9칸)으로 따라서 내려옴 + 사운드 + 큰 황금알 숫자 변경

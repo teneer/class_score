@@ -525,6 +525,7 @@
   height: 52px;
   display: grid;
   place-items: center;
+  z-index: 10;
   transition: bottom 0.28s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 .tree-climber-egg.is-instant {
