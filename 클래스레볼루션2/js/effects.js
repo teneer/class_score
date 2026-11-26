@@ -174,8 +174,7 @@ function runNextFx() {
           <div class="fx-medal-spark s2" aria-hidden="true"></div>
         </div>
         <div class="fx-score-banner">
-          <span class="fx-score-formula">+${perStudent}점 &times; ${count}명</span>
-          <strong class="fx-score-total">+${totalScore}점</strong>
+          <strong class="fx-score-total">+${perStudent}점</strong>
         </div>
         <h2 class="fx-reason-title">${escapeHtml(item.reason)}</h2>
       </div>
@@ -259,8 +258,7 @@ function runNextFx() {
       <div class="fx-heading">
         <div class="fx-storm-badge-wrap" aria-hidden="true"></div>
         <div class="fx-score-banner">
-          <span class="fx-score-formula">-${perStudent}점 &times; ${count}명</span>
-          <strong class="fx-score-total">-${totalScore}점</strong>
+          <strong class="fx-score-total">-${perStudent}점</strong>
         </div>
         <h2 class="fx-reason-title">${escapeHtml(item.reason)}</h2>
       </div>

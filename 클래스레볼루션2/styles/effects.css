@@ -1176,7 +1176,7 @@
   text-align: center;
 }
 
-/* 으쓱 메달 (0~2.0s 구름 통과 상승 최대화 → 2.0~2.65s 원래 크기 상단 안착, 끊김 없는 GPU 곡선) */
+/* 으쓱 메달 (화면 맨 아래에서 시계방향 360도 회전·확대 상승 → 상단에서 정상 크기로 축소 안착) */
 .fx-medal-wrap {
   position: relative;
   width: 288px;
@@ -1188,22 +1188,22 @@
 }
 @keyframes fx-medal-intro {
   0% {
-    transform: translate3d(0, 68vh, 0) scale(0.38);
+    transform: translate3d(0, 78vh, 0) scale(0.32) rotate(0deg);
     opacity: 0;
     animation-timing-function: ease-out;
   }
   10% {
-    transform: translate3d(0, 58vh, 0) scale(0.52);
+    transform: translate3d(0, 66vh, 0) scale(0.48) rotate(55deg);
     opacity: 1;
     animation-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
   }
   75% {
-    transform: translate3d(0, 16vh, 0) scale(1.85);
+    transform: translate3d(0, 14vh, 0) scale(1.85) rotate(360deg);
     opacity: 1;
     animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
   100% {
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1) rotate(360deg);
     opacity: 1;
   }
 }
