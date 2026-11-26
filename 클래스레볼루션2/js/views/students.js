@@ -770,7 +770,7 @@ export function renderStudentsView(root) {
         <div class="bottom-center-tools">
           ${hasSelection ? `
             <button type="button" class="text-action-btn is-cancel-slot" id="btn-select-clear">
-              <i class="sp-icon sp-cancel-circle" aria-hidden="true"></i> 선택취소
+              <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="#8b4a00" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2.2 2.2 9.8 9.8M9.8 2.2 2.2 9.8"/></svg> 선택취소
             </button>
             <button type="button" class="text-action-btn is-invert-slot" id="btn-select-invert">
               <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h11l-3-3"/><path d="M16 13H5l3 3"/></svg>

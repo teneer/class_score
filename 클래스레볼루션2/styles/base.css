@@ -349,12 +349,12 @@ button:disabled {
   transform: scale(0.85);
 }
 .sp-gear {
-  width: 25px;
-  height: 25px;
+  width: 24px;
+  height: 24px;
   background-image: url('../assets/visuals/sp_board_layout.png');
   background-size: 380px 570px;
-  background-position: -301px -11px;
-  transform: scale(0.76);
+  background-position: -302px -12px;
+  transform: scale(0.82);
 }
 .sp-gear-mini {
   width: 15px;
@@ -439,30 +439,34 @@ button:disabled {
 }
 .sp-eye {
   width: 30px;
-  height: 24px;
+  height: 22px;
   background-image: url('../assets/visuals/sp_board_layout.png');
   background-size: 380px 570px;
-  background-position: -248px -61px;
-  transform: scale(0.8);
+  background-position: -249px -63px;
+  transform: scale(0.74);
 }
 #btn-curtain[aria-pressed="true"] .sp-eye,
 .sp-eye-closed {
-  width: 30px;
+  width: 29px;
+  height: 13px;
+  background-image: url('../assets/visuals/sp_board_layout.png');
+  background-size: 380px 570px;
+  background-position: -249px -20px;
+  transform: scale(0.76);
+}
+.sp-speaker {
+  width: 24px;
   height: 24px;
   background-image: url('../assets/visuals/sp_board_layout.png');
   background-size: 380px 570px;
-  background-position: -248px -15px;
-}
-.sp-speaker {
-  width: 28px;
-  height: 28px;
-  background-image: url('../assets/visuals/sp_board_layout.png');
-  background-size: 380px 570px;
-  background-position: -11px -249px;
-  transform: scale(0.8);
+  background-position: -13px -251px;
+  transform: scale(0.82);
 }
 #btn-sound[aria-pressed="false"] .sp-speaker {
-  background-position: -251px -188px;
+  width: 23px;
+  height: 23px;
+  background-position: -253px -192px;
+  transform: scale(0.84);
 }
 .sp-egg-mini {
   width: 22px;

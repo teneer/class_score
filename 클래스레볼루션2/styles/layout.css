@@ -382,14 +382,14 @@ body.is-whiteboard-fullscreen .fx-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(1px, 0.35vh, 4px);
-  padding-top: clamp(4px, 0.7vh, 8px);
+  gap: clamp(6px, 1.1vh, 12px);
+  padding: clamp(8px, 1.2vh, 14px) 0 clamp(4px, 0.7vh, 8px);
   border-top: 1px solid #ece8de;
 }
 
 .rail-util-btn {
   width: 36px;
-  height: clamp(24px, 3.5vh, 32px);
+  height: clamp(28px, 4vh, 34px);
   border-radius: 8px;
   display: grid;
   place-items: center;
