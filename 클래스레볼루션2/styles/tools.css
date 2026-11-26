@@ -961,7 +961,391 @@
   color: #d62849;
 }
 
-/* 사다리 레이아웃 */
+/* 사다리 타기 (순수 검정 배경 + 좌우/상하 전환 + 캐릭터 추적 스크롤 + 중앙 결과 카드 + 최종 결과 모달) */
+.ladder-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  color: #ffffff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ladder-top-bar {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px 10px 44px;
+  gap: 12px;
+  flex: none;
+}
+.ladder-top-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.ladder-title-txt {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+}
+.ladder-edit-btn {
+  padding: 7px 16px;
+  border-radius: 5px;
+  background: #ffd644;
+  color: #2f2304;
+  font-size: 13px;
+  font-weight: 800;
+  transition: background 0.14s;
+}
+.ladder-edit-btn:hover {
+  background: #ffcb1f;
+}
+.ladder-instant-btn {
+  padding: 7px 16px;
+  border-radius: 5px;
+  background: #ef4b2c;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  transition: background 0.14s;
+}
+.ladder-instant-btn:hover {
+  background: #dc3c1e;
+}
+.ladder-reset-btn {
+  padding: 7px 14px;
+  border-radius: 5px;
+  background: #272b35;
+  border: 1px solid #444b5c;
+  color: #e6ebf4;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.ladder-reset-btn:hover {
+  background: #353b49;
+}
+.ladder-dir-switch {
+  display: inline-flex;
+  background: #1c1f27;
+  border: 1px solid #353b4a;
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+.ladder-dir-btn {
+  padding: 5px 11px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9ba3b4;
+}
+.ladder-dir-btn.is-active {
+  background: #ffd644;
+  color: #2a2003;
+}
+
+.ladder-board-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ladder-stage-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 44px 36px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  transition: filter 0.28s ease;
+}
+.ladder-stage-scroll.is-blurred {
+  filter: blur(5px);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 좌우 이동 보드 */
+.ladder-h-board {
+  position: relative;
+  display: grid;
+  grid-template-columns: 112px minmax(520px, 760px) 136px;
+  align-items: stretch;
+  gap: 12px;
+  width: min(100%, 1040px);
+}
+.ladder-h-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0;
+}
+.ladder-h-player-btn {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #ececec;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.14s, transform 0.14s;
+}
+.ladder-h-player-btn:hover {
+  color: #ffe347;
+  transform: translateX(-2px);
+}
+.ladder-h-player-btn.is-active {
+  color: #ffe347;
+}
+.ladder-h-player-btn.is-done {
+  color: #8f96a6;
+}
+.ladder-h-result-cell {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #e6e6e6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ladder-h-result-cell.is-hit {
+  color: #ffe347;
+}
+
+/* 상하 이동 보드 */
+.ladder-v-board {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  margin: auto 0;
+}
+.ladder-v-row {
+  display: flex;
+  align-items: center;
+}
+.ladder-v-player-btn {
+  width: 88px;
+  flex: none;
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: #ececec;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ladder-v-player-btn:hover,
+.ladder-v-player-btn.is-active {
+  color: #ffe347;
+}
+.ladder-v-player-btn.is-done {
+  color: #8f96a6;
+}
+.ladder-v-result-cell {
+  width: 88px;
+  flex: none;
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: #e6e6e6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ladder-v-result-cell.is-hit {
+  color: #ffe347;
+}
+
+.ladder-canvas-wrap {
+  position: relative;
+}
+.ladder-canvas {
+  display: block;
+}
+
+/* 사다리 위 이동 캐릭터 + 노란 이름표 */
+.ladder-runner {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  z-index: 12;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ladder-runner-tag {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #ffe347;
+  color: #362703;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+.ladder-runner-avatar {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.65));
+}
+
+/* 시작 오버레이 버튼 */
+.ladder-start-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.ladder-start-btn {
+  pointer-events: auto;
+  min-width: 112px;
+  height: 56px;
+  padding: 0 28px;
+  border-radius: 8px;
+  background: #1ec5be;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 900;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  transition: transform 0.14s, background 0.14s;
+}
+.ladder-start-btn:hover {
+  background: #18b0aa;
+  transform: scale(1.05);
+}
+
+/* 개별 도착 중앙 결과 카드 */
+.ladder-center-toast {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 25;
+  min-width: 240px;
+  padding: 20px 34px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  pointer-events: none;
+  animation: ladder-card-pop 0.22s ease-out;
+}
+@keyframes ladder-card-pop {
+  from { opacity: 0; transform: translate(-50%, -44%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.ladder-center-name {
+  font-size: 30px;
+  font-weight: 900;
+  color: #9e6b14;
+}
+.ladder-center-res {
+  font-size: 30px;
+  font-weight: 900;
+  color: #1c1c1c;
+}
+
+/* 최종 결과 / 결과 바로 보기 모달 */
+.ladder-final-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.ladder-final-box {
+  position: relative;
+  width: min(760px, 92%);
+  max-height: 82vh;
+  background: #252525;
+  border-radius: 10px;
+  padding: 22px 28px;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ladder-final-close {
+  position: absolute;
+  top: 12px;
+  right: -46px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.65);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+}
+.ladder-final-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.ladder-final-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 8px;
+}
+.ladder-final-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 24px;
+  font-weight: 800;
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ladder-final-name {
+  color: #ffe347;
+  min-width: 108px;
+}
+.ladder-final-res {
+  color: #ffffff;
+}
+.ladder-final-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
 .wheel-layout, .ladder-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 310px;

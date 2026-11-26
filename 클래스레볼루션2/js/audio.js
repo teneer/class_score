@@ -19,6 +19,8 @@ const SOUND_FILES = {
   slotDone: 'assets/audio/slot_done.mp3',
   rouletteWin: 'assets/audio/roulette_win.mp3',
   ladderReveal: 'assets/audio/ladder_reveal.mp3',
+  ladderTurn: 'assets/audio/select_tick.mp3',
+  ladderArrive: 'assets/audio/ladder_reveal.mp3',
 };
 
 let soundEnabled = true;
@@ -52,7 +54,7 @@ export function playSound(key) {
   if (!src) return;
   try {
     const audio = getClonedAudio(src);
-    audio.volume = key === 'tick' ? 0.78 : 0.88;
+    audio.volume = (key === 'tick' || key === 'ladderTurn') ? 0.78 : 0.88;
     audio.currentTime = 0;
     audio.play().catch(() => {});
   } catch {

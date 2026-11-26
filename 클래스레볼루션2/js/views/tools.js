@@ -40,6 +40,9 @@ let rouletteSetFilter = 'all'; // 'all' | 'fav'
 
 // 사다리 상태
 let ladderState = null;
+let ladderAnimRaf = 0;
+let ladderNextTimer = null;
+let ladderSetFilter = 'all'; // 'all' | 'fav'
 
 // 놀이동산 실루엣 무한 루프 SVG 배경 (성 · 대관람차 · 롤러코스터 · 회전목마 · 천막)
 const PARK_SILHOUETTE_SVG = encodeURIComponent(
@@ -62,6 +65,8 @@ function clearPickerTimers() {
   clearInterval(groupMemberPickTimer);
   clearInterval(nameSlotTimer);
   cancelAnimationFrame(wheelAnimRaf);
+  cancelAnimationFrame(ladderAnimRaf);
+  clearTimeout(ladderNextTimer);
   pickRollingActive = false;
   shuffleRolling = false;
   nameSlotRolling = false;
@@ -1092,215 +1097,847 @@ function drawWheel(canvas, items, angle) {
   });
 }
 
-function initLadder(players, results) {
-  const cols = players.length;
-  const rows = 9;
-  const rungs = []; // { row, col } -> connects col and col+1
-  for (let r = 0; r < rows; r++) {
-    let c = 0;
-    while (c < cols - 1) {
-      if (Math.random() < 0.45) {
-        rungs.push({ row: r, col: c });
-        c += 2; // 인접 가로선 겹침 방지
+function buildLadderPlayers(activeStudents) {
+  if (activeStudents.length >= 2) {
+    return [...activeStudents]
+      .sort((a, b) => (a.number || 0) - (b.number || 0))
+      .map((s) => ({ id: s.id, name: s.name, avatarId: s.avatarId || 1 }));
+  }
+  return [
+    { id: 'sample-1', name: '참가자1', avatarId: 1 },
+    { id: 'sample-2', name: '참가자2', avatarId: 2 },
+    { id: 'sample-3', name: '참가자3', avatarId: 3 },
+    { id: 'sample-4', name: '참가자4', avatarId: 4 },
+  ];
+}
+
+function normalizeLadderResults(rawResults, count) {
+  const base = Array.isArray(rawResults) && rawResults.length > 0 ? rawResults : ['당첨!', '통과'];
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    out.push(base[i] !== undefined ? base[i] : base[i % base.length]);
+  }
+  return out;
+}
+
+function initLadder(players, results, orientation = 'horizontal') {
+  const lanes = players.length;
+  const steps = 11;
+  const rungs = []; // { step, lane } -> connects lane and lane+1
+  for (let s = 0; s < steps; s++) {
+    let l = 0;
+    while (l < lanes - 1) {
+      if (Math.random() < 0.48) {
+        rungs.push({ step: s, lane: l });
+        l += 2; // 인접 발판 겹침 방지
       } else {
-        c += 1;
+        l += 1;
       }
     }
   }
-  return { players, results, rows, rungs, revealed: {}, activePath: null };
-}
-
-function traceLadderPath(ladder, startCol) {
-  const { rows, rungs } = ladder;
-  const points = [{ col: startCol, row: -0.6 }];
-  let col = startCol;
-  for (let r = 0; r < rows; r++) {
-    points.push({ col, row: r });
-    const right = rungs.find((x) => x.row === r && x.col === col);
-    const left = rungs.find((x) => x.row === r && x.col === col - 1);
-    if (right) {
-      col += 1;
-      points.push({ col, row: r });
-    } else if (left) {
-      col -= 1;
-      points.push({ col, row: r });
+  // 최소한 각 레일에 연결이 1개 이상 있도록 보정
+  for (let l = 0; l < lanes - 1; l++) {
+    if (!rungs.some((r) => r.lane === l)) {
+      const candidateStep = Math.floor(Math.random() * steps);
+      if (!rungs.some((r) => r.step === candidateStep && (r.lane === l - 1 || r.lane === l + 1))) {
+        rungs.push({ step: candidateStep, lane: l });
+      }
     }
   }
-  points.push({ col, row: rows - 0.4 });
-  return { endCol: col, points };
+  return {
+    runId: uid('lrun'),
+    savedToHistory: false,
+    players,
+    results,
+    orientation,
+    steps,
+    rungs,
+    phase: 'ready', // 'ready' | 'running' | 'done'
+    revealed: {},   // { [playerIdx]: endLane }
+    activeRun: null,
+    autoPlaying: false,
+    centerToast: null, // { name, result }
+    finalModalOpen: false,
+  };
+}
+
+function traceLadderPath(ladder, startLane) {
+  const { steps, rungs } = ladder;
+  const points = [{ lane: startLane, step: -0.6 }];
+  let lane = startLane;
+  for (let s = 0; s < steps; s++) {
+    points.push({ lane, step: s });
+    const next = rungs.find((x) => x.step === s && x.lane === lane);
+    const prev = rungs.find((x) => x.step === s && x.lane === lane - 1);
+    if (next) {
+      lane += 1;
+      points.push({ lane, step: s });
+    } else if (prev) {
+      lane -= 1;
+      points.push({ lane, step: s });
+    }
+  }
+  points.push({ lane, step: steps - 0.4 });
+  return { endLane: lane, points };
+}
+
+function getLadderGeometry(ladder) {
+  const lanes = ladder.players.length;
+  const isH = ladder.orientation === 'horizontal';
+  if (isH) {
+    const laneSize = 54;
+    const width = 720;
+    const height = Math.max(260, lanes * laneSize);
+    const startX = 16;
+    const endX = width - 16;
+    const stepSpan = (endX - startX) / ladder.steps;
+    const toXY = (pt) => ({
+      x: pt.step < 0 ? startX : pt.step >= ladder.steps - 0.5 ? endX : startX + (pt.step + 0.5) * stepSpan,
+      y: (pt.lane + 0.5) * laneSize,
+    });
+    return { isH, laneSize, width, height, startX, endX, stepSpan, toXY };
+  }
+  const laneSize = 88;
+  const width = Math.max(520, lanes * laneSize);
+  const height = 430;
+  const startY = 18;
+  const endY = height - 18;
+  const stepSpan = (endY - startY) / ladder.steps;
+  const toXY = (pt) => ({
+    x: (pt.lane + 0.5) * laneSize,
+    y: pt.step < 0 ? startY : pt.step >= ladder.steps - 0.5 ? endY : startY + (pt.step + 0.5) * stepSpan,
+  });
+  return { isH, laneSize, width, height, startY, endY, stepSpan, toXY };
+}
+
+function computeLadderPairs(ladder) {
+  return ladder.players.map((p, idx) => {
+    const endLane = ladder.revealed[idx] !== undefined
+      ? ladder.revealed[idx]
+      : traceLadderPath(ladder, idx).endLane;
+    return {
+      name: p.name,
+      avatarId: p.avatarId,
+      result: ladder.results[endLane] || '',
+    };
+  });
+}
+
+async function saveLadderHistoryIfNeeded(ladder) {
+  if (!ladder || ladder.savedToHistory) return;
+  ladder.savedToHistory = true;
+  const pairs = computeLadderPairs(ladder);
+  await store.update((s) => {
+    if (!Array.isArray(s.tools.ladderHistory)) s.tools.ladderHistory = [];
+    s.tools.ladderHistory.unshift({
+      id: ladder.runId || uid('lhist'),
+      timestamp: Date.now(),
+      orientation: ladder.orientation,
+      pairs,
+    });
+    if (s.tools.ladderHistory.length > 30) {
+      s.tools.ladderHistory = s.tools.ladderHistory.slice(0, 30);
+    }
+  });
+}
+
+function formatLadderDate(ts) {
+  const d = new Date(ts || Date.now());
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function renderLadderIconSvg() {
+  return `
+    <svg viewBox="0 0 36 36" width="30" height="30" aria-hidden="true">
+      <path d="M9 6 H22 V16 H14 V28 H27" fill="none" stroke="#ffd644" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="9" cy="6" r="4" fill="#ffe98a"/>
+      <polygon points="27,23 28.6,26.6 32.5,27 29.5,29.5 30.4,33.3 27,31.3 23.6,33.3 24.5,29.5 21.5,27 25.4,26.6" fill="#ffd644"/>
+    </svg>
+  `;
 }
 
 function renderLadderTool(root, state, activeStudents) {
-  if (!ladderState) {
-    const defaultPlayers = activeStudents.slice(0, 6).map((s) => s.name);
-    const players = defaultPlayers.length >= 2 ? defaultPlayers : ['참가자1', '참가자2', '참가자3', '참가자4'];
-    const baseRes = state.tools.ladderResults || ['당첨!', '통과', '통과', '보너스'];
-    const results = players.map((_, i) => baseRes[i] || (i === 0 ? '당첨!' : '통과'));
-    ladderState = initLadder(players, results);
+  const orientation = state.tools.ladderOrientation || 'horizontal';
+  const players = buildLadderPlayers(activeStudents);
+  const results = normalizeLadderResults(state.tools.ladderResults, players.length);
+
+  if (!ladderState || ladderState.players.length !== players.length) {
+    ladderState = initLadder(players, results, orientation);
+  } else {
+    ladderState.orientation = orientation;
   }
 
-  root.innerHTML = `
-    <div class="tools-dark-stage">
-      <div class="subtool-header">
-        <button type="button" class="subtool-back-btn" id="btn-sub-back">← 뽑기 허브로</button>
-        <h2 style="margin:0;">🪜 사다리 타기</h2>
-        <div style="display:flex;gap:8px;">
-          <button type="button" class="btn-outline" id="btn-ladder-regen" style="background:#262b36;color:#fff;border-color:#3f4656;">사다리 다시 만들기</button>
-          <button type="button" class="btn-yellow" id="btn-ladder-all">전체 결과 보기</button>
+  const geom = getLadderGeometry(ladderState);
+  const isReady = ladderState.phase === 'ready';
+  const historyCount = (state.tools.ladderHistory || []).length;
+  const hitResultSet = new Set(Object.values(ladderState.revealed));
+  const activePlayerIdx = ladderState.activeRun ? ladderState.activeRun.idx : -1;
+
+  const boardHtml = geom.isH ? `
+    <div class="ladder-h-board">
+      <div class="ladder-h-col">
+        ${ladderState.players.map((p, idx) => {
+          const isAct = idx === activePlayerIdx;
+          const isDone = ladderState.revealed[idx] !== undefined && !isAct;
+          return `<button type="button" class="ladder-h-player-btn ${isAct ? 'is-active' : ''} ${isDone ? 'is-done' : ''}" data-ladder-start="${idx}">${escapeHtml(p.name)}</button>`;
+        }).join('')}
+      </div>
+      <div class="ladder-canvas-wrap" id="ladder-canvas-wrap" style="width:${geom.width}px;height:${geom.height}px;">
+        <canvas id="ladder-canvas" class="ladder-canvas" width="${geom.width}" height="${geom.height}"></canvas>
+        <div class="ladder-runner" id="ladder-runner" style="display:none;">
+          <span class="ladder-runner-tag" id="ladder-runner-tag"></span>
+          <img class="ladder-runner-avatar" id="ladder-runner-avatar" alt="" />
         </div>
       </div>
+      <div class="ladder-h-col">
+        ${ladderState.results.map((r, rIdx) => `
+          <div class="ladder-h-result-cell ${hitResultSet.has(rIdx) ? 'is-hit' : ''}" data-ladder-res="${rIdx}">${escapeHtml(r)}</div>
+        `).join('')}
+      </div>
+    </div>
+  ` : `
+    <div class="ladder-v-board" style="width:${geom.width}px;">
+      <div class="ladder-v-row">
+        ${ladderState.players.map((p, idx) => {
+          const isAct = idx === activePlayerIdx;
+          const isDone = ladderState.revealed[idx] !== undefined && !isAct;
+          return `<button type="button" class="ladder-v-player-btn ${isAct ? 'is-active' : ''} ${isDone ? 'is-done' : ''}" data-ladder-start="${idx}">${escapeHtml(p.name)}</button>`;
+        }).join('')}
+      </div>
+      <div class="ladder-canvas-wrap" id="ladder-canvas-wrap" style="width:${geom.width}px;height:${geom.height}px;">
+        <canvas id="ladder-canvas" class="ladder-canvas" width="${geom.width}" height="${geom.height}"></canvas>
+        <div class="ladder-runner" id="ladder-runner" style="display:none;">
+          <span class="ladder-runner-tag" id="ladder-runner-tag"></span>
+          <img class="ladder-runner-avatar" id="ladder-runner-avatar" alt="" />
+        </div>
+      </div>
+      <div class="ladder-v-row">
+        ${ladderState.results.map((r, rIdx) => `
+          <div class="ladder-v-result-cell ${hitResultSet.has(rIdx) ? 'is-hit' : ''}" data-ladder-res="${rIdx}">${escapeHtml(r)}</div>
+        `).join('')}
+      </div>
+    </div>
+  `;
 
-      <div class="ladder-layout">
-        <div class="canvas-stage-box">
-          <div style="display:flex;width:100%;justify-content:space-around;gap:6px;">
-            ${ladderState.players.map((p, idx) => `
-              <button type="button" class="btn-outline" data-ladder-start="${idx}" style="background:${ladderState.revealed[idx] !== undefined ? '#ffe347' : '#262b36'};color:${ladderState.revealed[idx] !== undefined ? '#251c04' : '#fff'};border-color:#444b5c;font-size:12px;padding:6px 10px;">
-                ${escapeHtml(p)}
-              </button>
-            `).join('')}
+  const allPairs = ladderState.finalModalOpen ? computeLadderPairs(ladderState) : [];
+
+  root.innerHTML = `
+    <div class="ladder-stage">
+      <div class="ladder-top-bar">
+        <div class="ladder-top-left">
+          ${renderLadderIconSvg()}
+          <span class="ladder-title-txt">사다리 타기</span>
+          ${isReady ? `
+            <button type="button" class="ladder-edit-btn" id="btn-ladder-edit">사다리 내용 편집</button>
+          ` : `
+            <button type="button" class="ladder-instant-btn" id="btn-ladder-instant">결과 바로 보기</button>
+            <button type="button" class="ladder-reset-btn" id="btn-ladder-regen">다시 하기</button>
+          `}
+          <div class="ladder-dir-switch" title="사다리 이동 방향">
+            <button type="button" class="ladder-dir-btn ${geom.isH ? 'is-active' : ''}" data-ladder-dir="horizontal">좌우 이동</button>
+            <button type="button" class="ladder-dir-btn ${!geom.isH ? 'is-active' : ''}" data-ladder-dir="vertical">상하 이동</button>
           </div>
-          <canvas id="ladder-canvas" width="660" height="360" style="max-width:100%;height:auto;"></canvas>
-          <div style="display:flex;width:100%;justify-content:space-around;gap:6px;">
-            ${ladderState.results.map((r) => `
-              <span style="padding:5px 10px;border-radius:6px;background:#262b36;color:#ffe347;font-size:12px;font-weight:800;">${escapeHtml(r)}</span>
-            `).join('')}
+          <button type="button" class="ladder-reset-btn" id="btn-ladder-history">지난 결과 (${historyCount})</button>
+        </div>
+        <button type="button" class="roulette-close-btn" id="btn-sub-back" title="뽑기 허브로">&times;</button>
+      </div>
+
+      <div class="ladder-board-shell">
+        <div class="ladder-stage-scroll ${isReady ? 'is-blurred' : ''}" id="ladder-scroll">
+          ${boardHtml}
+        </div>
+
+        ${isReady ? `
+          <div class="ladder-start-overlay">
+            <button type="button" class="ladder-start-btn" id="btn-ladder-start">시작</button>
           </div>
-          ${Object.keys(ladderState.revealed).length > 0 ? `
-            <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:6px;">
-              ${Object.entries(ladderState.revealed).map(([pIdx, rIdx]) => `
-                <span style="padding:5px 11px;border-radius:99px;background:#2b3344;font-size:12px;">
-                  <strong>${escapeHtml(ladderState.players[pIdx])}</strong> → <span style="color:#ffe347;font-weight:800;">${escapeHtml(ladderState.results[rIdx])}</span>
-                </span>
-              `).join('')}
+        ` : ''}
+
+        ${ladderState.centerToast ? `
+          <div class="ladder-center-toast" id="ladder-center-toast">
+            <span class="ladder-center-name">${escapeHtml(ladderState.centerToast.name)}</span>
+            <span class="ladder-center-res">${escapeHtml(ladderState.centerToast.result)}</span>
+          </div>
+        ` : ''}
+
+        ${ladderState.finalModalOpen ? `
+          <div class="ladder-final-overlay" id="ladder-final-overlay">
+            <div class="ladder-final-box">
+              <button type="button" class="ladder-final-close" id="btn-ladder-final-close" title="닫기">&times;</button>
+              <div class="ladder-final-list">
+                ${allPairs.map((pair) => `
+                  <div class="ladder-final-row">
+                    <span class="ladder-final-name">${escapeHtml(pair.name)}</span>
+                    <span class="ladder-final-res">${escapeHtml(pair.result)}</span>
+                  </div>
+                `).join('')}
+              </div>
+              <div class="ladder-final-footer">
+                <button type="button" class="ladder-reset-btn" id="btn-ladder-final-regen">새 사다리 다시 하기</button>
+              </div>
             </div>
-          ` : ''}
-        </div>
-
-        <div class="tool-side-card">
-          <h3>참여자 (2~8명, 줄바꿈)</h3>
-          <button type="button" class="btn-outline" id="btn-ladder-random-st" style="background:#262b36;color:#fff;border-color:#3f4656;font-size:12px;">학생 중 6명 랜덤 채우기</button>
-          <textarea id="ladder-players-area" rows="5">${escapeHtml(ladderState.players.join('\n'))}</textarea>
-          <h3>결과 항목 (줄바꿈)</h3>
-          <textarea id="ladder-results-area" rows="5">${escapeHtml(ladderState.results.join('\n'))}</textarea>
-          <button type="button" class="btn-yellow" id="btn-ladder-apply">새 사다리 생성</button>
-        </div>
+          </div>
+        ` : ''}
       </div>
     </div>
   `;
 
   const canvas = root.querySelector('#ladder-canvas');
-  drawLadder(canvas, ladderState, ladderState.activePath);
+  const scrollBox = root.querySelector('#ladder-scroll');
+  const runnerEl = root.querySelector('#ladder-runner');
+  const runnerTag = root.querySelector('#ladder-runner-tag');
+  const runnerAvatar = root.querySelector('#ladder-runner-avatar');
 
-  root.querySelector('#btn-sub-back').onclick = () => { pickerSubTool = 'hub'; renderPickerView(root); };
-  root.querySelector('#btn-ladder-regen').onclick = () => {
-    ladderState = initLadder(ladderState.players, ladderState.results);
+  drawLadder(canvas, ladderState, ladderState.activeRun);
+
+  const stopLadderAnim = () => {
+    cancelAnimationFrame(ladderAnimRaf);
+    clearTimeout(ladderNextTimer);
+    ladderAnimRaf = 0;
+    ladderNextTimer = null;
+  };
+
+  const updateRunnerAndScroll = (pos, player) => {
+    const rEl = root.querySelector('#ladder-runner');
+    const rTag = root.querySelector('#ladder-runner-tag');
+    const rAvatar = root.querySelector('#ladder-runner-avatar');
+    const sBox = root.querySelector('#ladder-scroll');
+    if (!rEl || !pos || !player) return;
+    rEl.style.display = 'flex';
+    rEl.style.left = `${pos.x}px`;
+    rEl.style.top = `${pos.y}px`;
+    if (rTag) rTag.textContent = player.name;
+    const avatarUrl = getStillAvatarUrl(player.avatarId);
+    if (rAvatar && rAvatar.getAttribute('src') !== avatarUrl) {
+      rAvatar.setAttribute('src', avatarUrl);
+    }
+    // 항목이 많을 때 캐릭터 위치에 맞춰 자동 스크롤 추적
+    if (sBox) {
+      if (geom.isH) {
+        const targetTop = Math.max(0, pos.y + 18 - sBox.clientHeight * 0.5);
+        sBox.scrollTop += (targetTop - sBox.scrollTop) * 0.22;
+      } else {
+        const targetLeft = Math.max(0, pos.x + 44 - sBox.clientWidth * 0.5);
+        sBox.scrollLeft += (targetLeft - sBox.scrollLeft) * 0.22;
+      }
+    }
+  };
+
+  const startSingleRun = (idx, continueAuto = false) => {
+    stopLadderAnim();
+    ladderState.phase = 'running';
+    ladderState.centerToast = null;
+    ladderState.finalModalOpen = false;
+    ladderState.autoPlaying = continueAuto;
+
+    const traced = traceLadderPath(ladderState, idx);
+    const xyPts = traced.points.map((pt) => geom.toXY(pt));
+    const segLengths = [];
+    const segDirs = []; // 'h' | 'v'
+    let totalLen = 0;
+    for (let i = 0; i < xyPts.length - 1; i++) {
+      const dx = xyPts[i + 1].x - xyPts[i].x;
+      const dy = xyPts[i + 1].y - xyPts[i].y;
+      const len = Math.hypot(dx, dy);
+      segLengths.push(len);
+      segDirs.push(Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v');
+      totalLen += len;
+    }
+
+    ladderState.activeRun = {
+      idx,
+      xyPts,
+      segLengths,
+      segDirs,
+      totalLen,
+      dist: 0,
+      lastSegIdx: 0,
+      endLane: traced.endLane,
+    };
+
+    // 활성 학생 하이라이트 갱신
+    root.querySelectorAll('[data-ladder-start]').forEach((el) => {
+      el.classList.toggle('is-active', Number(el.dataset.ladderStart) === idx);
+    });
+    const toastEl = root.querySelector('#ladder-center-toast');
+    if (toastEl) toastEl.remove();
+
+    const player = ladderState.players[idx];
+    const speedPxPerSec = Math.max(360, totalLen / 2.2); // 약 2.2초 내외로 도착
+    let lastTs = performance.now();
+
+    const step = (now) => {
+      if (pickerSubTool !== 'ladder' || !ladderState || !ladderState.activeRun) return;
+      const dt = Math.min(0.05, (now - lastTs) / 1000);
+      lastTs = now;
+      const run = ladderState.activeRun;
+      run.dist = Math.min(run.totalLen, run.dist + speedPxPerSec * dt);
+
+      // 현재 거리 위치 & 세그먼트 계산
+      let acc = 0;
+      let segIdx = 0;
+      let pos = run.xyPts[0];
+      for (let i = 0; i < run.segLengths.length; i++) {
+        const sLen = run.segLengths[i];
+        if (run.dist <= acc + sLen || i === run.segLengths.length - 1) {
+          segIdx = i;
+          const t = sLen > 0 ? Math.min(1, Math.max(0, (run.dist - acc) / sLen)) : 1;
+          pos = {
+            x: run.xyPts[i].x + (run.xyPts[i + 1].x - run.xyPts[i].x) * t,
+            y: run.xyPts[i].y + (run.xyPts[i + 1].y - run.xyPts[i].y) * t,
+          };
+          break;
+        }
+        acc += sLen;
+      }
+
+      // 방향 전환(수평 <-> 수직) 시 효과음 재생
+      if (segIdx > run.lastSegIdx) {
+        for (let k = run.lastSegIdx + 1; k <= segIdx; k++) {
+          if (run.segDirs[k] !== run.segDirs[k - 1]) {
+            playSound('ladderTurn');
+          }
+        }
+        run.lastSegIdx = segIdx;
+      }
+
+      const curCanvas = root.querySelector('#ladder-canvas');
+      drawLadder(curCanvas, ladderState, run);
+      updateRunnerAndScroll(pos, player);
+
+      if (run.dist < run.totalLen) {
+        ladderAnimRaf = requestAnimationFrame(step);
+      } else {
+        // 목적지 도착
+        ladderState.revealed[idx] = run.endLane;
+        playSound('ladderArrive');
+        ladderState.centerToast = {
+          name: player.name,
+          result: ladderState.results[run.endLane] || '',
+        };
+        const allDone = Object.keys(ladderState.revealed).length >= ladderState.players.length;
+        if (allDone) {
+          ladderState.phase = 'done';
+          saveLadderHistoryIfNeeded(ladderState);
+        }
+        renderPickerView(root);
+        // 도착 직후 캐릭터·선 상태 유지 표시
+        const newCanvas = root.querySelector('#ladder-canvas');
+        const newRunner = root.querySelector('#ladder-runner');
+        if (newCanvas) drawLadder(newCanvas, ladderState, run);
+        if (newRunner) {
+          const endPos = run.xyPts[run.xyPts.length - 1];
+          newRunner.style.display = 'flex';
+          newRunner.style.left = `${endPos.x}px`;
+          newRunner.style.top = `${endPos.y}px`;
+          const t = root.querySelector('#ladder-runner-tag');
+          const img = root.querySelector('#ladder-runner-avatar');
+          if (t) t.textContent = player.name;
+          if (img) img.setAttribute('src', getStillAvatarUrl(player.avatarId));
+          const sBox = root.querySelector('#ladder-scroll');
+          if (sBox) {
+            if (geom.isH) sBox.scrollTop = Math.max(0, endPos.y + 18 - sBox.clientHeight * 0.5);
+            else sBox.scrollLeft = Math.max(0, endPos.x + 44 - sBox.clientWidth * 0.5);
+          }
+        }
+
+        if (allDone) {
+          ladderNextTimer = setTimeout(() => {
+            if (pickerSubTool !== 'ladder' || !ladderState) return;
+            ladderState.centerToast = null;
+            ladderState.finalModalOpen = true;
+            renderPickerView(root);
+          }, 1250);
+        } else if (ladderState.autoPlaying) {
+          const nextIdx = ladderState.players.findIndex((_, i) => ladderState.revealed[i] === undefined);
+          if (nextIdx >= 0) {
+            ladderNextTimer = setTimeout(() => {
+              if (pickerSubTool !== 'ladder' || !ladderState || !ladderState.autoPlaying) return;
+              startSingleRun(nextIdx, true);
+            }, 1350);
+          }
+        }
+      }
+    };
+
+    ladderAnimRaf = requestAnimationFrame(step);
+  };
+
+  root.querySelector('#btn-sub-back').onclick = () => {
+    stopLadderAnim();
+    pickerSubTool = 'hub';
+    renderPickerView(root);
+  };
+
+  const editBtn = root.querySelector('#btn-ladder-edit');
+  if (editBtn) {
+    editBtn.onclick = () => openLadderEditModal(root, activeStudents);
+  }
+
+  const startBtn = root.querySelector('#btn-ladder-start');
+  if (startBtn) {
+    startBtn.onclick = () => {
+      ladderState.phase = 'running';
+      renderPickerView(root);
+      startSingleRun(0, true);
+    };
+  }
+
+  const instantBtn = root.querySelector('#btn-ladder-instant');
+  if (instantBtn) {
+    instantBtn.onclick = async () => {
+      stopLadderAnim();
+      ladderState.autoPlaying = false;
+      ladderState.activeRun = null;
+      ladderState.centerToast = null;
+      ladderState.players.forEach((_, idx) => {
+        if (ladderState.revealed[idx] === undefined) {
+          ladderState.revealed[idx] = traceLadderPath(ladderState, idx).endLane;
+        }
+      });
+      ladderState.phase = 'done';
+      await saveLadderHistoryIfNeeded(ladderState);
+      ladderState.finalModalOpen = true;
+      playSound('ladderArrive');
+      renderPickerView(root);
+    };
+  }
+
+  const regenHandler = () => {
+    stopLadderAnim();
+    const curState = store.getState();
+    const freshPlayers = buildLadderPlayers(activeStudents);
+    const freshResults = normalizeLadderResults(curState.tools.ladderResults, freshPlayers.length);
+    ladderState = initLadder(freshPlayers, freshResults, curState.tools.ladderOrientation || 'horizontal');
     playSound('confirm');
     renderPickerView(root);
   };
-  root.querySelector('#btn-ladder-all').onclick = () => {
-    ladderState.players.forEach((_, idx) => {
-      const { endCol } = traceLadderPath(ladderState, idx);
-      ladderState.revealed[idx] = endCol;
-    });
-    playSound('ladderReveal');
-    renderPickerView(root);
-  };
-  root.querySelectorAll('[data-ladder-start]').forEach((b) => {
-    b.onclick = () => {
-      const idx = Number(b.dataset.ladderStart);
-      const traced = traceLadderPath(ladderState, idx);
-      ladderState.activePath = { startIdx: idx, points: traced.points, progress: 0 };
-      const stepAnim = () => {
-        if (!ladderState.activePath) return;
-        ladderState.activePath.progress += 0.06;
-        drawLadder(canvas, ladderState, ladderState.activePath);
-        if (ladderState.activePath.progress < 1) {
-          requestAnimationFrame(stepAnim);
-        } else {
-          ladderState.revealed[idx] = traced.endCol;
-          playSound('confirm');
-          renderPickerView(root);
-        }
-      };
-      playTick(700, 0.04);
-      requestAnimationFrame(stepAnim);
+  const regenBtn = root.querySelector('#btn-ladder-regen');
+  if (regenBtn) regenBtn.onclick = regenHandler;
+  const finalRegenBtn = root.querySelector('#btn-ladder-final-regen');
+  if (finalRegenBtn) finalRegenBtn.onclick = regenHandler;
+
+  const finalCloseBtn = root.querySelector('#btn-ladder-final-close');
+  if (finalCloseBtn) {
+    finalCloseBtn.onclick = () => {
+      ladderState.finalModalOpen = false;
+      renderPickerView(root);
+    };
+  }
+  const finalOverlay = root.querySelector('#ladder-final-overlay');
+  if (finalOverlay) {
+    finalOverlay.onclick = (e) => {
+      if (e.target === finalOverlay) {
+        ladderState.finalModalOpen = false;
+        renderPickerView(root);
+      }
+    };
+  }
+
+  root.querySelectorAll('[data-ladder-dir]').forEach((b) => {
+    b.onclick = async () => {
+      const nextDir = b.dataset.ladderDir;
+      if (nextDir === ladderState.orientation) return;
+      stopLadderAnim();
+      await store.update((s) => {
+        s.tools.ladderOrientation = nextDir;
+      });
+      ladderState.orientation = nextDir;
+      ladderState.activeRun = null;
+      ladderState.autoPlaying = false;
+      ladderState.centerToast = null;
+      renderPickerView(root);
     };
   });
-  root.querySelector('#btn-ladder-random-st').onclick = () => {
-    const pick = [...activeStudents].sort(() => Math.random() - 0.5).slice(0, 6).map((s) => s.name);
-    if (pick.length < 2) return;
-    const res = pick.map((_, i) => ladderState.results[i] || (i === 0 ? '당첨!' : '통과'));
-    ladderState = initLadder(pick, res);
-    renderPickerView(root);
-  };
-  root.querySelector('#btn-ladder-apply').onclick = () => {
-    const players = root.querySelector('#ladder-players-area').value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 8);
-    const resultsRaw = root.querySelector('#ladder-results-area').value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-    if (players.length < 2) {
-      showToast({ title: '참여자는 최소 2명 이상 필요합니다.', tone: 'minus' });
-      return;
-    }
-    const results = players.map((_, i) => resultsRaw[i] || '통과');
-    ladderState = initLadder(players, results);
-    playSound('confirm');
-    renderPickerView(root);
-  };
+
+  root.querySelector('#btn-ladder-history').onclick = () => openLadderHistoryModal(root);
+
+  root.querySelectorAll('[data-ladder-start]').forEach((b) => {
+    b.onclick = () => {
+      if (ladderState.phase === 'ready') return;
+      const idx = Number(b.dataset.ladderStart);
+      startSingleRun(idx, false);
+    };
+  });
 }
 
-function drawLadder(canvas, ladder, activePath) {
-  if (!canvas) return;
+function drawLadder(canvas, ladder, activeRun) {
+  if (!canvas || !ladder) return;
   const ctx = canvas.getContext('2d');
-  const w = canvas.width;
-  const h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
+  const geom = getLadderGeometry(ladder);
+  ctx.clearRect(0, 0, geom.width, geom.height);
 
-  const cols = ladder.players.length;
-  const padX = w / (cols * 2);
-  const stepX = (w - padX * 2) / Math.max(1, cols - 1);
-  const topY = 20;
-  const botY = h - 20;
-  const stepY = (botY - topY) / ladder.rows;
-
-  const getX = (c) => (cols === 1 ? w / 2 : padX + c * stepX);
-  const getY = (r) => topY + (r + 0.5) * stepY;
-
-  // 세로 기둥
-  ctx.strokeStyle = '#586278';
-  ctx.lineWidth = 5;
+  // 기본 레일 (회색 굵은 선)
+  ctx.strokeStyle = '#33363d';
+  ctx.lineWidth = 8;
   ctx.lineCap = 'round';
-  for (let c = 0; c < cols; c++) {
+  ctx.lineJoin = 'round';
+
+  for (let l = 0; l < ladder.players.length; l++) {
+    const p0 = geom.toXY({ lane: l, step: -0.6 });
+    const p1 = geom.toXY({ lane: l, step: ladder.steps - 0.4 });
     ctx.beginPath();
-    ctx.moveTo(getX(c), topY);
-    ctx.lineTo(getX(c), botY);
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
     ctx.stroke();
   }
 
-  // 가로 발판
-  ctx.strokeStyle = '#79859e';
-  ctx.lineWidth = 4;
+  // 연결 발판
+  ctx.strokeStyle = '#33363d';
+  ctx.lineWidth = 7;
   for (const r of ladder.rungs) {
+    const a = geom.toXY({ lane: r.lane, step: r.step });
+    const b = geom.toXY({ lane: r.lane + 1, step: r.step });
     ctx.beginPath();
-    ctx.moveTo(getX(r.col), getY(r.row));
-    ctx.lineTo(getX(r.col + 1), getY(r.row));
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
     ctx.stroke();
   }
 
-  // 활성 추적 경로
-  if (activePath && activePath.points.length > 1) {
-    const pts = activePath.points.map((p) => ({
-      x: getX(p.col),
-      y: p.row < 0 ? topY : p.row >= ladder.rows - 0.5 ? botY : getY(p.row),
-    }));
-    const maxSeg = Math.max(1, Math.floor((pts.length - 1) * Math.min(1, activePath.progress)));
+  // 현재 활성 이동 경로 (노란 선)
+  if (activeRun && activeRun.xyPts && activeRun.xyPts.length > 1) {
     ctx.strokeStyle = '#ffe347';
     ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i <= maxSeg; i++) {
-      ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.moveTo(activeRun.xyPts[0].x, activeRun.xyPts[0].y);
+    let remain = activeRun.dist;
+    for (let i = 0; i < activeRun.segLengths.length; i++) {
+      const sLen = activeRun.segLengths[i];
+      if (remain >= sLen) {
+        ctx.lineTo(activeRun.xyPts[i + 1].x, activeRun.xyPts[i + 1].y);
+        remain -= sLen;
+      } else if (remain > 0) {
+        const t = remain / Math.max(1e-6, sLen);
+        const nx = activeRun.xyPts[i].x + (activeRun.xyPts[i + 1].x - activeRun.xyPts[i].x) * t;
+        const ny = activeRun.xyPts[i].y + (activeRun.xyPts[i + 1].y - activeRun.xyPts[i].y) * t;
+        ctx.lineTo(nx, ny);
+        break;
+      } else {
+        break;
+      }
     }
     ctx.stroke();
   }
+}
+
+/** 사다리 내용 편집 모달 (룰렛과 동일한 2컬럼 통째 입력 + 이전 세트 기억/즐겨찾기/필터/삭제) */
+function openLadderEditModal(root, activeStudents) {
+  const modalRoot = document.getElementById('modal-root');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  const close = () => backdrop.remove();
+  const studentCount = Math.max(2, buildLadderPlayers(activeStudents).length);
+
+  const renderModalContent = () => {
+    const state = store.getState();
+    const items = state.tools.ladderResults || [];
+    const sets = state.tools.ladderSets || [];
+    const filteredSets = ladderSetFilter === 'fav' ? sets.filter((x) => x.favorite) : sets;
+
+    backdrop.innerHTML = `
+      <div class="roulette-edit-dialog">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <h2 style="margin:0;font-size:17px;font-weight:800;">사다리 내용 편집</h2>
+          <button type="button" class="dialog-close" id="btn-lm-close">&times;</button>
+        </div>
+        <div class="roulette-edit-grid">
+          <div class="roulette-edit-left">
+            <textarea class="roulette-edit-textarea" id="lm-textarea" placeholder="학생 숫자에 맞게&#10;사다리 타기로 뽑을 항목을&#10;한줄씩 입력해 주세요.&#10;&#10;예)&#10;우유 당번&#10;칠판 지우기&#10;안내장 배부&#10;휴지통 관리&#10;걸레 관리&#10;교실 청소">${escapeHtml(items.join('\n'))}</textarea>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#786f60;">
+              <span>현재 학생 <strong>${studentCount}명</strong> · 입력 <strong id="lm-line-count">${items.length}</strong>개</span>
+              <span style="font-size:11.5px;">부족하면 자동 반복 배정</span>
+            </div>
+          </div>
+          <div class="roulette-edit-right">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+              <div style="display:flex;gap:4px;">
+                <button type="button" class="btn-outline" data-lm-filter="all" style="font-size:11.5px;padding:4px 9px;${ladderSetFilter === 'all' ? 'background:#ffe347;color:#2c2105;border-color:#e5b824;font-weight:800;' : ''}">전체 (${sets.length})</button>
+                <button type="button" class="btn-outline" data-lm-filter="fav" style="font-size:11.5px;padding:4px 9px;${ladderSetFilter === 'fav' ? 'background:#ffe347;color:#2c2105;border-color:#e5b824;font-weight:800;' : ''}">★ 즐겨찾기만</button>
+              </div>
+            </div>
+            <div class="roulette-set-list">
+              ${filteredSets.length === 0 ? `
+                <div style="padding:24px 10px;text-align:center;color:#9b9385;font-size:12.5px;">저장된 이전 세트가 없습니다.</div>
+              ` : filteredSets.map((set) => {
+                const d = new Date(set.updatedAt || Date.now());
+                const dateStr = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+                return `
+                  <div class="roulette-set-item">
+                    <button type="button" class="roulette-set-load" data-lm-load="${set.id}">
+                      <span class="roulette-set-date">${dateStr}</span>
+                      <strong>${escapeHtml(set.title || set.items.slice(0, 3).join(', '))} (${set.items.length})</strong>
+                    </button>
+                    <button type="button" class="roulette-set-star ${set.favorite ? 'is-fav' : ''}" data-lm-fav="${set.id}" title="즐겨찾기">${set.favorite ? '★' : '☆'}</button>
+                    <button type="button" class="roulette-set-del" data-lm-del="${set.id}" title="삭제">&times;</button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+        <button type="button" class="roulette-save-full-btn" id="btn-lm-apply">저장</button>
+      </div>
+    `;
+
+    const textarea = backdrop.querySelector('#lm-textarea');
+    const countEl = backdrop.querySelector('#lm-line-count');
+    textarea.oninput = () => {
+      const cnt = textarea.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).length;
+      if (countEl) countEl.textContent = String(cnt);
+    };
+
+    backdrop.querySelector('#btn-lm-close').onclick = close;
+    backdrop.querySelectorAll('[data-lm-filter]').forEach((b) => {
+      b.onclick = () => {
+        ladderSetFilter = b.dataset.lmFilter;
+        renderModalContent();
+      };
+    });
+    backdrop.querySelectorAll('[data-lm-load]').forEach((b) => {
+      b.onclick = () => {
+        const found = (store.getState().tools.ladderSets || []).find((x) => x.id === b.dataset.lmLoad);
+        if (found) {
+          textarea.value = found.items.join('\n');
+          textarea.oninput();
+        }
+      };
+    });
+    backdrop.querySelectorAll('[data-lm-fav]').forEach((b) => {
+      b.onclick = async () => {
+        const sid = b.dataset.lmFav;
+        await store.update((s) => {
+          const t = (s.tools.ladderSets || []).find((x) => x.id === sid);
+          if (t) t.favorite = !t.favorite;
+        });
+        renderModalContent();
+      };
+    });
+    backdrop.querySelectorAll('[data-lm-del]').forEach((b) => {
+      b.onclick = async () => {
+        const sid = b.dataset.lmDel;
+        await store.update((s) => {
+          s.tools.ladderSets = (s.tools.ladderSets || []).filter((x) => x.id !== sid);
+        });
+        renderModalContent();
+      };
+    });
+
+    backdrop.querySelector('#btn-lm-apply').onclick = async () => {
+      const lines = textarea.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+      if (lines.length < 2) {
+        showToast({ title: '최소 2개 이상의 항목을 한 줄씩 입력해주세요.', tone: 'minus' });
+        return;
+      }
+      const keySig = lines.join('\n');
+      await store.update((s) => {
+        s.tools.ladderResults = lines;
+        if (!Array.isArray(s.tools.ladderSets)) s.tools.ladderSets = [];
+        const existing = s.tools.ladderSets.find((x) => (x.items || []).join('\n') === keySig);
+        if (existing) {
+          existing.updatedAt = Date.now();
+        } else {
+          s.tools.ladderSets.unshift({
+            id: uid('lset'),
+            title: lines.slice(0, 3).join(', ') + (lines.length > 3 ? ` 외 ${lines.length - 3}` : ''),
+            items: lines,
+            favorite: false,
+            updatedAt: Date.now(),
+          });
+          if (s.tools.ladderSets.length > 30) {
+            const favs = s.tools.ladderSets.filter((x) => x.favorite);
+            const normals = s.tools.ladderSets.filter((x) => !x.favorite).slice(0, Math.max(10, 30 - favs.length));
+            s.tools.ladderSets = [...favs, ...normals].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+          }
+        }
+      });
+      const freshPlayers = buildLadderPlayers(activeStudents);
+      const freshResults = normalizeLadderResults(lines, freshPlayers.length);
+      ladderState = initLadder(freshPlayers, freshResults, store.getState().tools.ladderOrientation || 'horizontal');
+      playSound('confirm');
+      close();
+      renderPickerView(root);
+    };
+  };
+
+  backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+  renderModalContent();
+  modalRoot.appendChild(backdrop);
+}
+
+/** 사다리 시행별 저장 결과 다시 보기 모달 */
+function openLadderHistoryModal(root) {
+  const modalRoot = document.getElementById('modal-root');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  const close = () => backdrop.remove();
+  let selectedId = null;
+
+  const renderModal = () => {
+    const history = store.getState().tools.ladderHistory || [];
+    if (!selectedId && history.length > 0) selectedId = history[0].id;
+    const activeItem = history.find((h) => h.id === selectedId) || null;
+
+    backdrop.innerHTML = `
+      <div class="roulette-edit-dialog" style="width:760px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <h2 style="margin:0;font-size:17px;font-weight:800;">사다리 지난 결과 (${history.length}회)</h2>
+          <button type="button" class="dialog-close" id="btn-lh-close">&times;</button>
+        </div>
+        <div class="roulette-edit-grid" style="grid-template-columns:250px minmax(0,1fr);min-height:360px;">
+          <div class="roulette-set-list" style="max-height:380px;">
+            ${history.length === 0 ? `
+              <div style="padding:28px 12px;text-align:center;color:#9b9385;font-size:13px;">저장된 시행 결과가 없습니다.</div>
+            ` : history.map((h) => `
+              <div class="roulette-set-item" style="${h.id === selectedId ? 'border-color:#e5b824;background:#fff9df;' : ''}">
+                <button type="button" class="roulette-set-load" data-lh-sel="${h.id}">
+                  <span class="roulette-set-date">${formatLadderDate(h.timestamp)}</span>
+                  <strong>${(h.pairs || []).length}명 · ${escapeHtml((h.pairs || []).slice(0, 2).map((p) => `${p.name}:${p.result}`).join(', '))}</strong>
+                </button>
+                <button type="button" class="roulette-set-del" data-lh-del="${h.id}" title="삭제">&times;</button>
+              </div>
+            `).join('')}
+          </div>
+          <div style="background:#252525;border-radius:8px;padding:16px 20px;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">
+            ${activeItem ? `
+              <div style="font-size:12px;color:#b8b8b8;margin-bottom:4px;">${formatLadderDate(activeItem.timestamp)} (${activeItem.pairs.length}명)</div>
+              ${activeItem.pairs.map((p) => `
+                <div class="ladder-final-row" style="font-size:18px;">
+                  <span class="ladder-final-name" style="min-width:92px;">${escapeHtml(p.name)}</span>
+                  <span class="ladder-final-res">${escapeHtml(p.result)}</span>
+                </div>
+              `).join('')}
+            ` : `
+              <div style="margin:auto;color:#9a9a9a;font-size:13px;">왼쪽에서 확인할 시행을 선택하세요.</div>
+            `}
+          </div>
+        </div>
+      </div>
+    `;
+
+    backdrop.querySelector('#btn-lh-close').onclick = close;
+    backdrop.querySelectorAll('[data-lh-sel]').forEach((b) => {
+      b.onclick = () => {
+        selectedId = b.dataset.lhSel;
+        renderModal();
+      };
+    });
+    backdrop.querySelectorAll('[data-lh-del]').forEach((b) => {
+      b.onclick = async () => {
+        const hid = b.dataset.lhDel;
+        await store.update((s) => {
+          s.tools.ladderHistory = (s.tools.ladderHistory || []).filter((x) => x.id !== hid);
+        });
+        if (selectedId === hid) selectedId = null;
+        renderModal();
+        renderPickerView(root);
+      };
+    });
+  };
+
+  backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+  renderModal();
+  modalRoot.appendChild(backdrop);
 }
 
 /** 성별 일괄입력 모달 */

@@ -182,6 +182,17 @@ export function createDefaultState() {
         },
       ],
       ladderResults: ['당첨!', '통과', '통과', '보너스 +1', '통과', '발표왕'],
+      ladderOrientation: 'horizontal', // 'horizontal' (좌우 이동) | 'vertical' (상하 이동)
+      ladderHistory: [], // [{ id, timestamp, pairs: [{ name, result }] }]
+      ladderSets: [
+        {
+          id: 'lset-default-1',
+          title: '당첨!, 통과, 통과 외 3',
+          items: ['당첨!', '통과', '통과', '보너스 +1', '통과', '발표왕'],
+          favorite: true,
+          updatedAt: Date.now(),
+        },
+      ],
     },
     assignments: [],
     submissions: {}, // { [assignmentId]: { [studentId]: Submission } }
